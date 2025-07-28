@@ -13,7 +13,7 @@ services:
       IS_SANDBOX: 1 # for claude code to work on the {{ $.Settings.DockerUser }} user
       TEAM_NAME: {{ $.Settings.TeamName }}
       GITHUB_REPO: {{ $.Repository.URL }}
-      GH_TOKEN: ${{"${"}}{{ .GitHubTokenEnv }}{{"}"}}
+      GH_TOKEN: ${{ "{"}}{{ .GitHubTokenEnv }}{{ "}" }}
       AGENT_NAME: {{ .Name }}
       AGENT_PROMPT: {{ .Prompt | printf "%q" }}
       COMMON_PROMPT: {{ .CommonPrompt | printf "%q" }}
