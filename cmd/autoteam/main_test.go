@@ -75,8 +75,8 @@ agents:
 	}
 
 	// entrypoint.sh is no longer generated - it's copied from system entrypoints directory
-	if !testutil.DirExists("agents") {
-		t.Errorf("agents directory should be created")
+	if !testutil.DirExists(".autoteam") {
+		t.Errorf(".autoteam directory should be created")
 	}
 
 	// Verify content
@@ -228,9 +228,9 @@ echo "Integration test"`
 	expectedFiles := []string{
 		"autoteam.yaml",
 		"compose.yaml",
-		"agents/dev1/codebase",
-		"agents/arch1/codebase",
-		"shared",
+		".autoteam/agents/dev1/codebase",
+		".autoteam/agents/arch1/codebase",
+		".autoteam/shared",
 	}
 
 	for _, file := range expectedFiles {
@@ -239,8 +239,8 @@ echo "Integration test"`
 		}
 	}
 
-	// Verify agents/entrypoints directory exists (even if empty due to no system installation)
-	if !testutil.DirExists("agents/entrypoints") {
-		t.Errorf("agents/entrypoints directory should be created")
+	// Verify .autoteam/entrypoints directory exists (even if empty due to no system installation)
+	if !testutil.DirExists(".autoteam/entrypoints") {
+		t.Errorf(".autoteam/entrypoints directory should be created")
 	}
 }

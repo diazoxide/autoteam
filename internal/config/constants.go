@@ -5,14 +5,17 @@ const (
 	// SystemEntrypointsDir is the system-wide installation directory for entrypoint binaries
 	SystemEntrypointsDir = "/opt/auto-team/entrypoints"
 
+	// AutoTeamDir is the main .autoteam directory for all generated files
+	AutoTeamDir = ".autoteam"
+
 	// LocalEntrypointsPath is the local path where entrypoints are copied during generation
-	LocalEntrypointsPath = "agents/entrypoints"
+	LocalEntrypointsPath = AutoTeamDir + "/entrypoints"
 
 	// AgentsDir is the base directory for all agent-specific directories
-	AgentsDir = "agents"
+	AgentsDir = AutoTeamDir + "/agents"
 
 	// SharedDir is the directory for shared configuration files
-	SharedDir = "shared"
+	SharedDir = AutoTeamDir + "/shared"
 
 	// CodebaseSubdir is the subdirectory name for agent codebase
 	CodebaseSubdir = "codebase"

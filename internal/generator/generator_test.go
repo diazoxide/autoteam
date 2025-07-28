@@ -101,17 +101,17 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 		t.Errorf("compose.yaml should contain repository URL")
 	}
 
-	// Verify agents/entrypoints directory was created (entrypoint.sh is no longer generated)
-	if !testutil.DirExists("agents/entrypoints") {
-		t.Errorf("agents/entrypoints directory should be created")
+	// Verify .autoteam/entrypoints directory was created (entrypoint.sh is no longer generated)
+	if !testutil.DirExists(".autoteam/entrypoints") {
+		t.Errorf(".autoteam/entrypoints directory should be created")
 	}
 
 	// Verify agent directories were created
 	agentDirs := []string{
-		"agents/dev1/codebase",
-		"agents/dev1/claude",
-		"agents/arch1/codebase",
-		"agents/arch1/claude",
+		".autoteam/agents/dev1/codebase",
+		".autoteam/agents/dev1/claude",
+		".autoteam/agents/arch1/codebase",
+		".autoteam/agents/arch1/claude",
 	}
 
 	for _, dir := range agentDirs {
@@ -122,10 +122,10 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 
 	// Verify claude config files were created
 	claudeFiles := []string{
-		"agents/dev1/claude/.claude",
-		"agents/dev1/claude/.claude.json",
-		"agents/arch1/claude/.claude",
-		"agents/arch1/claude/.claude.json",
+		".autoteam/agents/dev1/claude/.claude",
+		".autoteam/agents/dev1/claude/.claude.json",
+		".autoteam/agents/arch1/claude/.claude",
+		".autoteam/agents/arch1/claude/.claude.json",
 	}
 
 	for _, file := range claudeFiles {
@@ -135,8 +135,8 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 	}
 
 	// Verify shared directory was created
-	if !testutil.FileExists("shared") {
-		t.Errorf("shared directory should be created")
+	if !testutil.FileExists(".autoteam/shared") {
+		t.Errorf(".autoteam/shared directory should be created")
 	}
 }
 
@@ -168,10 +168,10 @@ func TestGenerator_CreateAgentDirectories(t *testing.T) {
 
 	// Verify directories were created
 	expectedDirs := []string{
-		"agents/test1/codebase",
-		"agents/test1/claude",
-		"agents/test2/codebase",
-		"agents/test2/claude",
+		".autoteam/agents/test1/codebase",
+		".autoteam/agents/test1/claude",
+		".autoteam/agents/test2/codebase",
+		".autoteam/agents/test2/claude",
 	}
 
 	for _, dir := range expectedDirs {
@@ -182,10 +182,10 @@ func TestGenerator_CreateAgentDirectories(t *testing.T) {
 
 	// Verify claude config files were created
 	expectedFiles := []string{
-		"agents/test1/claude/.claude",
-		"agents/test1/claude/.claude.json",
-		"agents/test2/claude/.claude",
-		"agents/test2/claude/.claude.json",
+		".autoteam/agents/test1/claude/.claude",
+		".autoteam/agents/test1/claude/.claude.json",
+		".autoteam/agents/test2/claude/.claude",
+		".autoteam/agents/test2/claude/.claude.json",
 	}
 
 	for _, file := range expectedFiles {
@@ -195,7 +195,7 @@ func TestGenerator_CreateAgentDirectories(t *testing.T) {
 	}
 
 	// Verify .claude.json has valid JSON
-	jsonContent := testutil.ReadFile(t, "agents/test1/claude/.claude.json")
+	jsonContent := testutil.ReadFile(t, ".autoteam/agents/test1/claude/.claude.json")
 	if jsonContent != "{}" {
 		t.Errorf(".claude.json should contain '{}', got %s", jsonContent)
 	}

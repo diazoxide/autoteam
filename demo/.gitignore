@@ -1,8 +1,7 @@
 # Generated files and directories
 compose.yaml
 entrypoint.sh
-agents/
-shared/
+.autoteam/
 
 # Test binaries and artifacts
 autoteam-test

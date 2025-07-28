@@ -15,9 +15,24 @@ ENTRYPOINT_MAIN_PATH := ./cmd/entrypoint
 BUILD_DIR := build
 DIST_DIR := dist
 
-# Go build flags
-LDFLAGS := -ldflags "-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)"
-GO_BUILD := go build $(LDFLAGS)
+# Build mode (dev or prod)
+BUILD_MODE ?= prod
+
+# Go build flags - different for dev vs prod
+ifeq ($(BUILD_MODE),dev)
+	LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)"
+	GO_BUILD := go build -race $(LDFLAGS)
+	BUILD_SUFFIX := -dev
+else
+	LDFLAGS := -ldflags "-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)"
+	GO_BUILD := go build $(LDFLAGS)  
+	BUILD_SUFFIX :=
+endif
+
+# Source files for dependency tracking
+GO_SOURCES := $(shell find . -name "*.go" -not -path "./vendor/*" -not -path "./.git/*")
+MAIN_SOURCES := $(shell find $(MAIN_PATH) -name "*.go")
+ENTRYPOINT_SOURCES := $(shell find $(ENTRYPOINT_MAIN_PATH) -name "*.go")
 
 # Platform and architecture combinations
 PLATFORMS := \
@@ -27,11 +42,6 @@ PLATFORMS := \
 	linux/arm64 \
 	linux/386 \
 	linux/arm
-
-# Linux platforms for entrypoint (Docker focus)
-LINUX_PLATFORMS := \
-	linux/amd64 \
-	linux/arm64
 
 # Colors for output
 RED := \033[0;31m
@@ -44,8 +54,8 @@ NC := \033[0m # No Color
 
 .PHONY: all build clean test install dev help
 .PHONY: build-all build-darwin build-linux build-entrypoint build-entrypoint-all
-.PHONY: package package-all release
-.PHONY: install-darwin install-linux
+.PHONY: package package-all release checksums verify
+.PHONY: install-darwin install-linux dev-mode prod-mode
 
 # Default target
 all: clean test build
@@ -63,34 +73,46 @@ help: ## Show this help
 	@echo "  Git Commit:  $(GIT_COMMIT)"
 	@echo "  Go Version:  $(GO_VERSION)"
 
-# Development build (current platform)
-build: ## Build binary for current platform
+# Development build (current platform) - with dependency tracking
+$(BUILD_DIR)/$(BINARY_NAME): $(GO_SOURCES) $(MAIN_SOURCES) | $(BUILD_DIR)
 	@echo "$(BLUE)Building $(BINARY_NAME) for current platform...$(NC)"
-	@mkdir -p $(BUILD_DIR)
-	$(GO_BUILD) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PATH)
-	@echo "$(GREEN)✓ Built: $(BUILD_DIR)/$(BINARY_NAME)$(NC)"
+	$(GO_BUILD) -o $@ $(MAIN_PATH)
+	@echo "$(GREEN)✓ Built: $@$(NC)"
 
-# Build entrypoint binary (current platform)
-build-entrypoint: ## Build entrypoint binary for current platform
+# Build entrypoint binary (current platform) - with dependency tracking  
+$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME): $(GO_SOURCES) $(ENTRYPOINT_SOURCES) | $(BUILD_DIR)
 	@echo "$(BLUE)Building $(ENTRYPOINT_BINARY_NAME) for current platform...$(NC)"
-	@mkdir -p $(BUILD_DIR)
-	$(GO_BUILD) -o $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME) $(ENTRYPOINT_MAIN_PATH)
-	@echo "$(GREEN)✓ Built: $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)$(NC)"
+	$(GO_BUILD) -o $@ $(ENTRYPOINT_MAIN_PATH)
+	@echo "$(GREEN)✓ Built: $@$(NC)"
 
-# Build entrypoint for Linux platforms (Docker focus)
-build-entrypoint-all: $(LINUX_PLATFORMS:=/entrypoint) ## Build entrypoint binaries for Linux platforms only
+# Convenience targets
+build: $(BUILD_DIR)/$(BINARY_NAME) ## Build binary for current platform
+build-entrypoint: $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME) ## Build entrypoint binary for current platform
+
+# Ensure build directory exists
+$(BUILD_DIR):
+	@mkdir -p $(BUILD_DIR)
+
+# Build entrypoint binaries for all platforms  
+build-entrypoint-all: $(PLATFORMS:=/entrypoint) ## Build entrypoint binaries for all platforms
 	@echo "$(GREEN)✓ All entrypoint builds completed in $(BUILD_DIR)/$(NC)"
 
-# Build for all platforms (main + entrypoint binaries)
-build-all: clean-build $(PLATFORMS) $(LINUX_PLATFORMS:=/entrypoint) ## Build main and entrypoint binaries for all supported platforms
+# Build for all platforms (main + entrypoint binaries) - with parallel execution
+build-all: clean-build ## Build main and entrypoint binaries for all supported platforms
+	@echo "$(BLUE)Building all platforms in parallel...$(NC)"
+	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) $(PLATFORMS) $(PLATFORMS:=/entrypoint)
 	@echo "$(GREEN)✓ All builds completed in $(BUILD_DIR)/$(NC)"
 
-# Build for macOS platforms
-build-darwin: clean-build darwin/amd64 darwin/arm64 ## Build binaries for macOS (Intel + Apple Silicon)
+# Build for macOS platforms - with parallel execution
+build-darwin: clean-build ## Build binaries for macOS (Intel + Apple Silicon)
+	@echo "$(BLUE)Building macOS platforms in parallel...$(NC)"
+	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 2) darwin/amd64 darwin/arm64
 	@echo "$(GREEN)✓ macOS builds completed$(NC)"
 
-# Build for Linux platforms (main + entrypoint binaries)
-build-linux: clean-build linux/amd64 linux/arm64 linux/386 linux/arm linux/amd64/entrypoint linux/arm64/entrypoint ## Build main and entrypoint binaries for Linux (all architectures) 
+# Build for Linux platforms (main + entrypoint binaries) - with parallel execution
+build-linux: clean-build ## Build main and entrypoint binaries for Linux (all architectures) 
+	@echo "$(BLUE)Building Linux platforms in parallel...$(NC)"
+	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) linux/amd64 linux/arm64 linux/386 linux/arm linux/amd64/entrypoint linux/arm64/entrypoint
 	@echo "$(GREEN)✓ Linux builds completed$(NC)"
 
 # Individual platform targets
@@ -105,7 +127,7 @@ $(PLATFORMS):
 	@echo "$(GREEN)  ✓ $(BINARY)$(BINARY_EXT)$(NC)"
 
 # Individual entrypoint platform targets
-$(LINUX_PLATFORMS:=/entrypoint):
+$(PLATFORMS:=/entrypoint):
 	$(eval GOOS := $(word 1,$(subst /, ,$(subst /entrypoint,,$@))))
 	$(eval GOARCH := $(word 2,$(subst /, ,$(subst /entrypoint,,$@))))
 	$(eval BINARY := $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)-$(GOOS)-$(GOARCH))
@@ -114,11 +136,20 @@ $(LINUX_PLATFORMS:=/entrypoint):
 	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o $(BINARY) $(ENTRYPOINT_MAIN_PATH)
 	@echo "$(GREEN)  ✓ $(BINARY)$(NC)"
 
+# Development mode builds  
+dev-mode: ## Switch to development build mode (race detection, no optimization)
+	@echo "$(BLUE)Switching to development build mode...$(NC)"
+	@$(MAKE) BUILD_MODE=dev build
+	@echo "$(GREEN)✓ Development build ready with race detection$(NC)"
+
+# Production mode builds
+prod-mode: ## Switch to production build mode (optimized, stripped)
+	@echo "$(BLUE)Switching to production build mode...$(NC)"
+	@$(MAKE) BUILD_MODE=prod build  
+	@echo "$(GREEN)✓ Production build ready$(NC)"
+
 # Development target with hot reload
-dev: ## Build and install for development
-	@echo "$(BLUE)Building development version...$(NC)"
-	$(GO_BUILD) -o $(BINARY_NAME) $(MAIN_PATH)
-	@echo "$(GREEN)✓ Development build ready: ./$(BINARY_NAME)$(NC)"
+dev: dev-mode ## Build and install for development
 
 # Test targets
 test: ## Run all tests
@@ -198,7 +229,15 @@ install-darwin: ## Install on macOS
 		sudo chmod +x /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
 		echo "$(GREEN)✓ Installed $(ENTRYPOINT_BINARY_NAME) to /usr/local/bin/$(ENTRYPOINT_BINARY_NAME)$(NC)"; \
 	else \
-		echo "$(YELLOW)⚠ $(ENTRYPOINT_BINARY_NAME) not found, run 'make build-entrypoint' first$(NC)"; \
+		CURRENT_ARCH=$$(uname -m | sed 's/x86_64/amd64/'); \
+		PLATFORM_BINARY="$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)-darwin-$$CURRENT_ARCH"; \
+		if [ -f "$$PLATFORM_BINARY" ]; then \
+			sudo cp "$$PLATFORM_BINARY" /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
+			sudo chmod +x /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
+			echo "$(GREEN)✓ Installed $(ENTRYPOINT_BINARY_NAME) to /usr/local/bin/$(ENTRYPOINT_BINARY_NAME)$(NC)"; \
+		else \
+			echo "$(YELLOW)⚠ No entrypoint binary found, run 'make build-entrypoint' or 'make build-entrypoint-all' first$(NC)"; \
+		fi; \
 	fi
 
 install-linux: ## Install on Linux
@@ -235,7 +274,7 @@ install-linux: ## Install on Linux
 		sudo chmod +x /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
 		echo "$(GREEN)✓ Installed $(ENTRYPOINT_BINARY_NAME) to /usr/local/bin/$(ENTRYPOINT_BINARY_NAME)$(NC)"; \
 	else \
-		echo "$(YELLOW)⚠ $(ENTRYPOINT_BINARY_NAME) not found, run 'make build-entrypoint' first$(NC)"; \
+		echo "$(YELLOW)⚠ No entrypoint binary found, run 'make build-entrypoint' or 'make build-entrypoint-all' first$(NC)"; \
 	fi
 
 install-entrypoints: ## Install entrypoint binaries for all platforms to /opt/auto-team/entrypoints
@@ -245,7 +284,7 @@ install-entrypoints: ## Install entrypoint binaries for all platforms to /opt/au
 	@sudo cp scripts/entrypoint.sh /opt/auto-team/entrypoints/entrypoint.sh
 	@sudo chmod +x /opt/auto-team/entrypoints/entrypoint.sh
 	@echo "$(GREEN)✓ Installed entrypoint.sh to /opt/auto-team/entrypoints/entrypoint.sh$(NC)"
-	@for platform in $(LINUX_PLATFORMS); do \
+	@for platform in $(PLATFORMS); do \
 		GOOS=$$(echo $$platform | cut -d'/' -f1); \
 		GOARCH=$$(echo $$platform | cut -d'/' -f2); \
 		BINARY="$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)-$$GOOS-$$GOARCH"; \
@@ -256,25 +295,6 @@ install-entrypoints: ## Install entrypoint binaries for all platforms to /opt/au
 			echo "$(GREEN)✓ Installed $$TARGET$(NC)"; \
 		else \
 			echo "$(YELLOW)⚠ Binary not found: $$BINARY$(NC)"; \
-		fi; \
-	done
-	@for platform in darwin-amd64 darwin-arm64; do \
-		TARGET="/opt/auto-team/entrypoints/$(ENTRYPOINT_BINARY_NAME)-$$platform"; \
-		if [ "$$(uname)" = "Darwin" ]; then \
-			CURRENT_ARCH=$$(uname -m | sed 's/x86_64/amd64/'); \
-			if [ "$$platform" = "darwin-$$CURRENT_ARCH" ]; then \
-				if [ -f "$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)" ]; then \
-					sudo cp "$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)" "$$TARGET"; \
-					sudo chmod +x "$$TARGET"; \
-					echo "$(GREEN)✓ Installed $$TARGET$(NC)"; \
-				else \
-					echo "$(YELLOW)⚠ Current platform entrypoint binary not found: $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)$(NC)"; \
-				fi; \
-			else \
-				echo "$(YELLOW)⚠ Cross-platform Darwin binary not available for $$platform$(NC)"; \
-			fi; \
-		else \
-			echo "$(YELLOW)⚠ Cannot install Darwin binaries on $$(uname) platform$(NC)"; \
 		fi; \
 	done
 	@echo "$(GREEN)✓ All available entrypoint binaries installed to /opt/auto-team/entrypoints$(NC)"
@@ -301,11 +321,29 @@ uninstall: ## Uninstall binaries from system
 		echo "$(YELLOW)! Entrypoints directory not found in /opt/auto-team/entrypoints$(NC)"; \
 	fi
 
+# Generate checksums for build artifacts
+checksums: build-all ## Generate SHA256 checksums for all build artifacts
+	@echo "$(BLUE)Generating checksums...$(NC)"
+	@cd $(BUILD_DIR) && find . -name "$(BINARY_NAME)*" -o -name "$(ENTRYPOINT_BINARY_NAME)*" | xargs shasum -a 256 > checksums.txt
+	@echo "$(GREEN)✓ Checksums generated in $(BUILD_DIR)/checksums.txt$(NC)"
+
+# Verify build artifacts
+verify: ## Verify build artifact checksums
+	@echo "$(BLUE)Verifying checksums...$(NC)"
+	@if [ -f "$(BUILD_DIR)/checksums.txt" ]; then \
+		cd $(BUILD_DIR) && shasum -a 256 -c checksums.txt; \
+		echo "$(GREEN)✓ All checksums verified$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠ No checksums file found, run 'make checksums' first$(NC)"; \
+	fi
+
 # Release target
-release: clean test build-all package ## Create a complete release (test + build + package)
+release: clean test build-all checksums package ## Create a complete release (test + build + package + checksums)
 	@echo "$(GREEN)✓ Release $(VERSION) ready in $(DIST_DIR)/$(NC)"
 	@echo "$(CYAN)Release artifacts:$(NC)"
 	@ls -la $(DIST_DIR)/
+	@echo "$(CYAN)Build checksums:$(NC)"
+	@cat $(BUILD_DIR)/checksums.txt
 
 # Clean targets
 clean: clean-build clean-dist ## Clean all generated files
@@ -360,6 +398,7 @@ info: ## Show build information
 	@echo "  Build Time:   $(BUILD_TIME)"
 	@echo "  Git Commit:   $(GIT_COMMIT)"
 	@echo "  Go Version:   $(GO_VERSION)"
+	@echo "  Build Mode:   $(BUILD_MODE)$(BUILD_SUFFIX)"
 	@echo "  Build Dir:    $(BUILD_DIR)"
 	@echo "  Dist Dir:     $(DIST_DIR)"
 	@echo ""

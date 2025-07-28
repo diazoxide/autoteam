@@ -2,10 +2,9 @@
 *.iml
 
 # Generated files and directories
-agents/**
+.autoteam/
 compose.yaml
 entrypoint.sh
-shared/
 
 # Build artifacts
 build/
