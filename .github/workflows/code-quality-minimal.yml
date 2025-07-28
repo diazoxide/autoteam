@@ -24,7 +24,7 @@ jobs:
       uses: golangci/golangci-lint-action@v3
       with:
         version: latest
-        args: --timeout=10m --disable=depguard,gosec,goconst
+        args: --timeout=10m
 
   format-check:
     name: Format Check

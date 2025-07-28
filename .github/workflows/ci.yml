@@ -170,4 +170,4 @@ jobs:
     - name: Validate generated Docker Compose
       run: |
         # Check if compose.yaml is valid
-        docker-compose -f compose.yaml config
+        docker compose -f compose.yaml config
