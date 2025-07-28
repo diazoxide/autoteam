@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -173,23 +172,4 @@ func (c *ClaudeAgent) buildArgs(options RunOptions) []string {
 	args = append(args, "--print")
 
 	return args
-}
-
-// getClaudePath returns the expected path to the Claude binary
-func (c *ClaudeAgent) getClaudePath() string {
-	// Try common locations for global npm packages
-	paths := []string{
-		"/usr/local/bin/claude",
-		"/usr/bin/claude",
-		filepath.Join(os.Getenv("HOME"), ".npm-global", "bin", "claude"),
-	}
-
-	for _, path := range paths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	// Fall back to PATH lookup
-	return "claude"
 }
