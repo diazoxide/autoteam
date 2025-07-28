@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,14 +10,13 @@ import (
 	"auto-team/internal/config"
 )
 
-type Generator struct {
-	templatesDir string
-}
+//go:embed templates/*
+var templateFS embed.FS
+
+type Generator struct {}
 
 func New() *Generator {
-	return &Generator{
-		templatesDir: "templates",
-	}
+	return &Generator{}
 }
 
 func (g *Generator) GenerateCompose(cfg *config.Config) error {
@@ -83,11 +83,33 @@ func (g *Generator) createAgentDirectories(cfg *config.Config) error {
 }
 
 func (g *Generator) generateFile(templateFile, outputFile string, cfg *config.Config) error {
-	templatePath := filepath.Join(g.templatesDir, templateFile)
+	templatePath := filepath.Join("templates", templateFile)
 
-	tmpl, err := template.ParseFiles(templatePath)
+	// Try embedded template first
+	templateContent, err := templateFS.ReadFile(templatePath)
 	if err != nil {
-		return fmt.Errorf("failed to parse template %s: %w", templatePath, err)
+		// Fall back to external file for testing
+		externalPath := filepath.Join("templates", templateFile)
+		tmpl, err := template.ParseFiles(externalPath)
+		if err != nil {
+			return fmt.Errorf("failed to read embedded template %s and external template %s: %w", templatePath, externalPath, err)
+		}
+		
+		output, err := os.Create(outputFile)
+		if err != nil {
+			return fmt.Errorf("failed to create output file %s: %w", outputFile, err)
+		}
+		defer output.Close()
+
+		if err := tmpl.Execute(output, cfg); err != nil {
+			return fmt.Errorf("failed to execute template %s: %w", templateFile, err)
+		}
+		return nil
+	}
+
+	tmpl, err := template.New(templateFile).Parse(string(templateContent))
+	if err != nil {
+		return fmt.Errorf("failed to parse template %s: %w", templateFile, err)
 	}
 
 	output, err := os.Create(outputFile)

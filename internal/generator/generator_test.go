@@ -291,7 +291,7 @@ func TestGenerator_GenerateFile_TemplateError(t *testing.T) {
 	if err == nil {
 		t.Errorf("generateFile() should fail with non-existent template")
 	}
-	if !strings.Contains(err.Error(), "failed to parse template") {
-		t.Errorf("error should mention template parsing, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to read embedded template") {
+		t.Errorf("error should mention template reading, got: %v", err)
 	}
 }
