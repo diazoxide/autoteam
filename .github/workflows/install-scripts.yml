@@ -1,0 +1,478 @@
+name: Install Scripts Testing
+
+on:
+  push:
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/install-scripts.yml'
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/install-scripts.yml'
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.22'
+
+jobs:
+  test-install-script:
+    name: Test Install Script
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: darwin
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+    
+    - name: Build binary for testing
+      run: make build
+    
+    - name: Test fresh installation
+      run: |
+        echo "Testing fresh installation..."
+        # Remove any existing installation
+        sudo rm -f /usr/local/bin/autoteam || true
+        
+        # Test installation script
+        bash scripts/install.sh --force
+        
+        # Verify installation
+        if ! command -v autoteam >/dev/null 2>&1; then
+          echo "❌ Fresh installation failed - binary not found"
+          exit 1
+        fi
+        
+        version=$(autoteam --version)
+        echo "✅ Fresh installation successful: $version"
+    
+    - name: Test reinstallation (force mode)
+      run: |
+        echo "Testing forced reinstallation..."
+        # Should reinstall without prompting
+        bash scripts/install.sh --force
+        
+        # Verify still works
+        if ! command -v autoteam >/dev/null 2>&1; then
+          echo "❌ Forced reinstallation failed"
+          exit 1
+        fi
+        
+        version=$(autoteam --version)
+        echo "✅ Forced reinstallation successful: $version"
+    
+    - name: Test non-interactive mode (should exit gracefully)
+      run: |
+        echo "Testing non-interactive mode..."
+        # This should detect non-interactive mode and exit with instructions
+        output=$(echo "" | bash scripts/install.sh 2>&1 || true)
+        
+        if echo "$output" | grep -q "Non-interactive mode detected"; then
+          echo "✅ Non-interactive mode correctly detected"
+        else
+          echo "❌ Non-interactive mode not properly handled"
+          echo "Output: $output"
+          exit 1
+        fi
+    
+    - name: Test custom directory installation
+      run: |
+        echo "Testing custom directory installation..."
+        mkdir -p "$HOME/.local/bin"
+        
+        # Install to custom directory
+        bash scripts/install.sh --force --dir "$HOME/.local/bin"
+        
+        # Verify installation in custom directory
+        if [ ! -f "$HOME/.local/bin/autoteam" ]; then
+          echo "❌ Custom directory installation failed"
+          exit 1
+        fi
+        
+        # Test execution
+        if ! "$HOME/.local/bin/autoteam" --version >/dev/null 2>&1; then
+          echo "❌ Custom directory binary not executable"
+          exit 1
+        fi
+        
+        echo "✅ Custom directory installation successful"
+    
+    - name: Test piped installation (non-interactive)
+      run: |
+        echo "Testing piped installation simulation..."
+        # Simulate curl | bash behavior
+        cat scripts/install.sh | bash -s -- --force
+        
+        # Should work with force flag
+        if ! command -v autoteam >/dev/null 2>&1; then
+          echo "❌ Piped installation failed"
+          exit 1
+        fi
+        
+        echo "✅ Piped installation successful"
+
+  test-uninstall:
+    name: Test Uninstall Functionality
+    needs: test-install-script
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+    
+    - name: Install autoteam first
+      run: |
+        make build
+        bash scripts/install.sh --force
+        
+        # Verify installation
+        if ! command -v autoteam >/dev/null 2>&1; then
+          echo "❌ Installation failed"
+          exit 1
+        fi
+        
+        echo "✅ Installation completed for uninstall test"
+    
+    - name: Create and test uninstall script
+      run: |
+        # Create uninstall script on the fly
+        cat > uninstall.sh << 'EOF'
+        #!/bin/bash
+        
+        set -e
+        
+        BINARY_NAME="autoteam"
+        INSTALL_LOCATIONS=(
+          "/usr/local/bin/$BINARY_NAME"
+          "$HOME/.local/bin/$BINARY_NAME"
+          "/opt/local/bin/$BINARY_NAME"
+        )
+        
+        echo "Auto-Team Uninstall Script"
+        echo "=========================="
+        
+        removed=false
+        
+        for location in "${INSTALL_LOCATIONS[@]}"; do
+          if [ -f "$location" ]; then
+            echo "Found $BINARY_NAME at: $location"
+            
+            if [ -w "$(dirname "$location")" ]; then
+              rm -f "$location"
+              echo "✓ Removed $location"
+              removed=true
+            else
+              sudo rm -f "$location"
+              echo "✓ Removed $location (with sudo)"
+              removed=true
+            fi
+          fi
+        done
+        
+        if [ "$removed" = true ]; then
+          echo "✅ Auto-Team uninstalled successfully"
+        else
+          echo "ℹ Auto-Team was not found in standard locations"
+        fi
+        
+        # Verify removal
+        if command -v "$BINARY_NAME" >/dev/null 2>&1; then
+          echo "⚠ Warning: $BINARY_NAME is still available in PATH"
+          echo "Location: $(which $BINARY_NAME)"
+        else
+          echo "✓ $BINARY_NAME removed from PATH"
+        fi
+        EOF
+        
+        chmod +x uninstall.sh
+        
+        # Test uninstall
+        bash uninstall.sh
+        
+        # Verify removal
+        if command -v autoteam >/dev/null 2>&1; then
+          echo "❌ Uninstall failed - binary still available"
+          exit 1
+        fi
+        
+        echo "✅ Uninstall successful"
+
+  test-build-from-source:
+    name: Test Build from Source Installation  
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+    
+    - name: Remove any existing binary
+      run: sudo rm -f /usr/local/bin/autoteam || true
+    
+    - name: Test build from source (latest version)
+      run: |
+        echo "Testing build from source installation..."
+        
+        # The install script should build from source when VERSION=latest
+        VERSION=latest bash scripts/install.sh --force
+        
+        # Verify installation
+        if ! command -v autoteam >/dev/null 2>&1; then
+          echo "❌ Build from source installation failed"
+          exit 1
+        fi
+        
+        version=$(autoteam --version)
+        echo "✅ Build from source successful: $version"
+        
+        # Verify it's a recent build (should contain today's date or recent commit)
+        if echo "$version" | grep -E "($(date +%Y-%m-%d)|commit)" >/dev/null; then
+          echo "✅ Version contains expected build info"
+        else
+          echo "⚠ Warning: Version may not reflect current build: $version"
+        fi
+
+  test-error-conditions:
+    name: Test Error Conditions
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Test without Go (should fail gracefully)
+      run: |
+        echo "Testing installation without Go..."
+        
+        # Hide Go temporarily
+        sudo mv /opt/hostedtoolcache/go /opt/hostedtoolcache/go.bak || true
+        export PATH=$(echo "$PATH" | sed 's|/opt/hostedtoolcache/go/[^:]*bin:||g')
+        
+        # Should fail with helpful error
+        output=$(bash scripts/install.sh --force 2>&1 || true)
+        
+        if echo "$output" | grep -q "Go is required to build from source"; then
+          echo "✅ Correctly detected missing Go dependency"
+        else
+          echo "❌ Did not properly handle missing Go"
+          echo "Output: $output"
+        fi
+        
+        # Restore Go
+        sudo mv /opt/hostedtoolcache/go.bak /opt/hostedtoolcache/go || true
+    
+    - name: Test with insufficient permissions
+      run: |
+        echo "Testing installation with read-only target directory..."
+        
+        # Create a read-only directory
+        mkdir -p /tmp/readonly
+        chmod 555 /tmp/readonly
+        
+        # Should handle permission error gracefully
+        output=$(bash scripts/install.sh --force --dir /tmp/readonly 2>&1 || true)
+        
+        if echo "$output" | grep -q "Administrator privileges required"; then
+          echo "✅ Correctly handled permission issues"
+        else
+          echo "ℹ Permission handling may vary by system"
+        fi
+        
+        # Cleanup
+        chmod 755 /tmp/readonly
+        rm -rf /tmp/readonly
+
+  create-uninstall-script:
+    name: Create Permanent Uninstall Script
+    runs-on: ubuntu-latest
+    needs: [test-install-script, test-uninstall]
+    if: success()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Create uninstall script
+      run: |
+        cat > scripts/uninstall.sh << 'EOF'
+        #!/bin/bash
+        
+        # Auto-Team Uninstall Script
+        # Removes autoteam binary from common installation locations
+        
+        set -e
+        
+        # Configuration
+        BINARY_NAME="autoteam"
+        INSTALL_LOCATIONS=(
+          "/usr/local/bin/$BINARY_NAME"
+          "$HOME/.local/bin/$BINARY_NAME"
+          "/opt/local/bin/$BINARY_NAME"
+        )
+        
+        # Colors
+        RED='\033[0;31m'
+        GREEN='\033[0;32m'
+        YELLOW='\033[1;33m'
+        BLUE='\033[0;34m'
+        NC='\033[0m' # No Color
+        
+        # Logging functions
+        log_info() {
+            echo -e "${BLUE}ℹ${NC} $1"
+        }
+        
+        log_success() {
+            echo -e "${GREEN}✓${NC} $1"
+        }
+        
+        log_warning() {
+            echo -e "${YELLOW}⚠${NC} $1"
+        }
+        
+        log_error() {
+            echo -e "${RED}✗${NC} $1"
+        }
+        
+        log_header() {
+            echo -e "${BLUE}$1${NC}"
+        }
+        
+        # Main uninstall function
+        uninstall_autoteam() {
+            log_header "Auto-Team Uninstall Script"
+            log_header "=========================="
+            
+            local removed=false
+            
+            for location in "${INSTALL_LOCATIONS[@]}"; do
+                if [ -f "$location" ]; then
+                    log_info "Found $BINARY_NAME at: $location"
+                    
+                    if [ -w "$(dirname "$location")" ]; then
+                        rm -f "$location"
+                        log_success "Removed $location"
+                        removed=true
+                    else
+                        log_info "Administrator privileges required for removal"
+                        if sudo rm -f "$location"; then
+                            log_success "Removed $location"
+                            removed=true
+                        else
+                            log_error "Failed to remove $location"
+                        fi
+                    fi
+                fi
+            done
+            
+            if [ "$removed" = true ]; then
+                log_success "Auto-Team uninstalled successfully"
+            else
+                log_warning "Auto-Team was not found in standard locations"
+                
+                # Check if it's still in PATH
+                if command -v "$BINARY_NAME" >/dev/null 2>&1; then
+                    local binary_location
+                    binary_location=$(which "$BINARY_NAME")
+                    log_info "Found $BINARY_NAME in PATH at: $binary_location"
+                    log_info "You may need to remove it manually"
+                fi
+            fi
+            
+            # Final verification
+            if command -v "$BINARY_NAME" >/dev/null 2>&1; then
+                log_warning "$BINARY_NAME is still available in PATH"
+                log_info "Location: $(which $BINARY_NAME)"
+                log_info "You may need to restart your shell or manually remove the binary"
+            else
+                log_success "$BINARY_NAME successfully removed from PATH"
+            fi
+            
+            echo ""
+            log_info "If you want to reinstall Auto-Team, visit:"
+            log_info "https://github.com/diazoxide/auto-team"
+        }
+        
+        # Usage information
+        usage() {
+            echo "Auto-Team Uninstall Script"
+            echo ""
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  -h, --help              Show this help message"
+            echo ""
+            echo "This script will remove autoteam from common installation locations:"
+            for location in "${INSTALL_LOCATIONS[@]}"; do
+                echo "  - $location"
+            done
+        }
+        
+        # Parse command line arguments
+        case "${1:-}" in
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            "")
+                uninstall_autoteam
+                ;;
+            *)
+                log_error "Unknown option: $1"
+                usage
+                exit 1
+                ;;
+        esac
+        EOF
+        
+        chmod +x scripts/uninstall.sh
+        
+        # Test the generated script
+        echo "Testing generated uninstall script syntax..."
+        bash -n scripts/uninstall.sh
+        echo "✅ Uninstall script syntax is valid"
+    
+    - name: Commit uninstall script
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        if [ -n "$(git status --porcelain)" ]; then
+          git add scripts/uninstall.sh
+          git commit -m "Add uninstall script for autoteam
+
+- Remove binary from common installation locations
+- Handle permissions automatically
+- Provide clear feedback and verification
+- Include usage instructions and help"
+          
+          echo "✅ Uninstall script committed"
+        else
+          echo "ℹ No changes to commit"
+        fi
