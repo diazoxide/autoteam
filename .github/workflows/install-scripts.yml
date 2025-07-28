@@ -308,8 +308,8 @@ jobs:
         chmod 755 /tmp/readonly
         rm -rf /tmp/readonly
 
-  create-uninstall-script:
-    name: Create Permanent Uninstall Script
+  verify-uninstall-script:
+    name: Verify Uninstall Script
     runs-on: ubuntu-latest
     needs: [test-install-script, test-uninstall]
     if: success()
@@ -318,161 +318,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Create uninstall script
+    - name: Test existing uninstall script
       run: |
-        cat > scripts/uninstall.sh << 'EOF'
-        #!/bin/bash
-        
-        # Auto-Team Uninstall Script
-        # Removes autoteam binary from common installation locations
-        
-        set -e
-        
-        # Configuration
-        BINARY_NAME="autoteam"
-        INSTALL_LOCATIONS=(
-          "/usr/local/bin/$BINARY_NAME"
-          "$HOME/.local/bin/$BINARY_NAME"
-          "/opt/local/bin/$BINARY_NAME"
-        )
-        
-        # Colors
-        RED='\033[0;31m'
-        GREEN='\033[0;32m'
-        YELLOW='\033[1;33m'
-        BLUE='\033[0;34m'
-        NC='\033[0m' # No Color
-        
-        # Logging functions
-        log_info() {
-            echo -e "${BLUE}ℹ${NC} $1"
-        }
-        
-        log_success() {
-            echo -e "${GREEN}✓${NC} $1"
-        }
-        
-        log_warning() {
-            echo -e "${YELLOW}⚠${NC} $1"
-        }
-        
-        log_error() {
-            echo -e "${RED}✗${NC} $1"
-        }
-        
-        log_header() {
-            echo -e "${BLUE}$1${NC}"
-        }
-        
-        # Main uninstall function
-        uninstall_autoteam() {
-            log_header "Auto-Team Uninstall Script"
-            log_header "=========================="
-            
-            local removed=false
-            
-            for location in "${INSTALL_LOCATIONS[@]}"; do
-                if [ -f "$location" ]; then
-                    log_info "Found $BINARY_NAME at: $location"
-                    
-                    if [ -w "$(dirname "$location")" ]; then
-                        rm -f "$location"
-                        log_success "Removed $location"
-                        removed=true
-                    else
-                        log_info "Administrator privileges required for removal"
-                        if sudo rm -f "$location"; then
-                            log_success "Removed $location"
-                            removed=true
-                        else
-                            log_error "Failed to remove $location"
-                        fi
-                    fi
-                fi
-            done
-            
-            if [ "$removed" = true ]; then
-                log_success "Auto-Team uninstalled successfully"
-            else
-                log_warning "Auto-Team was not found in standard locations"
-                
-                # Check if it's still in PATH
-                if command -v "$BINARY_NAME" >/dev/null 2>&1; then
-                    local binary_location
-                    binary_location=$(which "$BINARY_NAME")
-                    log_info "Found $BINARY_NAME in PATH at: $binary_location"
-                    log_info "You may need to remove it manually"
-                fi
-            fi
-            
-            # Final verification
-            if command -v "$BINARY_NAME" >/dev/null 2>&1; then
-                log_warning "$BINARY_NAME is still available in PATH"
-                log_info "Location: $(which $BINARY_NAME)"
-                log_info "You may need to restart your shell or manually remove the binary"
-            else
-                log_success "$BINARY_NAME successfully removed from PATH"
-            fi
-            
-            echo ""
-            log_info "If you want to reinstall Auto-Team, visit:"
-            log_info "https://github.com/diazoxide/auto-team"
-        }
-        
-        # Usage information
-        usage() {
-            echo "Auto-Team Uninstall Script"
-            echo ""
-            echo "Usage: $0 [OPTIONS]"
-            echo ""
-            echo "Options:"
-            echo "  -h, --help              Show this help message"
-            echo ""
-            echo "This script will remove autoteam from common installation locations:"
-            for location in "${INSTALL_LOCATIONS[@]}"; do
-                echo "  - $location"
-            done
-        }
-        
-        # Parse command line arguments
-        case "${1:-}" in
-            -h|--help)
-                usage
-                exit 0
-                ;;
-            "")
-                uninstall_autoteam
-                ;;
-            *)
-                log_error "Unknown option: $1"
-                usage
-                exit 1
-                ;;
-        esac
-        EOF
-        
-        chmod +x scripts/uninstall.sh
-        
-        # Test the generated script
-        echo "Testing generated uninstall script syntax..."
-        bash -n scripts/uninstall.sh
-        echo "✅ Uninstall script syntax is valid"
-    
-    - name: Commit uninstall script
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
-        if [ -n "$(git status --porcelain)" ]; then
-          git add scripts/uninstall.sh
-          git commit -m "Add uninstall script for autoteam
-
-- Remove binary from common installation locations
-- Handle permissions automatically
-- Provide clear feedback and verification
-- Include usage instructions and help"
+        if [ -f "scripts/uninstall.sh" ]; then
+          echo "Testing uninstall script syntax..."
+          bash -n scripts/uninstall.sh
+          echo "✅ Uninstall script syntax is valid"
           
-          echo "✅ Uninstall script committed"
+          echo "Testing uninstall script help..."
+          bash scripts/uninstall.sh --help
+          echo "✅ Uninstall script help works"
         else
-          echo "ℹ No changes to commit"
+          echo "⚠ No uninstall script found"
         fi
