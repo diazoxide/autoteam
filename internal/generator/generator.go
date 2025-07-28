@@ -13,7 +13,7 @@ import (
 //go:embed templates/*
 var templateFS embed.FS
 
-type Generator struct {}
+type Generator struct{}
 
 func New() *Generator {
 	return &Generator{}
@@ -90,19 +90,19 @@ func (g *Generator) generateFile(templateFile, outputFile string, cfg *config.Co
 	if err != nil {
 		// Fall back to external file for testing
 		externalPath := filepath.Join("templates", templateFile)
-		tmpl, err := template.ParseFiles(externalPath)
-		if err != nil {
-			return fmt.Errorf("failed to read embedded template %s and external template %s: %w", templatePath, externalPath, err)
+		externalTmpl, parseErr := template.ParseFiles(externalPath)
+		if parseErr != nil {
+			return fmt.Errorf("failed to read embedded template %s and external template %s: %w", templatePath, externalPath, parseErr)
 		}
-		
-		output, err := os.Create(outputFile)
-		if err != nil {
-			return fmt.Errorf("failed to create output file %s: %w", outputFile, err)
+
+		output, createErr := os.Create(outputFile)
+		if createErr != nil {
+			return fmt.Errorf("failed to create output file %s: %w", outputFile, createErr)
 		}
 		defer output.Close()
 
-		if err := tmpl.Execute(output, cfg); err != nil {
-			return fmt.Errorf("failed to execute template %s: %w", templateFile, err)
+		if execErr := externalTmpl.Execute(output, cfg); execErr != nil {
+			return fmt.Errorf("failed to execute template %s: %w", templateFile, execErr)
 		}
 		return nil
 	}
