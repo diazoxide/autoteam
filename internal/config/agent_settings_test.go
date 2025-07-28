@@ -41,10 +41,10 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 			},
 			expectedResult: Settings{
 				DockerImage:   "python:3.11", // overridden
-				DockerUser:    "developer",    // from global
-				CheckInterval: 30,             // overridden
-				TeamName:      "global-team",  // from global
-				InstallDeps:   true,           // from global
+				DockerUser:    "developer",   // from global
+				CheckInterval: 30,            // overridden
+				TeamName:      "global-team", // from global
+				InstallDeps:   true,          // from global
 			},
 		},
 		{
@@ -248,9 +248,9 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 				Volumes:       []string{"./global-vol:/app/global"},
 				Entrypoint:    "",
 				Environment: map[string]string{
-					"GLOBAL_VAR":  "global_value",
-					"SHARED_VAR":  "agent_override", // Agent wins
-					"CUSTOM_VAR":  "custom_value",
+					"GLOBAL_VAR": "global_value",
+					"SHARED_VAR": "agent_override", // Agent wins
+					"CUSTOM_VAR": "custom_value",
 				},
 			},
 		},
@@ -276,9 +276,9 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 				Volumes:       []string{"./python-vol:/app/python"},
 				Entrypoint:    "python /app/main.py",
 				Environment: map[string]string{
-					"GLOBAL_VAR":  "global_value",
-					"SHARED_VAR":  "global_shared",
-					"PYTHON_ENV":  "production",
+					"GLOBAL_VAR": "global_value",
+					"SHARED_VAR": "global_shared",
+					"PYTHON_ENV": "production",
 				},
 			},
 		},

@@ -83,9 +83,9 @@ func TestComposeTemplate(t *testing.T) {
 		"CHECK_INTERVAL: 60",
 		"INSTALL_DEPS: true",
 		"ENTRYPOINT_VERSION: ${ENTRYPOINT_VERSION:-latest}",
-		"MAX_RETRIES: 100",
-		"DEBUG: false",
-		"/home/developer/test-team/codebase",
+		"MAX_RETRIES: ${MAX_RETRIES:-100}",
+		"DEBUG: ${DEBUG:-false}",
+		"/opt/auto-team/codebase",
 		"/home/developer/.claude",
 		"--binary autoteam-entrypoint",
 		"exec /tmp/autoteam-entrypoint",
@@ -378,8 +378,11 @@ func TestComposeTemplateWithAgentSpecificSettings(t *testing.T) {
 	if !strings.Contains(result, "image: node:18.17.1") {
 		t.Error("dev1 should use global docker image")
 	}
-	if !strings.Contains(result, "/home/developer/test-team/codebase") {
-		t.Error("dev1 should use global docker user and team name")
+	if !strings.Contains(result, "/opt/auto-team/codebase") {
+		t.Error("dev1 should use standard codebase directory")
+	}
+	if !strings.Contains(result, "/home/developer/.claude") {
+		t.Error("dev1 should use global docker user for claude config")
 	}
 	if !strings.Contains(result, "CHECK_INTERVAL: 60") {
 		t.Error("dev1 should use global check interval")
@@ -392,8 +395,11 @@ func TestComposeTemplateWithAgentSpecificSettings(t *testing.T) {
 	if !strings.Contains(result, "image: python:3.11") {
 		t.Error("python-dev should use overridden docker image")
 	}
-	if !strings.Contains(result, "/home/pythonista/test-team/codebase") {
-		t.Error("python-dev should use overridden docker user")
+	if !strings.Contains(result, "/opt/auto-team/codebase") {
+		t.Error("python-dev should use standard codebase directory")
+	}
+	if !strings.Contains(result, "/home/pythonista/.claude") {
+		t.Error("python-dev should use overridden docker user for claude config")
 	}
 	if !strings.Contains(result, "CHECK_INTERVAL: 30") {
 		t.Error("python-dev should use overridden check interval")

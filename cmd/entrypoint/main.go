@@ -140,7 +140,7 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// Validate configuration
-	if err := cfg.Validate(); err != nil {
+	if err = cfg.Validate(); err != nil {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 

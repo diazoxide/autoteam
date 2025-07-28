@@ -27,11 +27,11 @@ type Repository struct {
 }
 
 type Agent struct {
-	Name           string            `yaml:"name"`
-	Prompt         string            `yaml:"prompt"`
-	GitHubTokenEnv string            `yaml:"github_token_env"`
-	CommonPrompt   string            `yaml:"common_prompt,omitempty"`
-	Settings       *AgentSettings    `yaml:"settings,omitempty"`
+	Name           string         `yaml:"name"`
+	Prompt         string         `yaml:"prompt"`
+	GitHubTokenEnv string         `yaml:"github_token_env"`
+	CommonPrompt   string         `yaml:"common_prompt,omitempty"`
+	Settings       *AgentSettings `yaml:"settings,omitempty"`
 }
 
 type AgentSettings struct {
@@ -147,7 +147,7 @@ func CreateSampleConfig(filename string) error {
 					},
 					Environment: map[string]string{
 						"PYTHON_PATH": "/app/custom",
-						"DEBUG_MODE": "true",
+						"DEBUG_MODE":  "true",
 					},
 				},
 			},
