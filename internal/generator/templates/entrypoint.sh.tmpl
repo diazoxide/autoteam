@@ -1,5 +1,39 @@
 #!/bin/bash
 
+# ⚠️  DEPRECATED: This bash entrypoint is deprecated and will be removed in a future version.
+# ⚠️  The new Go binary entrypoint (autoteam-entrypoint) is now used by default in Docker Compose.
+# ⚠️  This script is kept for backward compatibility only.
+# ⚠️  
+# ⚠️  Migration Steps:
+# ⚠️  1. Run: autoteam generate  (regenerates compose.yaml with new binary entrypoint)
+# ⚠️  2. Set ENTRYPOINT_VERSION=latest in your .env file (optional)
+# ⚠️  3. Run: docker compose up
+# ⚠️  
+# ⚠️  Benefits of new binary entrypoint:
+# ⚠️  - Faster startup and better performance
+# ⚠️  - Native GitHub API integration (no gh CLI dependency)
+# ⚠️  - Better error handling and logging
+# ⚠️  - Support for multiple AI agents in the future
+
+echo ""
+echo "🚨 ============================================== 🚨"
+echo "🚨  WARNING: DEPRECATED BASH ENTRYPOINT IN USE  🚨"
+echo "🚨 ============================================== 🚨"
+echo ""
+echo "⚠️  This bash script is DEPRECATED and will be removed in a future version."
+echo "⚠️  Please migrate to the new Go binary entrypoint for better performance."
+echo ""
+echo "📋 Migration Steps:"
+echo "   1. Run: autoteam generate    (updates compose.yaml)"
+echo "   2. Run: docker compose up    (uses new binary entrypoint)"
+echo ""
+echo "✨ Benefits: Faster startup, better GitHub API integration, improved reliability"
+echo "📖 Documentation: https://github.com/diazoxide/auto-team#entrypoint-migration"
+echo ""
+echo "⏳ Continuing with deprecated bash entrypoint in 5 seconds..."
+sleep 5
+echo ""
+
 if [ "$INSTALL_DEPS" == "true" ]; then
   echo "Installing dependencies...\n\n"
   apt update

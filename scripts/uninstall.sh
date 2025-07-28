@@ -7,11 +7,16 @@ set -e
 
 # Configuration
 BINARY_NAME="autoteam"
+ENTRYPOINT_BINARY_NAME="autoteam-entrypoint"
 INSTALL_LOCATIONS=(
     "/usr/local/bin/$BINARY_NAME"
     "/usr/bin/$BINARY_NAME"
     "$HOME/.local/bin/$BINARY_NAME"
     "$HOME/bin/$BINARY_NAME"
+    "/usr/local/bin/$ENTRYPOINT_BINARY_NAME"
+    "/usr/bin/$ENTRYPOINT_BINARY_NAME"
+    "$HOME/.local/bin/$ENTRYPOINT_BINARY_NAME"
+    "$HOME/bin/$ENTRYPOINT_BINARY_NAME"
 )
 
 # Colors
@@ -38,16 +43,28 @@ log_error() {
     echo -e "${RED}✗${NC} $1"
 }
 
-# Check if binary is installed
+# Check if binaries are installed
 check_installation() {
-    if ! command -v "$BINARY_NAME" >/dev/null 2>&1; then
-        log_warning "$BINARY_NAME is not installed or not in PATH"
-        return 1
+    local found=false
+    
+    if command -v "$BINARY_NAME" >/dev/null 2>&1; then
+        local version
+        version=$($BINARY_NAME --version 2>/dev/null | head -1 || echo "unknown")
+        log_info "Found $BINARY_NAME: $version"
+        found=true
     fi
     
-    local version
-    version=$($BINARY_NAME --version 2>/dev/null | head -1 || echo "unknown")
-    log_info "Found $BINARY_NAME: $version"
+    if command -v "$ENTRYPOINT_BINARY_NAME" >/dev/null 2>&1; then
+        local version
+        version=$($ENTRYPOINT_BINARY_NAME --version 2>/dev/null | head -1 || echo "unknown")
+        log_info "Found $ENTRYPOINT_BINARY_NAME: $version"
+        found=true
+    fi
+    
+    if [ "$found" = false ]; then
+        log_warning "Neither $BINARY_NAME nor $ENTRYPOINT_BINARY_NAME is installed or in PATH"
+        return 1
+    fi
     return 0
 }
 

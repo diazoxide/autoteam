@@ -154,7 +154,6 @@ package: build-all ## Create distribution packages for all platforms
 		cp "$$BINARY" "$$ARCHIVE/$(BINARY_NAME)$$([[ $$GOOS == windows ]] && echo .exe)"; \
 		cp README.md "$$ARCHIVE/"; \
 		cp -r examples "$$ARCHIVE/"; \
-		cp -r templates "$$ARCHIVE/"; \
 		tar -czf "$$ARCHIVE.tar.gz" -C $(DIST_DIR) "$$(basename $$ARCHIVE)"; \
 		rm -rf "$$ARCHIVE"; \
 		echo "$(GREEN)  ✓ $$ARCHIVE.tar.gz$(NC)"; \
@@ -162,8 +161,8 @@ package: build-all ## Create distribution packages for all platforms
 	@echo "$(GREEN)✓ All packages created in $(DIST_DIR)/$(NC)"
 
 # Installation targets
-install: build ## Install binary to system (current platform)
-	@echo "$(BLUE)Installing $(BINARY_NAME)...$(NC)"
+install: build build-entrypoint ## Install binaries to system (current platform)
+	@echo "$(BLUE)Installing $(BINARY_NAME) and $(ENTRYPOINT_BINARY_NAME)...$(NC)"
 	@if [ "$$(uname)" = "Darwin" ]; then \
 		$(MAKE) install-darwin; \
 	elif [ "$$(uname)" = "Linux" ]; then \
@@ -186,7 +185,15 @@ install-darwin: ## Install on macOS
 	fi; \
 	sudo cp "$$BINARY" /usr/local/bin/$(BINARY_NAME); \
 	sudo chmod +x /usr/local/bin/$(BINARY_NAME); \
-	echo "$(GREEN)✓ Installed to /usr/local/bin/$(BINARY_NAME)$(NC)"
+	echo "$(GREEN)✓ Installed $(BINARY_NAME) to /usr/local/bin/$(BINARY_NAME)$(NC)"; \
+	\
+	if [ -f "$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)" ]; then \
+		sudo cp "$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)" /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
+		sudo chmod +x /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
+		echo "$(GREEN)✓ Installed $(ENTRYPOINT_BINARY_NAME) to /usr/local/bin/$(ENTRYPOINT_BINARY_NAME)$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠ $(ENTRYPOINT_BINARY_NAME) not found, run 'make build-entrypoint' first$(NC)"; \
+	fi
 
 install-linux: ## Install on Linux
 	@ARCH=$$(uname -m); \
@@ -205,16 +212,35 @@ install-linux: ## Install on Linux
 	fi; \
 	sudo cp "$$BINARY" /usr/local/bin/$(BINARY_NAME); \
 	sudo chmod +x /usr/local/bin/$(BINARY_NAME); \
-	echo "$(GREEN)✓ Installed to /usr/local/bin/$(BINARY_NAME)$(NC)"
+	echo "$(GREEN)✓ Installed $(BINARY_NAME) to /usr/local/bin/$(BINARY_NAME)$(NC)"; \
+	\
+	ENTRYPOINT_BINARY="$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)-linux-$$GOARCH"; \
+	if [ -f "$$ENTRYPOINT_BINARY" ]; then \
+		sudo cp "$$ENTRYPOINT_BINARY" /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
+		sudo chmod +x /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
+		echo "$(GREEN)✓ Installed $(ENTRYPOINT_BINARY_NAME) to /usr/local/bin/$(ENTRYPOINT_BINARY_NAME)$(NC)"; \
+	elif [ -f "$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)" ]; then \
+		sudo cp "$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)" /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
+		sudo chmod +x /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
+		echo "$(GREEN)✓ Installed $(ENTRYPOINT_BINARY_NAME) to /usr/local/bin/$(ENTRYPOINT_BINARY_NAME)$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠ $(ENTRYPOINT_BINARY_NAME) not found, run 'make build-entrypoint' first$(NC)"; \
+	fi
 
 # Uninstall target
-uninstall: ## Uninstall binary from system
-	@echo "$(BLUE)Uninstalling $(BINARY_NAME)...$(NC)"
+uninstall: ## Uninstall binaries from system
+	@echo "$(BLUE)Uninstalling $(BINARY_NAME) and $(ENTRYPOINT_BINARY_NAME)...$(NC)"
 	@if [ -f "/usr/local/bin/$(BINARY_NAME)" ]; then \
 		sudo rm /usr/local/bin/$(BINARY_NAME); \
-		echo "$(GREEN)✓ Uninstalled from /usr/local/bin/$(BINARY_NAME)$(NC)"; \
+		echo "$(GREEN)✓ Uninstalled $(BINARY_NAME) from /usr/local/bin/$(NC)"; \
 	else \
 		echo "$(YELLOW)! $(BINARY_NAME) not found in /usr/local/bin/$(NC)"; \
+	fi
+	@if [ -f "/usr/local/bin/$(ENTRYPOINT_BINARY_NAME)" ]; then \
+		sudo rm /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
+		echo "$(GREEN)✓ Uninstalled $(ENTRYPOINT_BINARY_NAME) from /usr/local/bin/$(NC)"; \
+	else \
+		echo "$(YELLOW)! $(ENTRYPOINT_BINARY_NAME) not found in /usr/local/bin/$(NC)"; \
 	fi
 
 # Release target

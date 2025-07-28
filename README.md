@@ -174,7 +174,7 @@ go test -v ./...
 go test ./internal/config
 go test ./internal/generator
 go test ./cmd/autoteam
-go test ./templates
+go test ./cmd/entrypoint
 ```
 
 ### Test Coverage
@@ -190,12 +190,13 @@ go test ./templates
 
 ```
 ./
-├── cmd/autoteam/           # CLI application
+├── cmd/
+│   ├── autoteam/          # Main CLI application
+│   └── entrypoint/        # Go binary entrypoint for agents
 ├── internal/
 │   ├── config/            # Configuration parsing
-│   ├── generator/         # Template generation
+│   ├── generator/         # Template generation & embedded templates
 │   └── testutil/          # Test utilities
-├── templates/             # Go templates
 ├── examples/              # Configuration examples
 └── agents/                # Generated agent directories
 ```
