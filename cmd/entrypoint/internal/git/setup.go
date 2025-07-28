@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"auto-team/cmd/entrypoint/internal/config"
 )
@@ -23,6 +24,15 @@ func NewSetup(gitConfig config.GitConfig, githubConfig config.GitHubConfig) *Set
 		gitConfig:    gitConfig,
 		githubConfig: githubConfig,
 	}
+}
+
+// getRepositoryOwner extracts the owner from repository URL (e.g., "owner/repo" -> "owner")
+func (s *Setup) getRepositoryOwner() string {
+	parts := strings.Split(s.githubConfig.Repository, "/")
+	if len(parts) >= 1 {
+		return parts[0]
+	}
+	return ""
 }
 
 // Configure sets up Git configuration and credentials
@@ -69,22 +79,34 @@ func (s *Setup) checkGitAvailable(ctx context.Context) error {
 
 // configureGitUser sets up the global Git user configuration
 func (s *Setup) configureGitUser(ctx context.Context) error {
+	// Determine user name - use provided user or repository owner
+	userName := s.gitConfig.User
+	if userName == "" {
+		userName = s.getRepositoryOwner()
+	}
+
 	// Set user name
-	if s.gitConfig.User != "" {
-		cmd := exec.CommandContext(ctx, "git", "config", "--global", "user.name", s.gitConfig.User)
+	if userName != "" {
+		cmd := exec.CommandContext(ctx, "git", "config", "--global", "user.name", userName)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to set git user.name: %w", err)
 		}
-		log.Printf("Set git user.name to: %s", s.gitConfig.User)
+		log.Printf("Set git user.name to: %s", userName)
+	}
+
+	// Determine email - use provided email or generate from user name
+	userEmail := s.gitConfig.Email
+	if userEmail == "" && userName != "" {
+		userEmail = userName + "@users.noreply.github.com"
 	}
 
 	// Set user email
-	if s.gitConfig.Email != "" {
-		cmd := exec.CommandContext(ctx, "git", "config", "--global", "user.email", s.gitConfig.Email)
+	if userEmail != "" {
+		cmd := exec.CommandContext(ctx, "git", "config", "--global", "user.email", userEmail)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to set git user.email: %w", err)
 		}
-		log.Printf("Set git user.email to: %s", s.gitConfig.Email)
+		log.Printf("Set git user.email to: %s", userEmail)
 	}
 
 	return nil
@@ -110,7 +132,9 @@ func (s *Setup) setupCredentialsFile() error {
 	credentialsPath := filepath.Join(homeDir, ".git-credentials")
 
 	// Create credentials content with HTTPS token
-	credentialsContent := fmt.Sprintf("https://%s:%s@github.com", s.gitConfig.User, s.githubConfig.Token)
+	// For GitHub Personal Access Tokens, use the token as username and leave password empty
+	// or use token:x-oauth-basic format
+	credentialsContent := fmt.Sprintf("https://%s:x-oauth-basic@github.com", s.githubConfig.Token)
 
 	// Write credentials file
 	if err := os.WriteFile(credentialsPath, []byte(credentialsContent), 0600); err != nil {
@@ -118,6 +142,7 @@ func (s *Setup) setupCredentialsFile() error {
 	}
 
 	log.Printf("Created git credentials file at: %s", credentialsPath)
+	log.Printf("Repository URL format: https://github.com/%s.git", s.githubConfig.Repository)
 	return nil
 }
 
@@ -183,12 +208,8 @@ func (s *Setup) updateRepository(ctx context.Context) error {
 
 // getWorkingDirectory returns the working directory path
 func (s *Setup) getWorkingDirectory() string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		// Fallback to current directory
-		return filepath.Join(".", s.gitConfig.TeamName, "codebase")
-	}
-	return filepath.Join(homeDir, s.gitConfig.TeamName, "codebase")
+	// Use /opt/auto-team/codebase as the standard path for container deployments
+	return "/opt/auto-team/codebase"
 }
 
 // GetWorkingDirectory returns the working directory path (public method)

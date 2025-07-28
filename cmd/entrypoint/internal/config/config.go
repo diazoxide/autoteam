@@ -67,7 +67,7 @@ func Load() (*Config, error) {
 	}
 
 	// Parse owner/repo from repository string
-	if err := cfg.parseRepository(); err != nil {
+	if err := cfg.ParseRepository(); err != nil {
 		return nil, fmt.Errorf("failed to parse repository: %w", err)
 	}
 
@@ -109,8 +109,8 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// parseRepository parses the GITHUB_REPO environment variable into owner and repo
-func (c *Config) parseRepository() error {
+// ParseRepository parses the GITHUB_REPO into owner and repo
+func (c *Config) ParseRepository() error {
 	repo := c.GitHub.Repository
 	if repo == "" {
 		return fmt.Errorf("repository is empty")

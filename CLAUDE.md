@@ -11,3 +11,17 @@
 - Run `make check` before committing to ensure code passes all checks
 - Use `make fmt` to format Go code properly
 - All tests should pass before creating commits
+
+## Build and Template Workflow
+- Use `make build` to build the main autoteam binary (required after template changes due to go:embed)
+- Use `make build-entrypoint` to build the entrypoint binary for current platform
+- Use `make build-all` to build both main and entrypoint binaries for all supported platforms
+- Use `make build-linux` to build both main and entrypoint binaries for Linux platforms (Docker focus)
+- Use `make build-entrypoint-all` to build only entrypoint binaries for Linux platforms
+- After modifying templates in `internal/generator/templates/`, always rebuild the main binary to update embedded templates
+- Use `autoteam generate` to generate compose.yaml and entrypoint.sh from autoteam.yaml configuration
+
+## Container Directory Structure
+- Codebase is mounted at `/opt/auto-team/codebase` (standard application directory)
+- Claude configuration files remain in user home directory: `/home/{user}/.claude` and `/home/{user}/.claude.json`
+- Custom volumes can be mounted anywhere as specified in agent settings

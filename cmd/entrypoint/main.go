@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"auto-team/cmd/entrypoint/internal/agent"
 	"auto-team/cmd/entrypoint/internal/config"
@@ -32,14 +33,92 @@ func main() {
 		Version: fmt.Sprintf("%s (built %s, commit %s)", Version, BuildTime, GitCommit),
 		Action:  runEntrypoint,
 		Flags: []cli.Flag{
+			// GitHub Configuration
 			&cli.StringFlag{
-				Name:    "config",
-				Aliases: []string{"c"},
-				Usage:   "Path to config file (optional, uses env vars by default)",
+				Name:     "gh-token",
+				Usage:    "GitHub token for authentication",
+				Required: true,
+				Sources:  cli.EnvVars("GH_TOKEN"),
 			},
+			&cli.StringFlag{
+				Name:     "github-repo",
+				Usage:    "GitHub repository in format 'owner/repo'",
+				Required: true,
+				Sources:  cli.EnvVars("GITHUB_REPO"),
+			},
+
+			// Agent Configuration
+			&cli.StringFlag{
+				Name:     "agent-name",
+				Usage:    "Name of the agent",
+				Required: true,
+				Sources:  cli.EnvVars("AGENT_NAME"),
+			},
+			&cli.StringFlag{
+				Name:    "agent-type",
+				Value:   "claude",
+				Usage:   "Type of agent to use",
+				Sources: cli.EnvVars("AGENT_TYPE"),
+			},
+			&cli.StringFlag{
+				Name:    "agent-prompt",
+				Usage:   "Primary prompt for the agent",
+				Sources: cli.EnvVars("AGENT_PROMPT"),
+			},
+			&cli.StringFlag{
+				Name:    "common-prompt",
+				Usage:   "Common prompt shared by all agents",
+				Sources: cli.EnvVars("COMMON_PROMPT"),
+			},
+
+			// Git Configuration (optional overrides)
+			&cli.StringFlag{
+				Name:    "git-user",
+				Usage:   "Git user name (defaults to repository owner)",
+				Sources: cli.EnvVars("GH_USER"),
+			},
+			&cli.StringFlag{
+				Name:    "git-email",
+				Usage:   "Git user email (defaults to {user}@users.noreply.github.com)",
+				Sources: cli.EnvVars("GH_EMAIL"),
+			},
+			&cli.StringFlag{
+				Name:    "team-name",
+				Value:   "auto-team",
+				Usage:   "Team name for directory structure",
+				Sources: cli.EnvVars("TEAM_NAME"),
+			},
+
+			// Monitoring Configuration
+			&cli.IntFlag{
+				Name:    "check-interval",
+				Value:   60,
+				Usage:   "Check interval in seconds",
+				Sources: cli.EnvVars("CHECK_INTERVAL"),
+			},
+			&cli.IntFlag{
+				Name:    "max-retries",
+				Value:   100,
+				Usage:   "Maximum number of retries for operations",
+				Sources: cli.EnvVars("MAX_RETRIES"),
+			},
+
+			// Dependencies Configuration
+			&cli.BoolFlag{
+				Name:    "install-deps",
+				Usage:   "Install dependencies on startup",
+				Sources: cli.EnvVars("INSTALL_DEPS"),
+			},
+
+			// Runtime Configuration
 			&cli.BoolFlag{
 				Name:  "dry-run",
 				Usage: "Run in dry-run mode (don't execute AI agent)",
+			},
+			&cli.BoolFlag{
+				Name:    "debug",
+				Usage:   "Enable debug logging",
+				Sources: cli.EnvVars("DEBUG"),
 			},
 			&cli.BoolFlag{
 				Name:  "verbose",
@@ -54,14 +133,19 @@ func main() {
 }
 
 func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
-	// Load configuration from environment variables
-	cfg, err := config.Load()
+	// Build configuration from CLI flags
+	cfg, err := buildConfigFromFlags(cmd)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+		return fmt.Errorf("failed to build configuration: %w", err)
+	}
+
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
 	// Setup logging
-	if cmd.Bool("verbose") || cfg.Debug {
+	if cmd.Bool("verbose") || cmd.Bool("debug") {
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
 		log.Println("Verbose logging enabled")
 	}
@@ -123,4 +207,45 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 
 	log.Println("Starting monitoring loop...")
 	return mon.Start(ctx)
+}
+
+// buildConfigFromFlags builds a Config struct from CLI flags
+func buildConfigFromFlags(cmd *cli.Command) (*config.Config, error) {
+	cfg := &config.Config{}
+
+	// GitHub configuration
+	cfg.GitHub.Token = cmd.String("gh-token")
+	cfg.GitHub.Repository = cmd.String("github-repo")
+
+	// Parse owner/repo from repository string
+	if err := cfg.ParseRepository(); err != nil {
+		return nil, fmt.Errorf("failed to parse repository: %w", err)
+	}
+
+	// Agent configuration
+	cfg.Agent.Name = cmd.String("agent-name")
+	cfg.Agent.Type = cmd.String("agent-type")
+	cfg.Agent.Prompt = cmd.String("agent-prompt")
+	cfg.Agent.CommonPrompt = cmd.String("common-prompt")
+
+	// Git configuration
+	cfg.Git.User = cmd.String("git-user")
+	cfg.Git.Email = cmd.String("git-email")
+	if cfg.Git.Email == "" && cfg.Git.User != "" {
+		cfg.Git.Email = cfg.Git.User + "@users.noreply.github.com"
+	}
+	cfg.Git.TeamName = cmd.String("team-name")
+
+	// Monitoring configuration
+	checkInterval := cmd.Int("check-interval")
+	cfg.Monitoring.CheckInterval = time.Duration(checkInterval) * time.Second
+	cfg.Monitoring.MaxRetries = cmd.Int("max-retries")
+
+	// Dependencies configuration
+	cfg.Dependencies.InstallDeps = cmd.Bool("install-deps")
+
+	// Debug configuration
+	cfg.Debug = cmd.Bool("debug")
+
+	return cfg, nil
 }

@@ -78,19 +78,19 @@ build-entrypoint: ## Build entrypoint binary for current platform
 	@echo "$(GREEN)✓ Built: $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)$(NC)"
 
 # Build entrypoint for Linux platforms (Docker focus)
-build-entrypoint-all: clean-build $(LINUX_PLATFORMS:=/entrypoint) ## Build entrypoint binaries for Linux platforms
+build-entrypoint-all: clean-build $(LINUX_PLATFORMS:=/entrypoint) ## Build entrypoint binaries for Linux platforms only
 	@echo "$(GREEN)✓ All entrypoint builds completed in $(BUILD_DIR)/$(NC)"
 
-# Build for all platforms
-build-all: clean-build $(PLATFORMS) ## Build binaries for all supported platforms
+# Build for all platforms (main + entrypoint binaries)
+build-all: clean-build $(PLATFORMS) $(LINUX_PLATFORMS:=/entrypoint) ## Build main and entrypoint binaries for all supported platforms
 	@echo "$(GREEN)✓ All builds completed in $(BUILD_DIR)/$(NC)"
 
 # Build for macOS platforms
 build-darwin: clean-build darwin/amd64 darwin/arm64 ## Build binaries for macOS (Intel + Apple Silicon)
 	@echo "$(GREEN)✓ macOS builds completed$(NC)"
 
-# Build for Linux platforms  
-build-linux: clean-build linux/amd64 linux/arm64 linux/386 linux/arm ## Build binaries for Linux (all architectures)
+# Build for Linux platforms (main + entrypoint binaries)
+build-linux: clean-build linux/amd64 linux/arm64 linux/386 linux/arm linux/amd64/entrypoint linux/arm64/entrypoint ## Build main and entrypoint binaries for Linux (all architectures) 
 	@echo "$(GREEN)✓ Linux builds completed$(NC)"
 
 # Individual platform targets

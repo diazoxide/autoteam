@@ -83,6 +83,18 @@ func (g *Generator) createAgentDirectories(cfg *config.Config) error {
 }
 
 func (g *Generator) generateFile(templateFile, outputFile string, cfg *config.Config) error {
+	// Create template data with agents that have effective settings
+	templateData := struct {
+		*config.Config
+		AgentsWithSettings []config.AgentWithSettings
+	}{
+		Config:             cfg,
+		AgentsWithSettings: cfg.GetAllAgentsWithEffectiveSettings(),
+	}
+
+	// Create template with custom functions
+	funcMap := template.FuncMap{}
+
 	templatePath := filepath.Join("templates", templateFile)
 
 	// Try embedded template first
@@ -90,7 +102,7 @@ func (g *Generator) generateFile(templateFile, outputFile string, cfg *config.Co
 	if err != nil {
 		// Fall back to external file for testing
 		externalPath := filepath.Join("templates", templateFile)
-		externalTmpl, parseErr := template.ParseFiles(externalPath)
+		externalTmpl, parseErr := template.New(templateFile).Funcs(funcMap).ParseFiles(externalPath)
 		if parseErr != nil {
 			return fmt.Errorf("failed to read embedded template %s and external template %s: %w", templatePath, externalPath, parseErr)
 		}
@@ -101,13 +113,13 @@ func (g *Generator) generateFile(templateFile, outputFile string, cfg *config.Co
 		}
 		defer output.Close()
 
-		if execErr := externalTmpl.Execute(output, cfg); execErr != nil {
+		if execErr := externalTmpl.Execute(output, templateData); execErr != nil {
 			return fmt.Errorf("failed to execute template %s: %w", templateFile, execErr)
 		}
 		return nil
 	}
 
-	tmpl, err := template.New(templateFile).Parse(string(templateContent))
+	tmpl, err := template.New(templateFile).Funcs(funcMap).Parse(string(templateContent))
 	if err != nil {
 		return fmt.Errorf("failed to parse template %s: %w", templateFile, err)
 	}
@@ -118,7 +130,7 @@ func (g *Generator) generateFile(templateFile, outputFile string, cfg *config.Co
 	}
 	defer output.Close()
 
-	if err := tmpl.Execute(output, cfg); err != nil {
+	if err := tmpl.Execute(output, templateData); err != nil {
 		return fmt.Errorf("failed to execute template %s: %w", templateFile, err)
 	}
 

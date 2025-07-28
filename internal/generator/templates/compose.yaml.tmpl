@@ -1,37 +1,56 @@
 services:
-{{- range .Agents }}
-  {{ .Name }}:
-    image: {{ $.Settings.DockerImage }}
+{{- range .AgentsWithSettings }}
+  {{ .Agent.Name }}:
+    image: {{ .EffectiveSettings.DockerImage }}
     tty: true
     stdin_open: true
     volumes:
-      - ./agents/{{ .Name }}/codebase:/home/{{ $.Settings.DockerUser }}/{{ $.Settings.TeamName }}/codebase
-      - ./shared/.claude:/home/{{ $.Settings.DockerUser }}/.claude
-      - ./shared/.claude.json:/home/{{ $.Settings.DockerUser }}/.claude.json
+      - ./agents/{{ .Agent.Name }}/codebase:/opt/auto-team/codebase
+      - ./shared/.claude:/home/{{ .EffectiveSettings.DockerUser }}/.claude
+      - ./shared/.claude.json:/home/{{ .EffectiveSettings.DockerUser }}/.claude.json
+      - ../build:/host/build:ro
+{{- range .EffectiveSettings.Volumes }}
+      - {{ . }}
+{{- end }}
     environment:
-      IS_SANDBOX: 1 # for claude code to work on the {{ $.Settings.DockerUser }} user
-      TEAM_NAME: {{ $.Settings.TeamName }}
+      IS_SANDBOX: 1 # for claude code to work on the {{ .EffectiveSettings.DockerUser }} user
+      GH_TOKEN: ${{ "{"}}{{ .Agent.GitHubTokenEnv }}{{ "}" }}
       GITHUB_REPO: {{ $.Repository.URL }}
-      GH_TOKEN: ${{ "{"}}{{ .GitHubTokenEnv }}{{ "}" }}
-      AGENT_NAME: {{ .Name }}
+      AGENT_NAME: {{ .Agent.Name }}
       AGENT_TYPE: claude
-      AGENT_PROMPT: {{ .Prompt | printf "%q" }}
-      COMMON_PROMPT: {{ .CommonPrompt | printf "%q" }}
-      CHECK_INTERVAL: {{ $.Settings.CheckInterval }}
-      INSTALL_DEPS: {{ if $.Settings.InstallDeps }}true{{ else }}false{{ end }}
+      AGENT_PROMPT: {{ .Agent.Prompt | printf "%q" }}
+      COMMON_PROMPT: {{ .Agent.CommonPrompt | printf "%q" }}
+      TEAM_NAME: {{ .EffectiveSettings.TeamName }}
+      CHECK_INTERVAL: {{ .EffectiveSettings.CheckInterval }}
+      INSTALL_DEPS: {{ .EffectiveSettings.InstallDeps }}
       ENTRYPOINT_VERSION: ${ENTRYPOINT_VERSION:-latest}
-      MAX_RETRIES: 100
-      DEBUG: false
+      MAX_RETRIES: ${MAX_RETRIES:-100}
+      DEBUG: ${DEBUG:-false}
+{{- range $key, $value := .EffectiveSettings.Environment }}
+      {{ $key }}: {{ $value | printf "%q" }}
+{{- end }}
+{{- if .EffectiveSettings.Entrypoint }}
+    entrypoint: {{ .EffectiveSettings.Entrypoint }}
+{{- else }}
     entrypoint: |
       sh -c '
       echo "🚀 Auto-Team Agent Starting..."
-      echo "Agent: {{ .Name }}, Repository: {{ $.Repository.URL }}"
+      echo "Agent: {{ .Agent.Name }}, Repository: {{ $.Repository.URL }}"
       
-      # Use the unified install script approach
-      echo "📥 Installing autoteam-entrypoint binary..."
-      curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh | sh -s -- --binary autoteam-entrypoint --version "$${ENTRYPOINT_VERSION:-latest}" --target /tmp/autoteam-entrypoint
+      # Use local development binary if available, otherwise download
+      if [ -f "/host/build/autoteam-entrypoint" ]; then
+        echo "📥 Using local development binary..."
+        cp /host/build/autoteam-entrypoint /tmp/autoteam-entrypoint
+        chmod +x /tmp/autoteam-entrypoint
+      else
+        echo "📥 Installing autoteam-entrypoint binary..."
+        curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh | sh -s -- --binary autoteam-entrypoint --version "$${ENTRYPOINT_VERSION:-latest}" --target /tmp/autoteam-entrypoint
+      fi
       
       echo "✅ Entrypoint binary ready"
+      
+      # Execute the entrypoint - configuration comes from environment variables
       exec /tmp/autoteam-entrypoint
       '
+{{- end }}
 {{- end }}
