@@ -1,0 +1,40 @@
+[default]
+extend-ignore-identifiers-re = [
+    # hex strings  
+    "(?i)[0-9a-f]{6,}",
+    # UUIDs
+    "(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+]
+
+[default.extend-words]
+# Technical terms that might be flagged as typos
+diazoxide = "diazoxide"
+autoteam = "autoteam"
+freqtrade = "freqtrade"
+freqai = "freqai"
+freqaimodels = "freqaimodels"
+hyperopt = "hyperopt"
+backtesting = "backtesting"
+ichimoku = "ichimoku"
+vwap = "vwap"
+adx = "adx"
+ppo = "ppo"
+sac = "sac"
+tradingstrategy = "tradingstrategy"
+regressor = "regressor"
+pytorch = "pytorch"
+
+[files]
+extend-exclude = [
+    "*.json",
+    "*.yaml",
+    "*.yml", 
+    "go.sum",
+    "go.mod",
+    "build/",
+    "dist/",
+    "agents/",
+    "shared/",
+    "*.tar.gz",
+    "*.zip"
+]

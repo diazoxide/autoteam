@@ -1,0 +1,10 @@
+# Minimal Auto-Team Configuration
+# This example shows the absolute minimum required configuration
+
+repository:
+  url: "user/simple-project"
+
+agents:
+  - name: "bot"
+    prompt: "You are an AI assistant that helps with general development tasks."
+    github_token_env: "GITHUB_TOKEN"

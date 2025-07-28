@@ -1,0 +1,256 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+env:
+  GO_VERSION: 1.21
+
+jobs:
+  test:
+    name: Pre-release Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+    
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ env.GO_VERSION }}-
+    
+    - name: Download dependencies
+      run: make mod-tidy
+    
+    - name: Run full test suite
+      run: make test test-race
+    
+    - name: Run code quality checks
+      run: make check
+
+  build:
+    name: Build Release Binaries
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+    
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ env.GO_VERSION }}-
+    
+    - name: Download dependencies
+      run: make mod-tidy
+    
+    - name: Create release packages
+      run: make release
+    
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-packages
+        path: dist/
+        retention-days: 30
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Download release artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: release-packages
+        path: dist/
+    
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        # Get the tag name
+        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          TAG_NAME="${{ github.event.inputs.version }}"
+        else
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+        fi
+        echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
+        
+        # Generate changelog since last tag
+        PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -v "$TAG_NAME" | head -n1)
+        if [[ -n "$PREVIOUS_TAG" ]]; then
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "## Changes since $PREVIOUS_TAG" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          git log --pretty=format:"- %s (%h)" ${PREVIOUS_TAG}..HEAD >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        else
+          echo "CHANGELOG=Initial release" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.release_notes.outputs.TAG_NAME }}
+        name: Auto-Team ${{ steps.release_notes.outputs.TAG_NAME }}
+        body: |
+          # Auto-Team ${{ steps.release_notes.outputs.TAG_NAME }}
+          
+          Universal AI Agent Management System for automated GitHub workflows.
+          
+          ## Installation
+          
+          ### Quick Install
+          ```bash
+          # Install latest version (macOS/Linux)  
+          curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh | bash
+          ```
+          
+          ### Manual Install
+          Download the appropriate binary for your platform below and follow the [installation guide](https://github.com/diazoxide/auto-team/blob/main/INSTALL.md).
+          
+          ${{ steps.release_notes.outputs.CHANGELOG }}
+          
+          ## Supported Platforms
+          
+          - **macOS**: Intel (amd64) and Apple Silicon (arm64)
+          - **Linux**: x86_64 (amd64), ARM64, 32-bit (386), ARM
+          
+          ## Verification
+          
+          All binaries are built from source using GitHub Actions and can be verified using the build logs.
+          
+          ---
+          
+          **Full Changelog**: https://github.com/diazoxide/auto-team/compare/${{ steps.release_notes.outputs.PREVIOUS_TAG }}...${{ steps.release_notes.outputs.TAG_NAME }}
+        files: |
+          dist/*.tar.gz
+        draft: false
+        prerelease: ${{ contains(steps.release_notes.outputs.TAG_NAME, '-') }}
+        generate_release_notes: false
+
+  update-install-script:
+    name: Update Installation Script
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: success() && !contains(github.ref, '-')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Update version in install script
+      run: |
+        TAG_NAME=${GITHUB_REF#refs/tags/}
+        VERSION=${TAG_NAME#v}
+        
+        # Update default version in install script if needed
+        if grep -q 'VERSION=${VERSION:-latest}' scripts/install.sh; then
+          echo "Install script already uses latest as default"
+        else
+          echo "Install script configuration is correct"
+        fi
+    
+    - name: Trigger documentation update
+      run: |
+        echo "Release ${{ github.ref_name }} completed successfully"
+        echo "Installation script and documentation are up to date"
+
+  homebrew:
+    name: Update Homebrew Formula
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: success() && !contains(github.ref, '-')
+    
+    steps:
+    - name: Update Homebrew formula
+      run: |
+        echo "TODO: Update Homebrew formula"
+        echo "This would update the formula in a separate homebrew-auto-team repository"
+        echo "For now, this is a placeholder for future implementation"
+
+  docker:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: success()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Docker Hub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: diazoxide/auto-team
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max

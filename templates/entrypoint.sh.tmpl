@@ -15,7 +15,6 @@ if ! gh auth status &>/dev/null; then
   exit 1
 fi
 
-
 echo -e "Repository: $GITHUB_REPO\n"
 echo -e "AGENT_NAME: $AGENT_NAME\n\n"
 
@@ -31,7 +30,6 @@ echo "https://${GH_USER}:${GH_TOKEN}@github.com/${GITHUB_REPO}" > ~/.git-credent
 # === Optional: Set user identity for commits ===
 git config --global user.name "$GH_USER"
 git config --global user.email "$GH_USER@users.noreply.github.com"
-
 
 cd ~/${TEAM_NAME}/codebase
 echo -e "Cloning repository...\n\n"
@@ -216,9 +214,9 @@ check_issues_and_prs() {
 # Run initial check
 check_issues_and_prs
 
-# Start periodic refresh every 10 minutes (600 seconds)
+# Start periodic refresh based on configured interval
 while true; do
-  sleep 60
+  sleep ${CHECK_INTERVAL:-60}
   echo "$(date): Refreshing counts..."
 
   check_issues_and_prs

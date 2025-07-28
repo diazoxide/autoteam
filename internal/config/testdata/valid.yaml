@@ -1,0 +1,19 @@
+repository:
+  url: "owner/test-repo"
+  main_branch: "main"
+
+agents:
+  - name: "dev1"
+    prompt: "You are a developer agent"
+    github_token_env: "DEV1_TOKEN"
+    common_prompt: "Follow best practices"
+  - name: "arch1"
+    prompt: "You are an architect agent"
+    github_token_env: "ARCH1_TOKEN"
+
+settings:
+  docker_image: "node:18.17.1"
+  docker_user: "developer"
+  check_interval: 60
+  team_name: "test-team"
+  install_deps: true

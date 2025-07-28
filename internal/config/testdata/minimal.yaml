@@ -1,0 +1,7 @@
+repository:
+  url: "owner/repo"
+
+agents:
+  - name: "dev1"
+    prompt: "Developer"
+    github_token_env: "TOKEN"

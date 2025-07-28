@@ -4,12 +4,13 @@ services:
     tty: true
     stdin_open: true
     volumes:
-      - ./agents/dev1/codebase:/home/${DOCKER_USER}/codebase
-      - ./agents/dev1/claude/.claude:/home/${DOCKER_USER}/.claude
-      - ./agents/dev1/claude/.claude.json:/home/${DOCKER_USER}/.claude.json
+      - ./agents/dev1/codebase:/home/${DOCKER_USER}/${TEAM_NAME}/codebase
+      - ./shared/.claude:/home/${DOCKER_USER}/.claude
+      - ./shared/.claude.json:/home/${DOCKER_USER}/.claude.json
       - ./entrypoint.sh:/home/${DOCKER_USER}/entrypoint.sh:ro
     environment:
       IS_SANDBOX: 1 # for claude code to work on the ${DOCKER_USER} user
+      TEAM_NAME: ${TEAM_NAME}
       GITHUB_REPO: ${GITHUB_REPO}
       GH_TOKEN: ${DEV1_GITHUB_TOKEN}
       AGENT_NAME: ${DEV1_AGENT_NAME}

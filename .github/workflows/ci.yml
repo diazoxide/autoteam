@@ -1,0 +1,173 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go-version: [1.19, 1.20, 1.21]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ matrix.go-version }}
+    
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ matrix.go-version }}-
+    
+    - name: Download dependencies
+      run: make mod-tidy
+    
+    - name: Run tests
+      run: make test
+    
+    - name: Run tests with race detection
+      run: make test-race
+    
+    - name: Run code quality checks
+      run: make check
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.21
+    
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-1.21-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-1.21-
+    
+    - name: Download dependencies
+      run: make mod-tidy
+    
+    - name: Run tests with coverage
+      run: make test-coverage
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    needs: test
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.21
+    
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-1.21-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-1.21-
+    
+    - name: Download dependencies
+      run: make mod-tidy
+    
+    - name: Build current platform
+      run: make build
+    
+    - name: Build all platforms (Linux only)
+      if: matrix.os == 'ubuntu-latest'
+      run: make build-all
+    
+    - name: Upload build artifacts (Linux only)
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@v3
+      with:
+        name: binaries
+        path: build/
+        retention-days: 7
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.21
+    
+    - name: Download dependencies
+      run: make mod-tidy
+    
+    - name: Build binary
+      run: make build
+    
+    - name: Test binary installation
+      run: |
+        # Test binary works
+        ./build/autoteam --version
+        ./build/autoteam --help
+    
+    - name: Test configuration initialization
+      run: |
+        # Test init command
+        ./build/autoteam init
+        test -f autoteam.yaml
+    
+    - name: Test configuration generation
+      run: |
+        # Test generate command with created config
+        ./build/autoteam generate
+        test -f compose.yaml
+        test -f entrypoint.sh
+    
+    - name: Validate generated Docker Compose
+      run: |
+        # Check if compose.yaml is valid
+        docker-compose -f compose.yaml config

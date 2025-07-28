@@ -1,0 +1,23 @@
+services:
+{{- range .Agents }}
+  {{ .Name }}:
+    image: {{ $.Settings.DockerImage }}
+    tty: true
+    stdin_open: true
+    volumes:
+      - ./agents/{{ .Name }}/codebase:/home/{{ $.Settings.DockerUser }}/{{ $.Settings.TeamName }}/codebase
+      - ./shared/.claude:/home/{{ $.Settings.DockerUser }}/.claude
+      - ./shared/.claude.json:/home/{{ $.Settings.DockerUser }}/.claude.json
+      - ./entrypoint.sh:/home/{{ $.Settings.DockerUser }}/entrypoint.sh:ro
+    environment:
+      IS_SANDBOX: 1 # for claude code to work on the {{ $.Settings.DockerUser }} user
+      TEAM_NAME: {{ $.Settings.TeamName }}
+      GITHUB_REPO: {{ $.Repository.URL }}
+      GH_TOKEN: ${{"${"}}{{ .GitHubTokenEnv }}{{"}"}}
+      AGENT_NAME: {{ .Name }}
+      AGENT_PROMPT: {{ .Prompt | printf "%q" }}
+      COMMON_PROMPT: {{ .CommonPrompt | printf "%q" }}
+      CHECK_INTERVAL: {{ $.Settings.CheckInterval }}
+      INSTALL_DEPS: {{ if $.Settings.InstallDeps }}true{{ else }}false{{ end }}
+    entrypoint: [ "/home/{{ $.Settings.DockerUser }}/entrypoint.sh" ]
+{{- end }}

@@ -1,0 +1,24 @@
+# Custom Docker Configuration
+# This example shows how to customize Docker settings
+
+repository:
+  url: "company/python-project"
+  main_branch: "master"
+
+agents:
+  - name: "python-dev"
+    prompt: "You are a Python developer specializing in Django, FastAPI, and data processing. Focus on clean, pythonic code and comprehensive testing."
+    github_token_env: "PYTHON_DEV_TOKEN"
+    common_prompt: "Follow PEP 8 standards and ensure all code is properly documented with docstrings."
+  
+  - name: "data-scientist"
+    prompt: "You are a data scientist working with machine learning models, data analysis, and visualization. Focus on reproducible research and clean data pipelines."
+    github_token_env: "DATA_SCIENTIST_TOKEN"
+    common_prompt: "Ensure all experiments are reproducible and models are properly validated and documented."
+
+settings:
+  docker_image: "python:3.11-slim"
+  docker_user: "pythonista"
+  check_interval: 120
+  team_name: "python-team"
+  install_deps: false  # Custom image with pre-installed dependencies

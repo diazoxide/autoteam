@@ -1,0 +1,23 @@
+extends: default
+
+rules:
+  line-length:
+    max: 120
+    level: warning
+
+  comments:
+    min-spaces-from-content: 1
+
+  document-start:
+    present: false
+
+  truthy:
+    allowed-values: ['true', 'false', 'on', 'off']
+
+ignore: |
+  .github/
+  node_modules/
+  build/
+  dist/
+  agents/
+  shared/

@@ -1,0 +1,180 @@
+run:
+  timeout: 10m
+  issues-exit-code: 1
+  tests: true
+  skip-dirs:
+    - build
+    - dist
+    - agents
+    - shared
+  skip-files:
+    - ".*_test.go"
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters-settings:
+  dupl:
+    threshold: 100
+  
+  funlen:
+    lines: 100
+    statements: 50
+  
+  gci:
+    local-prefixes: github.com/diazoxide/auto-team
+  
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - dupImport
+      - ifElseChain
+      - octalLiteral
+      - whyNoLint
+      - wrapperFunc
+  
+  gocyclo:
+    min-complexity: 15
+  
+  goimports:
+    local-prefixes: github.com/diazoxide/auto-team
+  
+  golint:
+    min-confidence: 0
+  
+  gomnd:
+    settings:
+      mnd:
+        checks: 
+          - argument
+          - case
+          - condition
+          - operation
+          - return
+  
+  govet:
+    check-shadowing: true
+    settings:
+      printf:
+        funcs:
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Infof
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Warnf
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Errorf
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Fatalf
+  
+  lll:
+    line-length: 140
+  
+  maligned:
+    suggest-new: true
+  
+  misspell:
+    locale: US
+  
+  nolintlint:
+    allow-leading-space: true
+    allow-unused: false
+    require-explanation: false
+    require-specific: false
+
+linters:
+  disable-all: true
+  enable:
+    - bodyclose
+    - deadcode
+    - depguard
+    - dogsled
+    - dupl
+    - errcheck
+    - funlen
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goimports
+    - golint
+    - gomnd
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - interfacer
+    - lll
+    - misspell
+    - nakedret
+    - noctx
+    - nolintlint
+    - rowserrcheck
+    - scopelint
+    - staticcheck
+    - structcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - varcheck
+    - whitespace
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gomnd
+        - funlen
+        - gocyclo
+    - path: cmd/
+      linters:
+        - gomnd
+    - linters:
+        - lll
+      source: "^//go:generate "
+  
+  exclude-use-default: false
+  exclude:
+    # errcheck: Almost all programs ignore errors on these functions and in most cases it's ok
+    - Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*printf?|os\.(Un)?Setenv). is not checked
+    
+    # golint: Annoying issue about not having a comment. The rare codebase has such comments
+    - (comment on exported (method|function|type|const)|should have( a package)? comment|comment should be of the form)
+    
+    # golint: False positive when tests are defined in package 'test'
+    - func name will be used as test\.Test.* by other packages, and that stutters; consider calling this
+    
+    # govet: Common false positives
+    - (possible misuse of unsafe.Pointer|should have signature)
+    
+    # staticcheck: Developers tend to write in C-style with an explicit 'break' in a 'switch', so it's ok to ignore
+    - ineffective break statement. Did you mean to break out of the outer loop
+    
+    # gosec: Too many false-positives on 'unsafe' usage
+    - Use of unsafe calls should be audited
+    
+    # gosec: Too many false-positives for parametrized shell calls
+    - Subprocess launch(ed with variable|ing should be audited)
+    
+    # gosec: Duplicated errcheck checks
+    - G104
+    
+    # gosec: Too many issues in popular repos
+    - (Expect directory permissions to be 0750 or less|Expect file permissions to be 0600 or less)
+    
+    # gosec: False positive is triggered by 'src, err := ioutil.ReadFile(filename)'
+    - Potential file inclusion via variable
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false

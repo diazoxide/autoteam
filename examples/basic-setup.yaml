@@ -1,0 +1,24 @@
+# Basic Auto-Team Configuration
+# This example shows a minimal setup with two agents
+
+repository:
+  url: "myorg/myproject"
+  main_branch: "main"
+
+agents:
+  - name: "developer"
+    prompt: "You are a developer agent responsible for implementing features, fixing bugs, and writing tests. Always follow coding best practices and ensure code quality."
+    github_token_env: "DEVELOPER_GITHUB_TOKEN"
+    common_prompt: "Write comprehensive tests for any code changes and follow the project's coding standards."
+  
+  - name: "reviewer"
+    prompt: "You are a code reviewer agent responsible for reviewing pull requests, providing feedback, and ensuring code quality. Focus on architecture, security, and maintainability."
+    github_token_env: "REVIEWER_GITHUB_TOKEN"
+    common_prompt: "Provide constructive feedback and suggest improvements when reviewing code."
+
+settings:
+  docker_image: "node:18.17.1"
+  docker_user: "developer"
+  check_interval: 60
+  team_name: "auto-team"
+  install_deps: true

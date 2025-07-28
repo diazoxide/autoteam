@@ -1,0 +1,18 @@
+repository:
+  url: "owner/integration-test"
+  main_branch: "main"
+
+agents:
+  - name: "dev1"
+    prompt: "Test developer agent"
+    github_token_env: "TEST_DEV1_TOKEN"
+  - name: "arch1"
+    prompt: "Test architect agent"
+    github_token_env: "TEST_ARCH1_TOKEN"
+
+settings:
+  docker_image: "node:test"
+  docker_user: "testuser"
+  check_interval: 30
+  team_name: "integration-test"
+  install_deps: true
