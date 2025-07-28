@@ -24,13 +24,18 @@ func New() *Generator {
 }
 
 func (g *Generator) GenerateCompose(cfg *config.Config) error {
+	// Ensure .autoteam directory exists
+	if err := g.fileOps.EnsureDirectory(config.AutoTeamDir, config.DirPerm); err != nil {
+		return fmt.Errorf("failed to create .autoteam directory: %w", err)
+	}
+
 	// Ensure agents directories exist
 	if err := g.createAgentDirectories(cfg); err != nil {
 		return fmt.Errorf("failed to create agent directories: %w", err)
 	}
 
-	// Generate compose.yaml
-	if err := g.generateFile("compose.yaml.tmpl", "compose.yaml", cfg); err != nil {
+	// Generate compose.yaml in .autoteam directory
+	if err := g.generateFile("compose.yaml.tmpl", config.ComposeFilePath, cfg); err != nil {
 		return fmt.Errorf("failed to generate compose.yaml: %w", err)
 	}
 

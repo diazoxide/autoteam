@@ -69,9 +69,9 @@ agents:
 		t.Fatalf("generateCommand() error = %v", err)
 	}
 
-	// Verify files were generated
-	if !testutil.FileExists("compose.yaml") {
-		t.Errorf("compose.yaml should be generated")
+	// Verify files were generated in .autoteam directory
+	if !testutil.FileExists(".autoteam/compose.yaml") {
+		t.Errorf("compose.yaml should be generated in .autoteam directory")
 	}
 
 	// entrypoint.sh is no longer generated - it's copied from system entrypoints directory
@@ -80,7 +80,7 @@ agents:
 	}
 
 	// Verify content
-	composeContent := testutil.ReadFile(t, "compose.yaml")
+	composeContent := testutil.ReadFile(t, ".autoteam/compose.yaml")
 	if !strings.Contains(composeContent, "dev1:") {
 		t.Errorf("compose.yaml should contain dev1 service")
 	}
@@ -227,7 +227,7 @@ echo "Integration test"`
 	// Verify all expected files exist
 	expectedFiles := []string{
 		"autoteam.yaml",
-		"compose.yaml",
+		".autoteam/compose.yaml",
 		".autoteam/agents/dev1/codebase",
 		".autoteam/agents/arch1/codebase",
 		".autoteam/shared",

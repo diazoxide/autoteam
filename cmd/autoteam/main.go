@@ -103,7 +103,11 @@ func initCommand(ctx context.Context, cmd *cli.Command) error {
 }
 
 func runDockerCompose(args ...string) error {
-	cmd := exec.Command("docker-compose", args...)
+	// Use the compose.yaml file from .autoteam directory
+	composeArgs := []string{"-f", config.ComposeFilePath}
+	composeArgs = append(composeArgs, args...)
+
+	cmd := exec.Command("docker-compose", composeArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

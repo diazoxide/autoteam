@@ -84,8 +84,8 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 		t.Fatalf("GenerateCompose() error = %v", err)
 	}
 
-	// Verify compose.yaml was generated
-	composeContent := testutil.ReadFile(t, "compose.yaml")
+	// Verify compose.yaml was generated in .autoteam directory
+	composeContent := testutil.ReadFile(t, ".autoteam/compose.yaml")
 
 	// Check that both agents are in the compose file
 	if !strings.Contains(composeContent, "dev1:") {
