@@ -99,8 +99,15 @@ check_existing() {
         log_warning "$BINARY_NAME is already installed: $current_version"
         
         if [ "$FORCE_INSTALL" != "true" ]; then
+            # Check if we're running in a pipe (non-interactive)
+            if [ ! -t 0 ]; then
+                log_info "Non-interactive mode detected. Use -f/--force flag to reinstall."
+                log_info "Or run: curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh | bash -s -- --force"
+                exit 0
+            fi
+            
             echo -n "Do you want to reinstall? [y/N]: "
-            read -r response
+            read -r response </dev/tty
             case "$response" in
                 [yY][eE][sS]|[yY])
                     log_info "Proceeding with reinstallation..."
