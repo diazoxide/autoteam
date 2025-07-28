@@ -5,7 +5,7 @@
 FROM golang:1.21-alpine AS builder
 
 # Install build dependencies
-RUN apk add --no-cache git make
+RUN apk add --no-cache git=2.45.2-r0 make=4.4.1-r2
 
 # Set working directory
 WORKDIR /app
@@ -23,16 +23,16 @@ COPY . .
 RUN make build
 
 # Production stage
-FROM alpine:latest
+FROM alpine:3.20
 
 # Install runtime dependencies
 RUN apk add --no-cache \
-    ca-certificates \
-    git \
-    docker-cli \
-    docker-compose \
-    curl \
-    bash
+    ca-certificates=20240705-r0 \
+    git=2.45.2-r0 \
+    docker-cli=27.1.1-r0 \
+    docker-compose=2.29.1-r0 \
+    curl=8.9.0-r0 \
+    bash=5.2.26-r0
 
 # Create non-root user
 RUN addgroup -g 1001 -S autoteam && \

@@ -24,31 +24,37 @@ curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/in
 1. **Download the appropriate binary for your platform:**
 
    **macOS (Intel):**
+
    ```bash
    curl -LO https://github.com/diazoxide/auto-team/releases/latest/download/autoteam-latest-darwin-amd64.tar.gz
    ```
 
    **macOS (Apple Silicon):**
+
    ```bash
    curl -LO https://github.com/diazoxide/auto-team/releases/latest/download/autoteam-latest-darwin-arm64.tar.gz
    ```
 
    **Linux (x86_64):**
+
    ```bash
    curl -LO https://github.com/diazoxide/auto-team/releases/latest/download/autoteam-latest-linux-amd64.tar.gz
    ```
 
    **Linux (ARM64):**
+
    ```bash
    curl -LO https://github.com/diazoxide/auto-team/releases/latest/download/autoteam-latest-linux-arm64.tar.gz
    ```
 
    **Linux (32-bit):**
+
    ```bash
    curl -LO https://github.com/diazoxide/auto-team/releases/latest/download/autoteam-latest-linux-386.tar.gz
    ```
 
    **Linux (ARM):**
+
    ```bash
    curl -LO https://github.com/diazoxide/auto-team/releases/latest/download/autoteam-latest-linux-arm.tar.gz
    ```
@@ -172,11 +178,13 @@ autoteam generate
 ## Dependencies
 
 ### Runtime Dependencies
+
 - Docker (for running agents)
 - Docker Compose (for orchestration)
 - Git (for repository operations)
 
 ### Agent Dependencies
+
 - GitHub CLI (`gh`) - Auto-installed in containers
 - Claude Code - Auto-installed in containers
 - Node.js - Provided by Docker image

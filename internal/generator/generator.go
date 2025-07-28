@@ -66,14 +66,14 @@ func (g *Generator) createAgentDirectories(cfg *config.Config) error {
 		// Create empty .claude and .claude.json files if they don't exist
 		claudeConfigPath := filepath.Join(claudeDir, ".claude")
 		if _, err := os.Stat(claudeConfigPath); os.IsNotExist(err) {
-			if err := os.WriteFile(claudeConfigPath, []byte(""), 0644); err != nil {
+			if err := os.WriteFile(claudeConfigPath, []byte(""), 0600); err != nil {
 				return fmt.Errorf("failed to create .claude file for agent %s: %w", agent.Name, err)
 			}
 		}
 
 		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 		if _, err := os.Stat(claudeJSONPath); os.IsNotExist(err) {
-			if err := os.WriteFile(claudeJSONPath, []byte("{}"), 0644); err != nil {
+			if err := os.WriteFile(claudeJSONPath, []byte("{}"), 0600); err != nil {
 				return fmt.Errorf("failed to create .claude.json file for agent %s: %w", agent.Name, err)
 			}
 		}

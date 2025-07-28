@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        go-version: [1.19, 1.20, 1.21]
+        go-version: ['1.19', '1.20', '1.21']
     
     steps:
     - name: Checkout code
@@ -77,7 +77,7 @@ jobs:
       run: make test-coverage
     
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage.out
         flags: unittests
@@ -122,7 +122,7 @@ jobs:
     
     - name: Upload build artifacts (Linux only)
       if: matrix.os == 'ubuntu-latest'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: binaries
         path: build/
