@@ -79,6 +79,9 @@ jobs:
     - name: Create release packages
       run: make release
     
+    - name: Build entrypoint binaries
+      run: make build-entrypoint-all
+    
     - name: Upload release artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -166,6 +169,7 @@ jobs:
           **Full Changelog**: https://github.com/diazoxide/auto-team/compare/${{ steps.release_notes.outputs.PREVIOUS_TAG }}...${{ steps.release_notes.outputs.TAG_NAME }}
         files: |
           dist/*.tar.gz
+          build/autoteam-entrypoint-linux-*
         draft: false
         prerelease: ${{ contains(steps.release_notes.outputs.TAG_NAME, '-') }}
         generate_release_notes: false

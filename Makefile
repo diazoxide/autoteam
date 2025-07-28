@@ -9,7 +9,9 @@ GO_VERSION := $(shell go version | awk '{print $$3}')
 
 # Build configuration
 BINARY_NAME := autoteam
+ENTRYPOINT_BINARY_NAME := autoteam-entrypoint
 MAIN_PATH := ./cmd/autoteam
+ENTRYPOINT_MAIN_PATH := ./cmd/entrypoint
 BUILD_DIR := build
 DIST_DIR := dist
 
@@ -26,6 +28,11 @@ PLATFORMS := \
 	linux/386 \
 	linux/arm
 
+# Linux platforms for entrypoint (Docker focus)
+LINUX_PLATFORMS := \
+	linux/amd64 \
+	linux/arm64
+
 # Colors for output
 RED := \033[0;31m
 GREEN := \033[0;32m
@@ -36,7 +43,7 @@ CYAN := \033[0;36m
 NC := \033[0m # No Color
 
 .PHONY: all build clean test install dev help
-.PHONY: build-all build-darwin build-linux
+.PHONY: build-all build-darwin build-linux build-entrypoint build-entrypoint-all
 .PHONY: package package-all release
 .PHONY: install-darwin install-linux
 
@@ -63,6 +70,17 @@ build: ## Build binary for current platform
 	$(GO_BUILD) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PATH)
 	@echo "$(GREEN)✓ Built: $(BUILD_DIR)/$(BINARY_NAME)$(NC)"
 
+# Build entrypoint binary (current platform)
+build-entrypoint: ## Build entrypoint binary for current platform
+	@echo "$(BLUE)Building $(ENTRYPOINT_BINARY_NAME) for current platform...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	$(GO_BUILD) -o $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME) $(ENTRYPOINT_MAIN_PATH)
+	@echo "$(GREEN)✓ Built: $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)$(NC)"
+
+# Build entrypoint for Linux platforms (Docker focus)
+build-entrypoint-all: clean-build $(LINUX_PLATFORMS:=/entrypoint) ## Build entrypoint binaries for Linux platforms
+	@echo "$(GREEN)✓ All entrypoint builds completed in $(BUILD_DIR)/$(NC)"
+
 # Build for all platforms
 build-all: clean-build $(PLATFORMS) ## Build binaries for all supported platforms
 	@echo "$(GREEN)✓ All builds completed in $(BUILD_DIR)/$(NC)"
@@ -85,6 +103,16 @@ $(PLATFORMS):
 	@mkdir -p $(BUILD_DIR)
 	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o $(BINARY)$(BINARY_EXT) $(MAIN_PATH)
 	@echo "$(GREEN)  ✓ $(BINARY)$(BINARY_EXT)$(NC)"
+
+# Individual entrypoint platform targets
+$(LINUX_PLATFORMS:=/entrypoint):
+	$(eval GOOS := $(word 1,$(subst /, ,$(subst /entrypoint,,$@))))
+	$(eval GOARCH := $(word 2,$(subst /, ,$(subst /entrypoint,,$@))))
+	$(eval BINARY := $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)-$(GOOS)-$(GOARCH))
+	@echo "$(PURPLE)Building entrypoint for $(GOOS)/$(GOARCH)...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o $(BINARY) $(ENTRYPOINT_MAIN_PATH)
+	@echo "$(GREEN)  ✓ $(BINARY)$(NC)"
 
 # Development target with hot reload
 dev: ## Build and install for development

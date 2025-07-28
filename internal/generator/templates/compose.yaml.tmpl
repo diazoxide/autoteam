@@ -8,16 +8,46 @@ services:
       - ./agents/{{ .Name }}/codebase:/home/{{ $.Settings.DockerUser }}/{{ $.Settings.TeamName }}/codebase
       - ./shared/.claude:/home/{{ $.Settings.DockerUser }}/.claude
       - ./shared/.claude.json:/home/{{ $.Settings.DockerUser }}/.claude.json
-      - ./entrypoint.sh:/home/{{ $.Settings.DockerUser }}/entrypoint.sh:ro
     environment:
       IS_SANDBOX: 1 # for claude code to work on the {{ $.Settings.DockerUser }} user
       TEAM_NAME: {{ $.Settings.TeamName }}
       GITHUB_REPO: {{ $.Repository.URL }}
       GH_TOKEN: ${{ "{"}}{{ .GitHubTokenEnv }}{{ "}" }}
       AGENT_NAME: {{ .Name }}
+      AGENT_TYPE: claude
       AGENT_PROMPT: {{ .Prompt | printf "%q" }}
       COMMON_PROMPT: {{ .CommonPrompt | printf "%q" }}
       CHECK_INTERVAL: {{ $.Settings.CheckInterval }}
       INSTALL_DEPS: {{ if $.Settings.InstallDeps }}true{{ else }}false{{ end }}
-    entrypoint: [ "/home/{{ $.Settings.DockerUser }}/entrypoint.sh" ]
+      ENTRYPOINT_VERSION: ${ENTRYPOINT_VERSION:-latest}
+      MAX_RETRIES: 100
+      DEBUG: false
+    entrypoint: |
+      sh -c '
+      echo "🚀 Auto-Team Agent Starting..."
+      echo "Agent: {{ .Name }}, Repository: {{ $.Repository.URL }}"
+      
+      # Detect architecture
+      ARCH=$$(uname -m)
+      case $$ARCH in
+        x86_64) GOARCH="amd64" ;;
+        aarch64|arm64) GOARCH="arm64" ;;
+        *) echo "❌ Unsupported architecture: $$ARCH"; exit 1 ;;
+      esac
+      
+      BINARY_NAME="autoteam-entrypoint-linux-$$GOARCH"
+      DOWNLOAD_URL="https://github.com/diazoxide/auto-team/releases/download/$${ENTRYPOINT_VERSION}/$$BINARY_NAME"
+      
+      echo "📥 Downloading entrypoint binary: $$BINARY_NAME"
+      if ! curl -fsSL "$$DOWNLOAD_URL" -o /tmp/autoteam-entrypoint; then
+        echo "❌ Failed to download entrypoint binary from $$DOWNLOAD_URL"
+        echo "💡 Make sure ENTRYPOINT_VERSION is set correctly (default: latest)"
+        exit 1
+      fi
+      
+      chmod +x /tmp/autoteam-entrypoint
+      echo "✅ Entrypoint binary ready"
+      
+      exec /tmp/autoteam-entrypoint
+      '
 {{- end }}
