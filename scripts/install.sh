@@ -10,8 +10,10 @@ REPO="diazoxide/auto-team"
 DEFAULT_BINARY="autoteam"
 BINARY_NAME=""
 INSTALL_DIR="/usr/local/bin"
+ENTRYPOINTS_DIR="/opt/auto-team/entrypoints"
 TEMP_DIR=$(mktemp -d)
 VERSION=${VERSION:-latest}
+INSTALL_ENTRYPOINTS="true"
 
 # Colors
 RED='\033[0;31m'
@@ -325,6 +327,7 @@ usage() {
     echo "  -f, --force            Force installation even if already installed"
     echo "  -d, --dir DIRECTORY    Install directory (default: /usr/local/bin)"
     echo "  -t, --target PATH      Target installation path (overrides -d)"
+    echo "  --skip-entrypoints     Skip installation of entrypoint binaries (installed by default)"
     echo "  -h, --help             Show this help message"
     echo ""
     echo "Environment Variables:"
@@ -335,6 +338,7 @@ usage() {
     echo "Examples:"
     echo "  $0                                    # Install autoteam (latest)"
     echo "  $0 --binary autoteam-entrypoint      # Install entrypoint binary"
+    echo "  $0 --skip-entrypoints               # Install main binary only (skip entrypoints)"
     echo "  $0 -v 1.0.0                         # Install specific version"
     echo "  $0 -f                                # Force reinstall"
     echo "  $0 -d ~/.local/bin                   # Install to custom directory"
@@ -377,6 +381,10 @@ parse_args() {
                 TARGET_PATH="$2"
                 shift 2
                 ;;
+            --skip-entrypoints)
+                INSTALL_ENTRYPOINTS="false"
+                shift
+                ;;
             -h|--help)
                 usage
                 exit 0
@@ -390,18 +398,177 @@ parse_args() {
     done
 }
 
+# Install entrypoint binaries for all supported platforms
+install_entrypoints() {
+    log_header "Installing Auto-Team Entrypoint Binaries"
+    log_header "========================================"
+    
+    # Supported platforms
+    local platforms=("linux-amd64" "linux-arm64" "darwin-amd64" "darwin-arm64")
+    
+    # Create entrypoints directory
+    log_info "Creating entrypoints directory: $ENTRYPOINTS_DIR"
+    if [ ! -w "$(dirname "$ENTRYPOINTS_DIR")" ]; then
+        sudo mkdir -p "$ENTRYPOINTS_DIR"
+    else
+        mkdir -p "$ENTRYPOINTS_DIR"
+    fi
+    
+    # Install entrypoint.sh script
+    local script_url="https://raw.githubusercontent.com/$REPO/main/scripts/entrypoint.sh"
+    log_info "Installing entrypoint.sh script..."
+    
+    if curl -fsSL "$script_url" -o "$TEMP_DIR/entrypoint.sh" 2>/dev/null; then
+        if [ ! -w "$ENTRYPOINTS_DIR" ]; then
+            sudo cp "$TEMP_DIR/entrypoint.sh" "$ENTRYPOINTS_DIR/entrypoint.sh"
+            sudo chmod +x "$ENTRYPOINTS_DIR/entrypoint.sh"
+        else
+            cp "$TEMP_DIR/entrypoint.sh" "$ENTRYPOINTS_DIR/entrypoint.sh"
+            chmod +x "$ENTRYPOINTS_DIR/entrypoint.sh"
+        fi
+        log_success "Installed entrypoint.sh to $ENTRYPOINTS_DIR/entrypoint.sh"
+    else
+        log_warning "Failed to download entrypoint.sh script (will be created locally)"
+        # Create a local copy if download fails
+        cat > "$TEMP_DIR/entrypoint.sh" << 'EOF'
+#!/bin/bash
+# Auto-Team Universal Container Entrypoint
+set -e
+echo "=== Auto-Team Agent Starting ==="
+echo "Agent: ${AGENT_NAME:-unknown}"
+echo "Repository: ${GITHUB_REPO:-unknown}"
+echo "Platform: $(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/armv7l/arm/')"
+PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/armv7l/arm/')"
+ENTRYPOINT_BINARY="/opt/auto-team/entrypoints/autoteam-entrypoint-${PLATFORM}"
+if [ -f "$ENTRYPOINT_BINARY" ] && [ -x "$ENTRYPOINT_BINARY" ]; then
+  cp "$ENTRYPOINT_BINARY" /tmp/autoteam-entrypoint
+  chmod +x /tmp/autoteam-entrypoint
+  exec /tmp/autoteam-entrypoint
+else
+  echo "❌ System entrypoint binary not found for platform ${PLATFORM}"
+  echo "💡 Run 'autoteam --install-entrypoints' to install entrypoint binaries"
+  exit 1
+fi
+EOF
+        if [ ! -w "$ENTRYPOINTS_DIR" ]; then
+            sudo cp "$TEMP_DIR/entrypoint.sh" "$ENTRYPOINTS_DIR/entrypoint.sh"
+            sudo chmod +x "$ENTRYPOINTS_DIR/entrypoint.sh"
+        else
+            cp "$TEMP_DIR/entrypoint.sh" "$ENTRYPOINTS_DIR/entrypoint.sh"
+            chmod +x "$ENTRYPOINTS_DIR/entrypoint.sh"
+        fi
+        log_success "Created fallback entrypoint.sh at $ENTRYPOINTS_DIR/entrypoint.sh"
+    fi
+    
+    # Download and install binaries for each platform
+    for platform in "${platforms[@]}"; do
+        local os=$(echo "$platform" | cut -d'-' -f1)
+        local arch=$(echo "$platform" | cut -d'-' -f2)
+        local binary_name="autoteam-entrypoint-$platform"
+        local binary_path="$ENTRYPOINTS_DIR/$binary_name"
+        
+        log_info "Installing entrypoint binary for $platform..."
+        
+        # Download binary for this platform
+        local download_url
+        if [ "$VERSION" = "latest" ]; then
+            download_url="https://github.com/$REPO/releases/latest/download/$binary_name"
+        else
+            download_url="https://github.com/$REPO/releases/download/$VERSION/$binary_name"
+        fi
+        
+        log_info "Downloading from: $download_url"
+        
+        # Try to download the binary
+        if curl -fsSL "$download_url" -o "$TEMP_DIR/$binary_name" 2>/dev/null; then
+            log_success "Downloaded entrypoint binary for $platform"
+            
+            # Install the binary
+            if [ ! -w "$ENTRYPOINTS_DIR" ]; then
+                sudo cp "$TEMP_DIR/$binary_name" "$binary_path"
+                sudo chmod +x "$binary_path"
+            else
+                cp "$TEMP_DIR/$binary_name" "$binary_path"
+                chmod +x "$binary_path"
+            fi
+            
+            log_success "Installed entrypoint binary to $binary_path"
+        else
+            log_warning "Failed to download entrypoint binary for $platform (not available in release)"
+            
+            # Try to build from source if Go is available
+            if command -v go >/dev/null 2>&1 && command -v git >/dev/null 2>&1; then
+                log_info "Attempting to build from source for $platform..."
+                
+                local repo_dir="$TEMP_DIR/auto-team-$platform"
+                git clone https://github.com/diazoxide/auto-team.git "$repo_dir" >/dev/null 2>&1 || {
+                    log_warning "Failed to clone repository for $platform"
+                    continue
+                }
+                
+                cd "$repo_dir"
+                
+                # Build for the specific platform
+                if GOOS="$os" GOARCH="$arch" go build -ldflags "-s -w" -o "$TEMP_DIR/$binary_name" ./cmd/entrypoint >/dev/null 2>&1; then
+                    log_success "Built entrypoint binary for $platform from source"
+                    
+                    # Install the binary
+                    if [ ! -w "$ENTRYPOINTS_DIR" ]; then
+                        sudo cp "$TEMP_DIR/$binary_name" "$binary_path"
+                        sudo chmod +x "$binary_path"
+                    else
+                        cp "$TEMP_DIR/$binary_name" "$binary_path"
+                        chmod +x "$binary_path"
+                    fi
+                    
+                    log_success "Installed entrypoint binary to $binary_path"
+                else
+                    log_warning "Failed to build entrypoint binary for $platform"
+                fi
+                
+                cd - >/dev/null
+            else
+                log_warning "Go and Git are required to build from source for $platform"
+            fi
+        fi
+    done
+    
+    echo ""
+    log_success "Entrypoint binaries installation completed!"
+    log_info "Binaries installed to: $ENTRYPOINTS_DIR"
+    log_info "Available binaries:"
+    
+    # List installed binaries
+    for platform in "${platforms[@]}"; do
+        local binary_path="$ENTRYPOINTS_DIR/autoteam-entrypoint-$platform"
+        if [ -f "$binary_path" ] && [ -x "$binary_path" ]; then
+            log_success "  autoteam-entrypoint-$platform"
+        else
+            log_warning "  autoteam-entrypoint-$platform: Not installed"
+        fi
+    done
+}
+
 # Main installation process
 main() {
+    parse_args "$@"
+    
+    # Regular installation
     log_header "Auto-Team Installation Script"
     log_header "=============================="
     
-    parse_args "$@"
     detect_platform
     check_dependencies
     check_existing
     download_binary
     install_binary
     verify_installation
+    
+    # Install entrypoints after main binary (unless skipped or installing entrypoint binary)
+    if [ "$INSTALL_ENTRYPOINTS" = "true" ] && [ "$BINARY_NAME" != "autoteam-entrypoint" ]; then
+        echo ""
+        install_entrypoints
+    fi
     
     echo ""
     log_success "Installation completed successfully!"

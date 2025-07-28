@@ -101,17 +101,9 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 		t.Errorf("compose.yaml should contain repository URL")
 	}
 
-	// Verify entrypoint.sh was generated and is executable
-	if !testutil.FileExists("entrypoint.sh") {
-		t.Errorf("entrypoint.sh should be generated")
-	}
-
-	stat, err := os.Stat("entrypoint.sh")
-	if err != nil {
-		t.Fatalf("failed to stat entrypoint.sh: %v", err)
-	}
-	if stat.Mode().Perm() != 0755 {
-		t.Errorf("entrypoint.sh should be executable, got permissions %v", stat.Mode().Perm())
+	// Verify agents/entrypoints directory was created (entrypoint.sh is no longer generated)
+	if !testutil.DirExists("agents/entrypoints") {
+		t.Errorf("agents/entrypoints directory should be created")
 	}
 
 	// Verify agent directories were created

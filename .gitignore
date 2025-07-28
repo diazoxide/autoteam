@@ -1,7 +1,15 @@
 .idea
 *.iml
 
+# Generated files and directories
 agents/**
+compose.yaml
+entrypoint.sh
+shared/
 
+# Build artifacts
+build/
+
+# Environment files
 .env
-/shared/
+

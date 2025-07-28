@@ -1,0 +1,13 @@
+# Generated files and directories
+compose.yaml
+entrypoint.sh
+agents/
+shared/
+
+# Test binaries and artifacts
+autoteam-test
+*-test
+
+# Temporary files
+*.tmp
+*.log

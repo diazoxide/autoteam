@@ -74,8 +74,9 @@ agents:
 		t.Errorf("compose.yaml should be generated")
 	}
 
-	if !testutil.FileExists("entrypoint.sh") {
-		t.Errorf("entrypoint.sh should be generated")
+	// entrypoint.sh is no longer generated - it's copied from system entrypoints directory
+	if !testutil.DirExists("agents") {
+		t.Errorf("agents directory should be created")
 	}
 
 	// Verify content
@@ -227,7 +228,6 @@ echo "Integration test"`
 	expectedFiles := []string{
 		"autoteam.yaml",
 		"compose.yaml",
-		"entrypoint.sh",
 		"agents/dev1/codebase",
 		"agents/arch1/codebase",
 		"shared",
@@ -239,12 +239,8 @@ echo "Integration test"`
 		}
 	}
 
-	// Verify entrypoint.sh is executable
-	stat, err := os.Stat("entrypoint.sh")
-	if err != nil {
-		t.Fatalf("failed to stat entrypoint.sh: %v", err)
-	}
-	if stat.Mode().Perm() != 0755 {
-		t.Errorf("entrypoint.sh should be executable, got permissions %v", stat.Mode().Perm())
+	// Verify agents/entrypoints directory exists (even if empty due to no system installation)
+	if !testutil.DirExists("agents/entrypoints") {
+		t.Errorf("agents/entrypoints directory should be created")
 	}
 }

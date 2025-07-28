@@ -1,0 +1,23 @@
+repository:
+    url: diazoxide/auto-team-website #https://github.com/diazoxide/auto-team-website.git
+    main_branch: main
+agents:
+    - name: dev1
+      prompt: You are a developer agent responsible for implementing features and fixing bugs.
+      github_token_env: DEV1_GITHUB_TOKEN
+      common_prompt: Always follow coding best practices and write comprehensive tests.
+      settings:
+        docker_image: golang:1.17.1
+    - name: arch1
+      prompt: You are an architecture agent responsible for system design and code reviews.
+      github_token_env: ARCH1_GITHUB_TOKEN
+      common_prompt: Focus on maintainability, scalability, and architectural best practices.
+settings:
+    docker_image: node:18.17.1
+    docker_user: root
+    check_interval: 60
+    team_name: auto-team
+    install_deps: false
+#    volumes:
+#      - "./autoteam-entrypoint-linux-arm64:/autoteam-entrypoint-linux-arm64"
+#    entrypoint: "/autoteam-entrypoint-linux-arm64"

@@ -8,7 +8,7 @@ services:
       - ./agents/{{ .Agent.Name }}/codebase:/opt/auto-team/codebase
       - ./shared/.claude:/home/{{ .EffectiveSettings.DockerUser }}/.claude
       - ./shared/.claude.json:/home/{{ .EffectiveSettings.DockerUser }}/.claude.json
-      - ../build:/host/build:ro
+      - ./agents/entrypoints:/opt/auto-team/entrypoints:ro
 {{- range .EffectiveSettings.Volumes }}
       - {{ . }}
 {{- end }}
@@ -30,27 +30,9 @@ services:
       {{ $key }}: {{ $value | printf "%q" }}
 {{- end }}
 {{- if .EffectiveSettings.Entrypoint }}
-    entrypoint: {{ .EffectiveSettings.Entrypoint }}
-{{- else }}
     entrypoint: |
-      sh -c '
-      echo "🚀 Auto-Team Agent Starting..."
-      echo "Agent: {{ .Agent.Name }}, Repository: {{ $.Repository.URL }}"
-      
-      # Use local development binary if available, otherwise download
-      if [ -f "/host/build/autoteam-entrypoint" ]; then
-        echo "📥 Using local development binary..."
-        cp /host/build/autoteam-entrypoint /tmp/autoteam-entrypoint
-        chmod +x /tmp/autoteam-entrypoint
-      else
-        echo "📥 Installing autoteam-entrypoint binary..."
-        curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh | sh -s -- --binary autoteam-entrypoint --version "$${ENTRYPOINT_VERSION:-latest}" --target /tmp/autoteam-entrypoint
-      fi
-      
-      echo "✅ Entrypoint binary ready"
-      
-      # Execute the entrypoint - configuration comes from environment variables
-      exec /tmp/autoteam-entrypoint
-      '
+{{ .EffectiveSettings.Entrypoint | escapeDockerCompose | indent 6 }}
+{{- else }}
+    entrypoint: ["/opt/auto-team/entrypoints/entrypoint.sh"]
 {{- end }}
 {{- end }}

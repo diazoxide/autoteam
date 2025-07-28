@@ -40,6 +40,15 @@ func FileExists(path string) bool {
 	return !os.IsNotExist(err)
 }
 
+// DirExists checks if a directory exists
+func DirExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.IsDir()
+}
+
 // ReadFile reads file content for testing
 func ReadFile(t *testing.T, path string) string {
 	t.Helper()

@@ -7,6 +7,7 @@ import (
 	"text/template"
 
 	"auto-team/internal/config"
+	"auto-team/internal/generator"
 )
 
 func TestComposeTemplate(t *testing.T) {
@@ -16,8 +17,8 @@ func TestComposeTemplate(t *testing.T) {
 		t.Fatalf("failed to read compose template: %v", err)
 	}
 
-	// Parse template
-	tmpl, err := template.New("compose").Parse(string(templateContent))
+	// Parse template with functions
+	tmpl, err := template.New("compose").Funcs(generator.GetTemplateFunctions()).Parse(string(templateContent))
 	if err != nil {
 		t.Fatalf("failed to parse compose template: %v", err)
 	}
@@ -87,8 +88,7 @@ func TestComposeTemplate(t *testing.T) {
 		"DEBUG: ${DEBUG:-false}",
 		"/opt/auto-team/codebase",
 		"/home/developer/.claude",
-		"--binary autoteam-entrypoint",
-		"exec /tmp/autoteam-entrypoint",
+		"entrypoint: [\"/opt/auto-team/entrypoints/entrypoint.sh\"]",
 		"IS_SANDBOX: 1",
 	}
 
@@ -121,71 +121,11 @@ func TestComposeTemplate(t *testing.T) {
 	}
 }
 
-func TestEntrypointTemplate(t *testing.T) {
-	// Read the actual entrypoint template
-	templateContent, err := os.ReadFile("entrypoint.sh.tmpl")
-	if err != nil {
-		t.Fatalf("failed to read entrypoint template: %v", err)
-	}
-
-	// Parse template
-	tmpl, err := template.New("entrypoint").Parse(string(templateContent))
-	if err != nil {
-		t.Fatalf("failed to parse entrypoint template: %v", err)
-	}
-
-	// Test data - minimal config since entrypoint uses env vars
-	cfg := &config.Config{
-		Settings: config.Settings{
-			CheckInterval: 30,
-		},
-	}
-
-	// Execute template
-	var buf strings.Builder
-	if err := tmpl.Execute(&buf, cfg); err != nil {
-		t.Fatalf("failed to execute entrypoint template: %v", err)
-	}
-
-	result := buf.String()
-
-	// Verify generated script contains expected elements
-	expectedContent := []string{
-		"#!/bin/bash",
-		"if [ \"$INSTALL_DEPS\" == \"true\" ]; then",
-		"npm install -g @anthropic-ai/claude-code",
-		"gh auth status",
-		"git config --global credential.helper store",
-		"gh repo clone ${GITHUB_REPO}",
-		"gh_my_pending_list()",
-		"run_claude()",
-		"check_issues_and_prs()",
-		"sleep ${CHECK_INTERVAL:-60}",
-		"echo \"$(date): Checking for pending items...\"",
-		"claude --dangerously-skip-permissions",
-	}
-
-	for _, expected := range expectedContent {
-		if !strings.Contains(result, expected) {
-			t.Errorf("entrypoint template should contain %q, but it doesn't.\nGenerated content:\n%s", expected, result)
-		}
-	}
-
-	// Verify it starts with shebang
-	if !strings.HasPrefix(result, "#!/bin/bash") {
-		t.Errorf("entrypoint script should start with #!/bin/bash")
-	}
-
-	// Verify it contains the main loop
-	if !strings.Contains(result, "while true; do") {
-		t.Errorf("entrypoint script should contain main monitoring loop")
-	}
-}
+// TestEntrypointTemplate removed - entrypoint.sh is now copied from system installation
 
 func TestTemplatesSyntax(t *testing.T) {
 	templates := []string{
 		"compose.yaml.tmpl",
-		"entrypoint.sh.tmpl",
 	}
 
 	for _, templateFile := range templates {
@@ -196,8 +136,8 @@ func TestTemplatesSyntax(t *testing.T) {
 				t.Fatalf("failed to read template %s: %v", templateFile, err)
 			}
 
-			// Try to parse template
-			_, err = template.New(templateFile).Parse(string(content))
+			// Try to parse template with functions
+			_, err = template.New(templateFile).Funcs(generator.GetTemplateFunctions()).Parse(string(content))
 			if err != nil {
 				t.Errorf("template %s has syntax errors: %v", templateFile, err)
 			}
@@ -211,7 +151,7 @@ func TestComposeTemplateWithMinimalConfig(t *testing.T) {
 		t.Fatalf("failed to read compose template: %v", err)
 	}
 
-	tmpl, err := template.New("compose").Parse(string(templateContent))
+	tmpl, err := template.New("compose").Funcs(generator.GetTemplateFunctions()).Parse(string(templateContent))
 	if err != nil {
 		t.Fatalf("failed to parse compose template: %v", err)
 	}
@@ -271,7 +211,7 @@ func TestComposeTemplatePromptEscaping(t *testing.T) {
 		t.Fatalf("failed to read compose template: %v", err)
 	}
 
-	tmpl, err := template.New("compose").Parse(string(templateContent))
+	tmpl, err := template.New("compose").Funcs(generator.GetTemplateFunctions()).Parse(string(templateContent))
 	if err != nil {
 		t.Fatalf("failed to parse compose template: %v", err)
 	}
@@ -321,7 +261,7 @@ func TestComposeTemplatePromptEscaping(t *testing.T) {
 }
 
 func TestComposeTemplateWithAgentSpecificSettings(t *testing.T) {
-	tmpl, err := template.ParseFiles("compose.yaml.tmpl")
+	tmpl, err := template.New("compose.yaml.tmpl").Funcs(generator.GetTemplateFunctions()).ParseFiles("compose.yaml.tmpl")
 	if err != nil {
 		t.Fatalf("failed to parse compose template: %v", err)
 	}
@@ -431,7 +371,7 @@ func boolPtr(b bool) *bool {
 }
 
 func TestComposeTemplateWithCustomVolumesAndEntrypoints(t *testing.T) {
-	tmpl, err := template.ParseFiles("compose.yaml.tmpl")
+	tmpl, err := template.New("compose.yaml.tmpl").Funcs(generator.GetTemplateFunctions()).ParseFiles("compose.yaml.tmpl")
 	if err != nil {
 		t.Fatalf("failed to parse compose template: %v", err)
 	}
@@ -496,15 +436,13 @@ func TestComposeTemplateWithCustomVolumesAndEntrypoints(t *testing.T) {
 
 	result := buf.String()
 
-	// Verify standard-agent uses default entrypoint
-	if !strings.Contains(result, "curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh") {
-		t.Error("standard-agent should use default autoteam-entrypoint installation")
+	// Both agents should now use the standard entrypoint.sh script
+	if !strings.Contains(result, "entrypoint: [\"/opt/auto-team/entrypoints/entrypoint.sh\"]") {
+		t.Error("both agents should use standard entrypoint.sh script")
 	}
 
-	// Verify custom-agent uses custom entrypoint
-	if !strings.Contains(result, "entrypoint: /app/custom-entrypoint.sh") {
-		t.Error("custom-agent should use custom entrypoint")
-	}
+	// Custom entrypoint override is no longer supported - all agents use entrypoint.sh
+	// This simplifies the architecture and avoids permission/complexity issues
 
 	// Verify custom volumes are present
 	expectedVolumes := []string{

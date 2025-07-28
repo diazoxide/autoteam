@@ -78,7 +78,7 @@ build-entrypoint: ## Build entrypoint binary for current platform
 	@echo "$(GREEN)✓ Built: $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)$(NC)"
 
 # Build entrypoint for Linux platforms (Docker focus)
-build-entrypoint-all: clean-build $(LINUX_PLATFORMS:=/entrypoint) ## Build entrypoint binaries for Linux platforms only
+build-entrypoint-all: $(LINUX_PLATFORMS:=/entrypoint) ## Build entrypoint binaries for Linux platforms only
 	@echo "$(GREEN)✓ All entrypoint builds completed in $(BUILD_DIR)/$(NC)"
 
 # Build for all platforms (main + entrypoint binaries)
@@ -161,8 +161,8 @@ package: build-all ## Create distribution packages for all platforms
 	@echo "$(GREEN)✓ All packages created in $(DIST_DIR)/$(NC)"
 
 # Installation targets
-install: build build-entrypoint ## Install binaries to system (current platform)
-	@echo "$(BLUE)Installing $(BINARY_NAME) and $(ENTRYPOINT_BINARY_NAME)...$(NC)"
+install: build build-entrypoint-all ## Install binaries to system (current platform + all entrypoint platforms)
+	@echo "$(BLUE)Installing $(BINARY_NAME) and entrypoint binaries...$(NC)"
 	@if [ "$$(uname)" = "Darwin" ]; then \
 		$(MAKE) install-darwin; \
 	elif [ "$$(uname)" = "Linux" ]; then \
@@ -171,6 +171,7 @@ install: build build-entrypoint ## Install binaries to system (current platform)
 		echo "$(RED)✗ Unsupported platform: $$(uname)$(NC)"; \
 		exit 1; \
 	fi
+	@$(MAKE) install-entrypoints
 
 install-darwin: ## Install on macOS
 	@if [ "$$(uname -m)" = "arm64" ]; then \
@@ -179,9 +180,14 @@ install-darwin: ## Install on macOS
 		BINARY="$(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64"; \
 	fi; \
 	if [ ! -f "$$BINARY" ]; then \
-		echo "$(RED)✗ Binary not found: $$BINARY$(NC)"; \
-		echo "$(YELLOW)Run 'make build-darwin' first$(NC)"; \
-		exit 1; \
+		echo "$(YELLOW)⚠ Cross-platform binary not found: $$BINARY$(NC)"; \
+		echo "$(BLUE)Using current platform binary: $(BUILD_DIR)/$(BINARY_NAME)$(NC)"; \
+		BINARY="$(BUILD_DIR)/$(BINARY_NAME)"; \
+		if [ ! -f "$$BINARY" ]; then \
+			echo "$(RED)✗ Binary not found: $$BINARY$(NC)"; \
+			echo "$(YELLOW)Run 'make build' first$(NC)"; \
+			exit 1; \
+		fi; \
 	fi; \
 	sudo cp "$$BINARY" /usr/local/bin/$(BINARY_NAME); \
 	sudo chmod +x /usr/local/bin/$(BINARY_NAME); \
@@ -206,9 +212,14 @@ install-linux: ## Install on Linux
 	esac; \
 	BINARY="$(BUILD_DIR)/$(BINARY_NAME)-linux-$$GOARCH"; \
 	if [ ! -f "$$BINARY" ]; then \
-		echo "$(RED)✗ Binary not found: $$BINARY$(NC)"; \
-		echo "$(YELLOW)Run 'make build-linux' first$(NC)"; \
-		exit 1; \
+		echo "$(YELLOW)⚠ Cross-platform binary not found: $$BINARY$(NC)"; \
+		echo "$(BLUE)Using current platform binary: $(BUILD_DIR)/$(BINARY_NAME)$(NC)"; \
+		BINARY="$(BUILD_DIR)/$(BINARY_NAME)"; \
+		if [ ! -f "$$BINARY" ]; then \
+			echo "$(RED)✗ Binary not found: $$BINARY$(NC)"; \
+			echo "$(YELLOW)Run 'make build' first$(NC)"; \
+			exit 1; \
+		fi; \
 	fi; \
 	sudo cp "$$BINARY" /usr/local/bin/$(BINARY_NAME); \
 	sudo chmod +x /usr/local/bin/$(BINARY_NAME); \
@@ -227,6 +238,47 @@ install-linux: ## Install on Linux
 		echo "$(YELLOW)⚠ $(ENTRYPOINT_BINARY_NAME) not found, run 'make build-entrypoint' first$(NC)"; \
 	fi
 
+install-entrypoints: ## Install entrypoint binaries for all platforms to /opt/auto-team/entrypoints
+	@echo "$(BLUE)Installing entrypoint binaries for all platforms...$(NC)"
+	@sudo mkdir -p /opt/auto-team/entrypoints
+	@echo "$(BLUE)Installing entrypoint.sh script...$(NC)"
+	@sudo cp scripts/entrypoint.sh /opt/auto-team/entrypoints/entrypoint.sh
+	@sudo chmod +x /opt/auto-team/entrypoints/entrypoint.sh
+	@echo "$(GREEN)✓ Installed entrypoint.sh to /opt/auto-team/entrypoints/entrypoint.sh$(NC)"
+	@for platform in $(LINUX_PLATFORMS); do \
+		GOOS=$$(echo $$platform | cut -d'/' -f1); \
+		GOARCH=$$(echo $$platform | cut -d'/' -f2); \
+		BINARY="$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)-$$GOOS-$$GOARCH"; \
+		TARGET="/opt/auto-team/entrypoints/$(ENTRYPOINT_BINARY_NAME)-$$GOOS-$$GOARCH"; \
+		if [ -f "$$BINARY" ]; then \
+			sudo cp "$$BINARY" "$$TARGET"; \
+			sudo chmod +x "$$TARGET"; \
+			echo "$(GREEN)✓ Installed $$TARGET$(NC)"; \
+		else \
+			echo "$(YELLOW)⚠ Binary not found: $$BINARY$(NC)"; \
+		fi; \
+	done
+	@for platform in darwin-amd64 darwin-arm64; do \
+		TARGET="/opt/auto-team/entrypoints/$(ENTRYPOINT_BINARY_NAME)-$$platform"; \
+		if [ "$$(uname)" = "Darwin" ]; then \
+			CURRENT_ARCH=$$(uname -m | sed 's/x86_64/amd64/'); \
+			if [ "$$platform" = "darwin-$$CURRENT_ARCH" ]; then \
+				if [ -f "$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)" ]; then \
+					sudo cp "$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)" "$$TARGET"; \
+					sudo chmod +x "$$TARGET"; \
+					echo "$(GREEN)✓ Installed $$TARGET$(NC)"; \
+				else \
+					echo "$(YELLOW)⚠ Current platform entrypoint binary not found: $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)$(NC)"; \
+				fi; \
+			else \
+				echo "$(YELLOW)⚠ Cross-platform Darwin binary not available for $$platform$(NC)"; \
+			fi; \
+		else \
+			echo "$(YELLOW)⚠ Cannot install Darwin binaries on $$(uname) platform$(NC)"; \
+		fi; \
+	done
+	@echo "$(GREEN)✓ All available entrypoint binaries installed to /opt/auto-team/entrypoints$(NC)"
+
 # Uninstall target
 uninstall: ## Uninstall binaries from system
 	@echo "$(BLUE)Uninstalling $(BINARY_NAME) and $(ENTRYPOINT_BINARY_NAME)...$(NC)"
@@ -241,6 +293,12 @@ uninstall: ## Uninstall binaries from system
 		echo "$(GREEN)✓ Uninstalled $(ENTRYPOINT_BINARY_NAME) from /usr/local/bin/$(NC)"; \
 	else \
 		echo "$(YELLOW)! $(ENTRYPOINT_BINARY_NAME) not found in /usr/local/bin/$(NC)"; \
+	fi
+	@if [ -d "/opt/auto-team/entrypoints" ]; then \
+		sudo rm -rf /opt/auto-team/entrypoints; \
+		echo "$(GREEN)✓ Uninstalled entrypoint binaries from /opt/auto-team/entrypoints$(NC)"; \
+	else \
+		echo "$(YELLOW)! Entrypoints directory not found in /opt/auto-team/entrypoints$(NC)"; \
 	fi
 
 # Release target

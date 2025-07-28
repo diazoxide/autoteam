@@ -13,10 +13,14 @@ import (
 //go:embed templates/*
 var templateFS embed.FS
 
-type Generator struct{}
+type Generator struct {
+	fileOps *FileOperations
+}
 
 func New() *Generator {
-	return &Generator{}
+	return &Generator{
+		fileOps: NewFileOperations(),
+	}
 }
 
 func (g *Generator) GenerateCompose(cfg *config.Config) error {
@@ -30,52 +34,73 @@ func (g *Generator) GenerateCompose(cfg *config.Config) error {
 		return fmt.Errorf("failed to generate compose.yaml: %w", err)
 	}
 
-	// Generate entrypoint.sh
-	if err := g.generateFile("entrypoint.sh.tmpl", "entrypoint.sh", cfg); err != nil {
-		return fmt.Errorf("failed to generate entrypoint.sh: %w", err)
-	}
-
-	// Make entrypoint.sh executable
-	if err := os.Chmod("entrypoint.sh", 0755); err != nil {
-		return fmt.Errorf("failed to make entrypoint.sh executable: %w", err)
-	}
-
 	// Ensure shared directory exists
-	if err := os.MkdirAll("shared", 0755); err != nil {
+	if err := g.fileOps.EnsureDirectory(config.SharedDir, config.DirPerm); err != nil {
 		return fmt.Errorf("failed to create shared directory: %w", err)
+	}
+
+	// Copy system entrypoints directory
+	if err := g.copyEntrypointsDirectory(); err != nil {
+		return fmt.Errorf("failed to copy entrypoints directory: %w", err)
 	}
 
 	return nil
 }
 
+func (g *Generator) copyEntrypointsDirectory() error {
+	// Ensure agents directory exists
+	if err := g.fileOps.EnsureDirectory(config.AgentsDir, config.DirPerm); err != nil {
+		return fmt.Errorf("failed to create agents directory: %w", err)
+	}
+
+	// Remove existing directory if it exists
+	if err := g.fileOps.RemoveIfExists(config.LocalEntrypointsPath); err != nil {
+		return fmt.Errorf("failed to remove existing entrypoints directory: %w", err)
+	}
+
+	// Check if system entrypoints directory exists
+	if !g.fileOps.DirectoryExists(config.SystemEntrypointsDir) {
+		// Create a temporary directory with a helpful message
+		if err := g.fileOps.EnsureDirectory(config.LocalEntrypointsPath, config.DirPerm); err != nil {
+			return fmt.Errorf("failed to create temporary entrypoints directory: %w", err)
+		}
+
+		readmePath := filepath.Join(config.LocalEntrypointsPath, config.ReadmeFile)
+		readmeContent := `# Auto-Team Entrypoint Binaries
+
+This directory should contain entrypoint binaries for different platforms.
+
+To install the entrypoint binaries system-wide, run:
+` + "```bash" + `
+autoteam --install-entrypoints
+` + "```" + `
+
+This will:
+1. Install entrypoint binaries for all supported platforms to ` + config.SystemEntrypointsDir + `
+2. Copy the binaries to this local directory during generation
+
+Supported platforms:
+- linux-amd64
+- linux-arm64  
+- darwin-amd64
+- darwin-arm64
+`
+
+		if err := g.fileOps.WriteFileIfNotExists(readmePath, []byte(readmeContent), config.ReadmePerm); err != nil {
+			return fmt.Errorf("failed to create README file: %w", err)
+		}
+
+		return nil
+	}
+
+	// Copy system entrypoints directory to local directory
+	return g.fileOps.CopyDirectory(config.SystemEntrypointsDir, config.LocalEntrypointsPath)
+}
+
 func (g *Generator) createAgentDirectories(cfg *config.Config) error {
 	for _, agent := range cfg.Agents {
-		agentDir := filepath.Join("agents", agent.Name)
-		codebaseDir := filepath.Join(agentDir, "codebase")
-		claudeDir := filepath.Join(agentDir, "claude")
-
-		// Create agent directories
-		if err := os.MkdirAll(codebaseDir, 0755); err != nil {
-			return fmt.Errorf("failed to create codebase directory for agent %s: %w", agent.Name, err)
-		}
-
-		if err := os.MkdirAll(claudeDir, 0755); err != nil {
-			return fmt.Errorf("failed to create claude directory for agent %s: %w", agent.Name, err)
-		}
-
-		// Create empty .claude and .claude.json files if they don't exist
-		claudeConfigPath := filepath.Join(claudeDir, ".claude")
-		if _, err := os.Stat(claudeConfigPath); os.IsNotExist(err) {
-			if err := os.WriteFile(claudeConfigPath, []byte(""), 0600); err != nil {
-				return fmt.Errorf("failed to create .claude file for agent %s: %w", agent.Name, err)
-			}
-		}
-
-		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
-		if _, err := os.Stat(claudeJSONPath); os.IsNotExist(err) {
-			if err := os.WriteFile(claudeJSONPath, []byte("{}"), 0600); err != nil {
-				return fmt.Errorf("failed to create .claude.json file for agent %s: %w", agent.Name, err)
-			}
+		if err := g.fileOps.CreateAgentDirectoryStructure(agent.Name); err != nil {
+			return fmt.Errorf("failed to create directory structure for agent %s: %w", agent.Name, err)
 		}
 	}
 
@@ -92,8 +117,8 @@ func (g *Generator) generateFile(templateFile, outputFile string, cfg *config.Co
 		AgentsWithSettings: cfg.GetAllAgentsWithEffectiveSettings(),
 	}
 
-	// Create template with custom functions
-	funcMap := template.FuncMap{}
+	// Get template functions
+	funcMap := GetTemplateFunctions()
 
 	templatePath := filepath.Join("templates", templateFile)
 
