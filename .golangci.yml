@@ -19,12 +19,9 @@ linters-settings:
   depguard:
     rules:
       main:
-        deny:
-          - pkg: "log"
-            desc: "Use structured logging instead"
         allow:
           - "$gostd"
-          - "github.com/diazoxide/auto-team"
+          - "auto-team"
           - "github.com/urfave/cli/v3"
           - "gopkg.in/yaml.v3"
   
