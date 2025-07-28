@@ -23,8 +23,8 @@ type PullRequestInfo struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	// For PRs with changes requested
-	HasChangesRequested bool              `json:"has_changes_requested,omitempty"`
-	Reviews             []ReviewInfo      `json:"reviews,omitempty"`
+	HasChangesRequested bool         `json:"has_changes_requested,omitempty"`
+	Reviews             []ReviewInfo `json:"reviews,omitempty"`
 }
 
 // IssueInfo contains information about an issue

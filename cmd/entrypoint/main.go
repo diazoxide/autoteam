@@ -120,7 +120,7 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	mon := monitor.New(githubClient, selectedAgent, monitorConfig, cfg)
-	
+
 	log.Println("Starting monitoring loop...")
 	return mon.Start(ctx)
 }

@@ -88,12 +88,12 @@ func (i *Installer) installWithApt(ctx context.Context) error {
 
 	// Install required packages
 	packages := []string{"curl", "git", "nodejs", "npm"}
-	
+
 	args := append([]string{"install", "-y"}, packages...)
 	cmd = exec.CommandContext(ctx, "apt", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	
+
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to install packages with apt: %w", err)
 	}
@@ -116,12 +116,12 @@ func (i *Installer) installWithApk(ctx context.Context) error {
 
 	// Install required packages
 	packages := []string{"curl", "git", "nodejs", "npm"}
-	
+
 	args := append([]string{"add", "--no-cache"}, packages...)
 	cmd = exec.CommandContext(ctx, "apk", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	
+
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to install packages with apk: %w", err)
 	}
@@ -136,12 +136,12 @@ func (i *Installer) installWithYum(ctx context.Context) error {
 
 	// Install required packages
 	packages := []string{"curl", "git", "nodejs", "npm"}
-	
+
 	args := append([]string{"install", "-y"}, packages...)
 	cmd := exec.CommandContext(ctx, "yum", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	
+
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to install packages with yum: %w", err)
 	}

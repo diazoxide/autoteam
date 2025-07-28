@@ -48,7 +48,7 @@ func (c *Client) GetPendingItems(ctx context.Context, username string) (*Pending
 func (c *Client) getReviewRequests(ctx context.Context, username string) ([]PullRequestInfo, error) {
 	// Search for PRs where the user is requested for review
 	query := fmt.Sprintf("repo:%s/%s is:pr is:open review-requested:%s", c.owner, c.repo, username)
-	
+
 	opts := &github.SearchOptions{
 		ListOptions: github.ListOptions{PerPage: 50},
 	}
@@ -77,7 +77,7 @@ func (c *Client) getReviewRequests(ctx context.Context, username string) ([]Pull
 // getAssignedPRs gets PRs assigned to the user
 func (c *Client) getAssignedPRs(ctx context.Context, username string) ([]PullRequestInfo, error) {
 	query := fmt.Sprintf("repo:%s/%s is:pr is:open assignee:%s", c.owner, c.repo, username)
-	
+
 	opts := &github.SearchOptions{
 		ListOptions: github.ListOptions{PerPage: 50},
 	}
@@ -105,7 +105,7 @@ func (c *Client) getAssignedPRs(ctx context.Context, username string) ([]PullReq
 // getAssignedIssues gets issues assigned to the user (excluding those with linked PRs)
 func (c *Client) getAssignedIssues(ctx context.Context, username string) ([]IssueInfo, error) {
 	query := fmt.Sprintf("repo:%s/%s is:issue is:open assignee:%s -linked:pr", c.owner, c.repo, username)
-	
+
 	opts := &github.SearchOptions{
 		ListOptions: github.ListOptions{PerPage: 50},
 	}
@@ -129,7 +129,7 @@ func (c *Client) getAssignedIssues(ctx context.Context, username string) ([]Issu
 // getPRsWithChangesRequested gets PRs authored by the user that have changes requested
 func (c *Client) getPRsWithChangesRequested(ctx context.Context, username string) ([]PullRequestInfo, error) {
 	query := fmt.Sprintf("repo:%s/%s is:pr is:open author:%s", c.owner, c.repo, username)
-	
+
 	opts := &github.SearchOptions{
 		ListOptions: github.ListOptions{PerPage: 50},
 	}
@@ -182,7 +182,7 @@ func (c *Client) checkChangesRequested(ctx context.Context, prNumber int) (bool,
 			continue
 		}
 		reviewer := review.User.GetLogin()
-		
+
 		// Keep only the latest review from each reviewer
 		if existing, exists := latestReviews[reviewer]; !exists || review.GetSubmittedAt().After(existing.GetSubmittedAt().Time) {
 			latestReviews[reviewer] = review
@@ -195,7 +195,7 @@ func (c *Client) checkChangesRequested(ctx context.Context, prNumber int) (bool,
 	for _, review := range latestReviews {
 		reviewInfo := FromGitHubReview(review)
 		reviewInfos = append(reviewInfos, reviewInfo)
-		
+
 		if strings.EqualFold(review.GetState(), "changes_requested") {
 			hasChanges = true
 		}

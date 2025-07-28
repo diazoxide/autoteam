@@ -66,11 +66,11 @@ func (c *Client) GetDefaultBranch(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	if repo.DefaultBranch == nil {
 		return "main", nil // fallback to main
 	}
-	
+
 	return *repo.DefaultBranch, nil
 }
 

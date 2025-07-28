@@ -35,7 +35,7 @@ type Monitor struct {
 // New creates a new monitor instance
 func New(githubClient *github.Client, selectedAgent agent.Agent, monitorConfig Config, globalConfig *config.Config) *Monitor {
 	gitSetup := git.NewSetup(globalConfig.Git, globalConfig.GitHub)
-	
+
 	return &Monitor{
 		githubClient: githubClient,
 		agent:        selectedAgent,
@@ -54,7 +54,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get authenticated user: %w", err)
 	}
-	
+
 	username := user.GetLogin()
 	log.Printf("Authenticated as GitHub user: %s", username)
 
@@ -79,10 +79,10 @@ func (m *Monitor) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			log.Println("Monitor shutting down due to context cancellation")
 			return ctx.Err()
-			
+
 		case <-ticker.C:
 			log.Printf("%s: Checking for pending items...", time.Now().Format(time.RFC3339))
-			
+
 			if err := m.checkAndProcess(ctx, username, defaultBranch); err != nil {
 				log.Printf("Check failed: %v", err)
 			}
@@ -104,7 +104,7 @@ func (m *Monitor) checkAndProcess(ctx context.Context, username, defaultBranch s
 	}
 
 	log.Printf("Found %d pending items that need attention", pendingItems.Count())
-	
+
 	// Format pending items for the prompt
 	pendingList := m.formatPendingItems(pendingItems)
 	log.Printf("Pending items:\n%s", pendingList)
@@ -203,7 +203,7 @@ func (m *Monitor) buildPrompt(pendingList string) string {
 
 	// Add repository-specific prompts if they exist
 	workingDir := m.gitSetup.GetWorkingDirectory()
-	
+
 	// Common prompt file
 	commonPromptPath := filepath.Join(workingDir, ".autoteam", "common.md")
 	if commonPrompt := m.readPromptFile(commonPromptPath); commonPrompt != "" {
@@ -226,11 +226,11 @@ func (m *Monitor) readPromptFile(filePath string) string {
 		// File doesn't exist or can't be read, which is fine
 		return ""
 	}
-	
+
 	trimmed := strings.TrimSpace(string(content))
 	if trimmed != "" {
 		log.Printf("Loaded prompt from: %s", filePath)
 	}
-	
+
 	return trimmed
 }

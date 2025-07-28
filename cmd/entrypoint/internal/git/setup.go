@@ -108,10 +108,10 @@ func (s *Setup) setupCredentialsFile() error {
 	}
 
 	credentialsPath := filepath.Join(homeDir, ".git-credentials")
-	
+
 	// Create credentials content with HTTPS token
 	credentialsContent := fmt.Sprintf("https://%s:%s@github.com", s.gitConfig.User, s.githubConfig.Token)
-	
+
 	// Write credentials file
 	if err := os.WriteFile(credentialsPath, []byte(credentialsContent), 0600); err != nil {
 		return fmt.Errorf("failed to write credentials file: %w", err)
@@ -124,7 +124,7 @@ func (s *Setup) setupCredentialsFile() error {
 // setupRepository clones or updates the repository
 func (s *Setup) setupRepository(ctx context.Context) error {
 	workingDir := s.getWorkingDirectory()
-	
+
 	// Create the working directory if it doesn't exist
 	if err := os.MkdirAll(workingDir, 0755); err != nil {
 		return fmt.Errorf("failed to create working directory: %w", err)
@@ -156,11 +156,11 @@ func (s *Setup) isRepositoryCloned() bool {
 // cloneRepository clones the repository using HTTPS
 func (s *Setup) cloneRepository(ctx context.Context) error {
 	repoURL := fmt.Sprintf("https://github.com/%s.git", s.githubConfig.Repository)
-	
+
 	cmd := exec.CommandContext(ctx, "git", "clone", repoURL, ".")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	
+
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to clone repository: %w", err)
 	}
@@ -199,7 +199,7 @@ func (s *Setup) GetWorkingDirectory() string {
 // SwitchToMainBranch switches to the main branch and resets to origin
 func (s *Setup) SwitchToMainBranch(ctx context.Context, mainBranch string) error {
 	workingDir := s.getWorkingDirectory()
-	
+
 	// Change to working directory
 	if err := os.Chdir(workingDir); err != nil {
 		return fmt.Errorf("failed to change to working directory: %w", err)
