@@ -27,27 +27,11 @@ services:
       echo "🚀 Auto-Team Agent Starting..."
       echo "Agent: {{ .Name }}, Repository: {{ $.Repository.URL }}"
       
-      # Detect architecture
-      ARCH=$$(uname -m)
-      case $$ARCH in
-        x86_64) GOARCH="amd64" ;;
-        aarch64|arm64) GOARCH="arm64" ;;
-        *) echo "❌ Unsupported architecture: $$ARCH"; exit 1 ;;
-      esac
+      # Use the unified install script approach
+      echo "📥 Installing autoteam-entrypoint binary..."
+      curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh | sh -s -- --binary autoteam-entrypoint --version "$${ENTRYPOINT_VERSION:-latest}" --target /tmp/autoteam-entrypoint
       
-      BINARY_NAME="autoteam-entrypoint-linux-$$GOARCH"
-      DOWNLOAD_URL="https://github.com/diazoxide/auto-team/releases/download/$${ENTRYPOINT_VERSION}/$$BINARY_NAME"
-      
-      echo "📥 Downloading entrypoint binary: $$BINARY_NAME"
-      if ! curl -fsSL "$$DOWNLOAD_URL" -o /tmp/autoteam-entrypoint; then
-        echo "❌ Failed to download entrypoint binary from $$DOWNLOAD_URL"
-        echo "💡 Make sure ENTRYPOINT_VERSION is set correctly (default: latest)"
-        exit 1
-      fi
-      
-      chmod +x /tmp/autoteam-entrypoint
       echo "✅ Entrypoint binary ready"
-      
       exec /tmp/autoteam-entrypoint
       '
 {{- end }}

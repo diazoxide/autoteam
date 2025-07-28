@@ -78,7 +78,7 @@ func TestComposeTemplate(t *testing.T) {
 		"DEBUG: false",
 		"/home/developer/test-team/codebase",
 		"/home/developer/.claude",
-		"autoteam-entrypoint-linux-",
+		"--binary autoteam-entrypoint",
 		"exec /tmp/autoteam-entrypoint",
 		"IS_SANDBOX: 1",
 	}

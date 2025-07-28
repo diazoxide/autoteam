@@ -7,7 +7,8 @@ set -e
 
 # Configuration
 REPO="diazoxide/auto-team"
-BINARY_NAME="autoteam"
+DEFAULT_BINARY="autoteam"
+BINARY_NAME=""
 INSTALL_DIR="/usr/local/bin"
 TEMP_DIR=$(mktemp -d)
 VERSION=${VERSION:-latest}
@@ -144,33 +145,62 @@ download_binary() {
     local download_url binary_name
     
     if [ "$VERSION" = "latest" ]; then
-        # For now, we'll build from source since we don't have releases yet
+        # For entrypoint binary, try direct download first, then build from source
+        if [ "$BINARY_NAME" = "autoteam-entrypoint" ]; then
+            binary_name="${BINARY_NAME}-${OS}-${ARCH}"
+            download_url="https://github.com/${REPO}/releases/download/${VERSION}/${binary_name}"
+            
+            log_info "Downloading $binary_name..."
+            if curl -fsSL "$download_url" -o "$TEMP_DIR/$BINARY_NAME" 2>/dev/null; then
+                chmod +x "$TEMP_DIR/$BINARY_NAME"
+                return
+            fi
+        fi
+        
+        # Fall back to building from source
         log_info "Building from source..."
         build_from_source
         return
     fi
     
-    binary_name="${BINARY_NAME}-${VERSION}-${OS}-${ARCH}.tar.gz"
-    download_url="https://github.com/${REPO}/releases/download/v${VERSION}/${binary_name}"
-    
-    log_info "Downloading $binary_name..."
-    
-    if ! curl -fsSL "$download_url" -o "$TEMP_DIR/$binary_name"; then
-        log_error "Failed to download binary from $download_url"
-        log_info "Falling back to building from source..."
-        build_from_source
-        return
-    fi
-    
-    log_info "Extracting binary..."
-    tar -xzf "$TEMP_DIR/$binary_name" -C "$TEMP_DIR"
-    
-    local extracted_dir="$TEMP_DIR/${BINARY_NAME}-${VERSION}-${OS}-${ARCH}"
-    if [ -f "$extracted_dir/$BINARY_NAME" ]; then
-        cp "$extracted_dir/$BINARY_NAME" "$TEMP_DIR/$BINARY_NAME"
+    # For versioned releases, use packaged downloads
+    if [ "$BINARY_NAME" = "autoteam-entrypoint" ]; then
+        # Direct binary download for entrypoint
+        binary_name="${BINARY_NAME}-${OS}-${ARCH}"
+        download_url="https://github.com/${REPO}/releases/download/v${VERSION}/${binary_name}"
+        
+        log_info "Downloading $binary_name..."
+        if ! curl -fsSL "$download_url" -o "$TEMP_DIR/$BINARY_NAME"; then
+            log_error "Failed to download binary from $download_url"
+            log_info "Falling back to building from source..."
+            build_from_source
+            return
+        fi
+        chmod +x "$TEMP_DIR/$BINARY_NAME"
     else
-        log_error "Binary not found in extracted archive"
-        exit 1
+        # Packaged download for main binary
+        binary_name="${BINARY_NAME}-${VERSION}-${OS}-${ARCH}.tar.gz"
+        download_url="https://github.com/${REPO}/releases/download/v${VERSION}/${binary_name}"
+        
+        log_info "Downloading $binary_name..."
+        
+        if ! curl -fsSL "$download_url" -o "$TEMP_DIR/$binary_name"; then
+            log_error "Failed to download binary from $download_url"
+            log_info "Falling back to building from source..."
+            build_from_source
+            return
+        fi
+        
+        log_info "Extracting binary..."
+        tar -xzf "$TEMP_DIR/$binary_name" -C "$TEMP_DIR"
+        
+        local extracted_dir="$TEMP_DIR/${BINARY_NAME}-${VERSION}-${OS}-${ARCH}"
+        if [ -f "$extracted_dir/$BINARY_NAME" ]; then
+            cp "$extracted_dir/$BINARY_NAME" "$TEMP_DIR/$BINARY_NAME"
+        else
+            log_error "Binary not found in extracted archive"
+            exit 1
+        fi
     fi
 }
 
@@ -203,9 +233,16 @@ build_from_source() {
     cd "$repo_dir"
     
     log_info "Building binary..."
-    if ! make build >/dev/null 2>&1; then
-        log_error "Failed to build binary"
-        exit 1
+    if [ "$BINARY_NAME" = "autoteam-entrypoint" ]; then
+        if ! make build-entrypoint >/dev/null 2>&1; then
+            log_error "Failed to build entrypoint binary"
+            exit 1
+        fi
+    else
+        if ! make build >/dev/null 2>&1; then
+            log_error "Failed to build binary"
+            exit 1
+        fi
     fi
     
     cp "build/$BINARY_NAME" "$TEMP_DIR/$BINARY_NAME"
@@ -213,32 +250,65 @@ build_from_source() {
 
 # Install binary
 install_binary() {
-    log_info "Installing $BINARY_NAME to $INSTALL_DIR..."
+    local install_path
     
-    # Check if we need sudo
-    if [ ! -w "$INSTALL_DIR" ]; then
-        log_info "Administrator privileges required for installation"
-        sudo cp "$TEMP_DIR/$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
-        sudo chmod +x "$INSTALL_DIR/$BINARY_NAME"
+    if [ -n "$TARGET_PATH" ]; then
+        install_path="$TARGET_PATH"
     else
-        cp "$TEMP_DIR/$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
-        chmod +x "$INSTALL_DIR/$BINARY_NAME"
+        install_path="$INSTALL_DIR/$BINARY_NAME"
     fi
     
-    log_success "$BINARY_NAME installed successfully!"
+    log_info "Installing $BINARY_NAME to $install_path..."
+    
+    # Create directory if it doesn't exist
+    local install_dir=$(dirname "$install_path")
+    if [ ! -d "$install_dir" ]; then
+        if [ ! -w "$(dirname "$install_dir")" ]; then
+            log_info "Administrator privileges required to create directory"
+            sudo mkdir -p "$install_dir"
+        else
+            mkdir -p "$install_dir"
+        fi
+    fi
+    
+    # Install the binary
+    if [ ! -w "$install_dir" ]; then
+        log_info "Administrator privileges required for installation"
+        sudo cp "$TEMP_DIR/$BINARY_NAME" "$install_path"
+        sudo chmod +x "$install_path"
+    else
+        cp "$TEMP_DIR/$BINARY_NAME" "$install_path"
+        chmod +x "$install_path"
+    fi
+    
+    log_success "$BINARY_NAME installed successfully to $install_path!"
 }
 
 # Verify installation
 verify_installation() {
-    if command -v "$BINARY_NAME" >/dev/null 2>&1; then
+    local install_path
+    
+    if [ -n "$TARGET_PATH" ]; then
+        install_path="$TARGET_PATH"
+    else
+        install_path="$INSTALL_DIR/$BINARY_NAME"
+    fi
+    
+    # Check if the binary exists at the install path
+    if [ -f "$install_path" ] && [ -x "$install_path" ]; then
         local version
-        version=$($BINARY_NAME --version 2>/dev/null | head -1 || echo "unknown")
+        version=$("$install_path" --version 2>/dev/null | head -1 || echo "unknown")
         log_success "Verification successful: $version"
         
-        log_info "Try running: $BINARY_NAME --help"
+        # Only suggest running the binary if it's in PATH
+        if [ -z "$TARGET_PATH" ] && command -v "$BINARY_NAME" >/dev/null 2>&1; then
+            log_info "Try running: $BINARY_NAME --help"
+        else
+            log_info "Binary installed to: $install_path"
+        fi
     else
         log_error "Installation verification failed"
-        log_info "You may need to restart your shell or add $INSTALL_DIR to your PATH"
+        log_info "Binary not found at: $install_path"
         exit 1
     fi
 }
@@ -250,10 +320,12 @@ usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  -v, --version VERSION    Install specific version (default: latest)"
-    echo "  -f, --force             Force installation even if already installed"
-    echo "  -d, --dir DIRECTORY     Install directory (default: /usr/local/bin)"
-    echo "  -h, --help              Show this help message"
+    echo "  -b, --binary NAME       Binary to install (autoteam|autoteam-entrypoint, default: autoteam)"
+    echo "  -v, --version VERSION   Install specific version (default: latest)"
+    echo "  -f, --force            Force installation even if already installed"
+    echo "  -d, --dir DIRECTORY    Install directory (default: /usr/local/bin)"
+    echo "  -t, --target PATH      Target installation path (overrides -d)"
+    echo "  -h, --help             Show this help message"
     echo ""
     echo "Environment Variables:"
     echo "  VERSION                 Version to install"
@@ -261,16 +333,34 @@ usage() {
     echo "  INSTALL_DIR             Installation directory"
     echo ""
     echo "Examples:"
-    echo "  $0                      # Install latest version"
-    echo "  $0 -v 1.0.0            # Install version 1.0.0"
-    echo "  $0 -f                   # Force reinstall"
-    echo "  $0 -d ~/.local/bin      # Install to custom directory"
+    echo "  $0                                    # Install autoteam (latest)"
+    echo "  $0 --binary autoteam-entrypoint      # Install entrypoint binary"
+    echo "  $0 -v 1.0.0                         # Install specific version"
+    echo "  $0 -f                                # Force reinstall"
+    echo "  $0 -d ~/.local/bin                   # Install to custom directory"
+    echo "  $0 -t /tmp/autoteam-entrypoint       # Install to specific path"
 }
 
 # Parse command line arguments
 parse_args() {
+    # Set default binary
+    BINARY_NAME="$DEFAULT_BINARY"
+    TARGET_PATH=""
+    
     while [[ $# -gt 0 ]]; do
         case $1 in
+            -b|--binary)
+                case "$2" in
+                    autoteam|autoteam-entrypoint)
+                        BINARY_NAME="$2"
+                        ;;
+                    *)
+                        log_error "Invalid binary name: $2. Use 'autoteam' or 'autoteam-entrypoint'"
+                        exit 1
+                        ;;
+                esac
+                shift 2
+                ;;
             -v|--version)
                 VERSION="$2"
                 shift 2
@@ -281,6 +371,10 @@ parse_args() {
                 ;;
             -d|--dir)
                 INSTALL_DIR="$2"
+                shift 2
+                ;;
+            -t|--target)
+                TARGET_PATH="$2"
                 shift 2
                 ;;
             -h|--help)
