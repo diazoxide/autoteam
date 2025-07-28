@@ -15,14 +15,14 @@ import (
 func TestGenerateCommand(t *testing.T) {
 	// Create a temporary directory for the test
 	tempDir := testutil.CreateTempDir(t)
-	
+
 	// Change to temp directory
 	originalDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current directory: %v", err)
 	}
 	defer os.Chdir(originalDir)
-	
+
 	if err := os.Chdir(tempDir); err != nil {
 		t.Fatalf("failed to change to temp directory: %v", err)
 	}
@@ -90,14 +90,14 @@ agents:
 
 func TestGenerateCommand_MissingConfig(t *testing.T) {
 	tempDir := testutil.CreateTempDir(t)
-	
+
 	// Change to temp directory
 	originalDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current directory: %v", err)
 	}
 	defer os.Chdir(originalDir)
-	
+
 	if err := os.Chdir(tempDir); err != nil {
 		t.Fatalf("failed to change to temp directory: %v", err)
 	}
@@ -118,14 +118,14 @@ func TestGenerateCommand_MissingConfig(t *testing.T) {
 
 func TestInitCommand(t *testing.T) {
 	tempDir := testutil.CreateTempDir(t)
-	
+
 	// Change to temp directory
 	originalDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current directory: %v", err)
 	}
 	defer os.Chdir(originalDir)
-	
+
 	if err := os.Chdir(tempDir); err != nil {
 		t.Fatalf("failed to change to temp directory: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestInitCommand(t *testing.T) {
 func TestRunDockerCompose(t *testing.T) {
 	// Test with a command that should always be available
 	err := runDockerCompose("--version")
-	
+
 	// We expect this to either succeed (if docker-compose is installed)
 	// or fail with a specific error (if docker-compose is not found)
 	// But it should not panic
@@ -177,14 +177,14 @@ func TestRunDockerCompose(t *testing.T) {
 // Integration test that simulates the full CLI workflow
 func TestCLIIntegration(t *testing.T) {
 	tempDir := testutil.CreateTempDir(t)
-	
+
 	// Change to temp directory
 	originalDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current directory: %v", err)
 	}
 	defer os.Chdir(originalDir)
-	
+
 	if err := os.Chdir(tempDir); err != nil {
 		t.Fatalf("failed to change to temp directory: %v", err)
 	}
@@ -226,7 +226,7 @@ echo "Integration test"`
 	// Verify all expected files exist
 	expectedFiles := []string{
 		"autoteam.yaml",
-		"compose.yaml", 
+		"compose.yaml",
 		"entrypoint.sh",
 		"agents/dev1/codebase",
 		"agents/arch1/codebase",

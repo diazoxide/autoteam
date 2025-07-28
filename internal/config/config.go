@@ -7,6 +7,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Default configuration constants
+const (
+	DefaultDockerImage = "node:18.17.1"
+	DefaultDockerUser  = "developer"
+	DefaultTeamName    = "auto-team"
+	DefaultMainBranch  = "main"
+)
+
 type Config struct {
 	Repository Repository `yaml:"repository"`
 	Agents     []Agent    `yaml:"agents"`
@@ -81,19 +89,19 @@ func validateConfig(config *Config) error {
 
 func setDefaults(config *Config) {
 	if config.Settings.DockerImage == "" {
-		config.Settings.DockerImage = "node:18.17.1"
+		config.Settings.DockerImage = DefaultDockerImage
 	}
 	if config.Settings.DockerUser == "" {
-		config.Settings.DockerUser = "developer"
+		config.Settings.DockerUser = DefaultDockerUser
 	}
 	if config.Settings.CheckInterval == 0 {
 		config.Settings.CheckInterval = 60
 	}
 	if config.Settings.TeamName == "" {
-		config.Settings.TeamName = "auto-team"
+		config.Settings.TeamName = DefaultTeamName
 	}
 	if config.Repository.MainBranch == "" {
-		config.Repository.MainBranch = "main"
+		config.Repository.MainBranch = DefaultMainBranch
 	}
 }
 
@@ -101,7 +109,7 @@ func CreateSampleConfig(filename string) error {
 	sampleConfig := Config{
 		Repository: Repository{
 			URL:        "owner/repo-name",
-			MainBranch: "main",
+			MainBranch: DefaultMainBranch,
 		},
 		Agents: []Agent{
 			{
@@ -118,10 +126,10 @@ func CreateSampleConfig(filename string) error {
 			},
 		},
 		Settings: Settings{
-			DockerImage:   "node:18.17.1",
-			DockerUser:    "developer",
+			DockerImage:   DefaultDockerImage,
+			DockerUser:    DefaultDockerUser,
 			CheckInterval: 60,
-			TeamName:      "auto-team",
+			TeamName:      DefaultTeamName,
 			InstallDeps:   true,
 		},
 	}

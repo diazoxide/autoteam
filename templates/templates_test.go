@@ -36,7 +36,7 @@ func TestComposeTemplate(t *testing.T) {
 				CommonPrompt:   "Follow best practices",
 			},
 			{
-				Name:           "arch1", 
+				Name:           "arch1",
 				Prompt:         "You are an architect",
 				GitHubTokenEnv: "ARCH1_TOKEN",
 			},
@@ -217,7 +217,7 @@ func TestComposeTemplateWithMinimalConfig(t *testing.T) {
 		},
 		Settings: config.Settings{
 			DockerImage:   "node:18.17.1",
-			DockerUser:    "developer", 
+			DockerUser:    "developer",
 			TeamName:      "auto-team",
 			CheckInterval: 60,
 			InstallDeps:   false,

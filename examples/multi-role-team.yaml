@@ -1,39 +1,34 @@
 # Multi-Role Team Configuration
-# This example shows a complete team with specialized roles
+# Comprehensive example with multiple specialized agents
 
 repository:
-  url: "enterprise/large-project"
-  main_branch: "develop"
+  url: "owner/large-project"
+  main_branch: "main"
 
 agents:
-  - name: "frontend-dev"
-    prompt: "You are a frontend developer specializing in React, TypeScript, and modern web technologies. Focus on user experience, performance, and responsive design."
-    github_token_env: "FRONTEND_DEV_TOKEN"
-    common_prompt: "Ensure all UI components are accessible, well-tested, and follow the design system."
-  
-  - name: "backend-dev"
-    prompt: "You are a backend developer specializing in API development, database design, and server-side logic. Focus on scalability, security, and performance."
-    github_token_env: "BACKEND_DEV_TOKEN"
-    common_prompt: "Write comprehensive API documentation and ensure all endpoints are properly secured and tested."
-  
-  - name: "devops-engineer"
-    prompt: "You are a DevOps engineer responsible for CI/CD, infrastructure, deployment, and monitoring. Focus on automation, reliability, and scalability."
-    github_token_env: "DEVOPS_TOKEN"
-    common_prompt: "Ensure all changes are properly tested in CI/CD pipeline and deployment processes are documented."
-  
+  - name: "developer"
+    prompt: |
+      You are a senior developer responsible for feature implementation.
+    github_token_env: "DEVELOPER_TOKEN"
+    
   - name: "architect"
-    prompt: "You are a software architect responsible for system design, code reviews, and technical decisions. Focus on maintainability, scalability, and architectural best practices."
+    prompt: |
+      You are a system architect focused on design and scalability.
     github_token_env: "ARCHITECT_TOKEN"
-    common_prompt: "Review changes for architectural consistency and provide guidance on technical decisions."
+    
+  - name: "reviewer"
+    prompt: |
+      You are a code reviewer ensuring quality and best practices.
+    github_token_env: "REVIEWER_TOKEN"
 
-  - name: "qa-engineer"
-    prompt: "You are a QA engineer responsible for testing, quality assurance, and bug reporting. Focus on comprehensive testing strategies and quality metrics."
-    github_token_env: "QA_TOKEN"
-    common_prompt: "Ensure all features are thoroughly tested and document any quality issues found."
+  - name: "tester"
+    prompt: |
+      You are a QA engineer responsible for testing and bug validation.
+    github_token_env: "TESTER_TOKEN"
 
 settings:
-  docker_image: "node:20-alpine"
-  docker_user: "engineer"
-  check_interval: 30
+  docker_image: "node:18.17.1"
+  docker_user: "developer"
   team_name: "enterprise-team"
+  check_interval: 45
   install_deps: true

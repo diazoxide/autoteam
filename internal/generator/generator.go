@@ -84,7 +84,7 @@ func (g *Generator) createAgentDirectories(cfg *config.Config) error {
 
 func (g *Generator) generateFile(templateFile, outputFile string, cfg *config.Config) error {
 	templatePath := filepath.Join(g.templatesDir, templateFile)
-	
+
 	tmpl, err := template.ParseFiles(templatePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse template %s: %w", templatePath, err)

@@ -13,14 +13,14 @@ import (
 func TestGenerator_GenerateCompose(t *testing.T) {
 	// Create a temporary directory for the test
 	tempDir := testutil.CreateTempDir(t)
-	
+
 	// Change to temp directory
 	originalDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current directory: %v", err)
 	}
 	defer os.Chdir(originalDir)
-	
+
 	if err := os.Chdir(tempDir); err != nil {
 		t.Fatalf("failed to change to temp directory: %v", err)
 	}
@@ -86,7 +86,7 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 
 	// Verify compose.yaml was generated
 	composeContent := testutil.ReadFile(t, "compose.yaml")
-	
+
 	// Check that both agents are in the compose file
 	if !strings.Contains(composeContent, "dev1:") {
 		t.Errorf("compose.yaml should contain dev1 service")
@@ -118,7 +118,7 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 	agentDirs := []string{
 		"agents/dev1/codebase",
 		"agents/dev1/claude",
-		"agents/arch1/codebase", 
+		"agents/arch1/codebase",
 		"agents/arch1/claude",
 	}
 
@@ -150,14 +150,14 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 
 func TestGenerator_CreateAgentDirectories(t *testing.T) {
 	tempDir := testutil.CreateTempDir(t)
-	
+
 	// Change to temp directory
 	originalDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current directory: %v", err)
 	}
 	defer os.Chdir(originalDir)
-	
+
 	if err := os.Chdir(tempDir); err != nil {
 		t.Fatalf("failed to change to temp directory: %v", err)
 	}
@@ -211,14 +211,14 @@ func TestGenerator_CreateAgentDirectories(t *testing.T) {
 
 func TestGenerator_GenerateFile(t *testing.T) {
 	tempDir := testutil.CreateTempDir(t)
-	
+
 	// Change to temp directory
 	originalDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current directory: %v", err)
 	}
 	defer os.Chdir(originalDir)
-	
+
 	if err := os.Chdir(tempDir); err != nil {
 		t.Fatalf("failed to change to temp directory: %v", err)
 	}
@@ -257,7 +257,7 @@ Agent: {{ .Name }} - {{ .Prompt }}
 	}
 
 	content := testutil.ReadFile(t, "output.txt")
-	
+
 	// Verify template was executed correctly
 	expectedContent := `Repository: owner/repo
 Team: test-team
@@ -271,14 +271,14 @@ Agent: arch1 - Architect`
 
 func TestGenerator_GenerateFile_TemplateError(t *testing.T) {
 	tempDir := testutil.CreateTempDir(t)
-	
+
 	// Change to temp directory
 	originalDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current directory: %v", err)
 	}
 	defer os.Chdir(originalDir)
-	
+
 	if err := os.Chdir(tempDir); err != nil {
 		t.Fatalf("failed to change to temp directory: %v", err)
 	}
