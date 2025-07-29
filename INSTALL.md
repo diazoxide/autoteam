@@ -1,4 +1,4 @@
-# Auto-Team Installation Guide
+# AutoTeam Installation Guide
 
 Multiple installation methods available for macOS and Linux systems.
 
@@ -8,13 +8,13 @@ Multiple installation methods available for macOS and Linux systems.
 
 ```bash
 # Install latest version
-curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/diazoxide/autoteam/main/scripts/install.sh | bash
 
 # Install specific version
-curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh | bash -s -- -v 1.0.0
+curl -fsSL https://raw.githubusercontent.com/diazoxide/autoteam/main/scripts/install.sh | bash -s -- -v 1.0.0
 
 # Install to custom directory
-curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh | bash -s -- -d ~/.local/bin
+curl -fsSL https://raw.githubusercontent.com/diazoxide/autoteam/main/scripts/install.sh | bash -s -- -d ~/.local/bin
 ```
 
 ## Manual Installation
@@ -26,37 +26,37 @@ curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/in
    **macOS (Intel):**
 
    ```bash
-   curl -LO https://github.com/diazoxide/auto-team/releases/latest/download/autoteam-latest-darwin-amd64.tar.gz
+   curl -LO https://github.com/diazoxide/autoteam/releases/latest/download/autoteam-latest-darwin-amd64.tar.gz
    ```
 
    **macOS (Apple Silicon):**
 
    ```bash
-   curl -LO https://github.com/diazoxide/auto-team/releases/latest/download/autoteam-latest-darwin-arm64.tar.gz
+   curl -LO https://github.com/diazoxide/autoteam/releases/latest/download/autoteam-latest-darwin-arm64.tar.gz
    ```
 
    **Linux (x86_64):**
 
    ```bash
-   curl -LO https://github.com/diazoxide/auto-team/releases/latest/download/autoteam-latest-linux-amd64.tar.gz
+   curl -LO https://github.com/diazoxide/autoteam/releases/latest/download/autoteam-latest-linux-amd64.tar.gz
    ```
 
    **Linux (ARM64):**
 
    ```bash
-   curl -LO https://github.com/diazoxide/auto-team/releases/latest/download/autoteam-latest-linux-arm64.tar.gz
+   curl -LO https://github.com/diazoxide/autoteam/releases/latest/download/autoteam-latest-linux-arm64.tar.gz
    ```
 
    **Linux (32-bit):**
 
    ```bash
-   curl -LO https://github.com/diazoxide/auto-team/releases/latest/download/autoteam-latest-linux-386.tar.gz
+   curl -LO https://github.com/diazoxide/autoteam/releases/latest/download/autoteam-latest-linux-386.tar.gz
    ```
 
    **Linux (ARM):**
 
    ```bash
-   curl -LO https://github.com/diazoxide/auto-team/releases/latest/download/autoteam-latest-linux-arm.tar.gz
+   curl -LO https://github.com/diazoxide/autoteam/releases/latest/download/autoteam-latest-linux-arm.tar.gz
    ```
 
 2. **Extract and install:**
@@ -86,8 +86,8 @@ curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/in
 
 ```bash
 # Clone the repository
-git clone https://github.com/diazoxide/auto-team.git
-cd auto-team
+git clone https://github.com/diazoxide/autoteam.git
+cd autoteam
 
 # Build for current platform
 make build
@@ -121,7 +121,7 @@ make check
 
 ```bash
 # Add tap (if available)
-brew tap diazoxide/auto-team
+brew tap diazoxide/autoteam
 
 # Install
 brew install autoteam
@@ -138,8 +138,8 @@ sudo snap install autoteam
 
 ```bash
 # Add repository
-curl -fsSL https://diazoxide.github.io/auto-team/gpg.key | sudo apt-key add -
-echo "deb https://diazoxide.github.io/auto-team/apt stable main" | sudo tee /etc/apt/sources.list.d/autoteam.list
+curl -fsSL https://diazoxide.github.io/autoteam/gpg.key | sudo apt-key add -
+echo "deb https://diazoxide.github.io/autoteam/apt stable main" | sudo tee /etc/apt/sources.list.d/autoteam.list
 
 # Install
 sudo apt update
@@ -218,7 +218,7 @@ autoteam generate
 ### Using Uninstall Script
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/diazoxide/autoteam/main/scripts/uninstall.sh | bash
 ```
 
 ### Manual Uninstall
@@ -259,7 +259,7 @@ rm -rf ~/.autoteam ~/.config/autoteam
 
 ### Get Help
 
-- **Issues:** [GitHub Issues](https://github.com/diazoxide/auto-team/issues)
+- **Issues:** [GitHub Issues](https://github.com/diazoxide/autoteam/issues)
 - **Documentation:** [README.md](README.md)
 - **Examples:** [examples/](examples/)
 
@@ -291,7 +291,7 @@ Auto-team includes an update checker that notifies you of new versions.
 ### Manual Updates
 ```bash
 # Using installation script
-curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh | bash -s -- -f
+curl -fsSL https://raw.githubusercontent.com/diazoxide/autoteam/main/scripts/install.sh | bash -s -- -f
 
 # Using package managers
 brew upgrade autoteam  # Homebrew

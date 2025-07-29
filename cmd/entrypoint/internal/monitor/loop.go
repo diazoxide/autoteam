@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"auto-team/cmd/entrypoint/internal/agent"
-	"auto-team/cmd/entrypoint/internal/config"
-	"auto-team/cmd/entrypoint/internal/git"
-	"auto-team/cmd/entrypoint/internal/github"
+	"autoteam/cmd/entrypoint/internal/agent"
+	"autoteam/cmd/entrypoint/internal/config"
+	"autoteam/cmd/entrypoint/internal/git"
+	"autoteam/cmd/entrypoint/internal/github"
 )
 
 // Config contains configuration for the monitor

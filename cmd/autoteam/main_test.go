@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"auto-team/internal/testutil"
+	"autoteam/internal/testutil"
 
 	"github.com/urfave/cli/v3"
 )

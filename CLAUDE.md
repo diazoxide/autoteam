@@ -22,6 +22,6 @@
 - Use `autoteam generate` to generate compose.yaml and entrypoint.sh from autoteam.yaml configuration
 
 ## Container Directory Structure
-- Codebase is mounted at `/opt/auto-team/codebase` (standard application directory)
+- Codebase is mounted at `/opt/autoteam/codebase` (standard application directory)
 - Claude configuration files remain in user home directory: `/home/{user}/.claude` and `/home/{user}/.claude.json`
 - Custom volumes can be mounted anywhere as specified in agent settings

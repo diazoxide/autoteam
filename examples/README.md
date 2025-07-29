@@ -1,4 +1,4 @@
-# Auto-Team Configuration Examples
+# AutoTeam Configuration Examples
 
 This directory contains example configurations for different use cases and team setups.
 
@@ -19,7 +19,7 @@ A comprehensive team setup with specialized roles for enterprise projects.
 **Monitoring**: Every 30 seconds (faster response)
 
 ### 3. `minimal-config.yaml`
-The absolute minimum configuration required to run auto-team.
+The absolute minimum configuration required to run autoteam.
 
 **Use case**: Quick testing or single-agent automation
 **Agents**: 1 agent (general bot)

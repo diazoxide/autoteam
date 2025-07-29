@@ -84,7 +84,7 @@ func Load() (*Config, error) {
 	// Git configuration
 	cfg.Git.User = os.Getenv("GH_USER")
 	cfg.Git.Email = getEnvOrDefault("GH_EMAIL", cfg.Git.User+"@users.noreply.github.com")
-	cfg.Git.TeamName = getEnvOrDefault("TEAM_NAME", "auto-team")
+	cfg.Git.TeamName = getEnvOrDefault("TEAM_NAME", "autoteam")
 
 	// Monitoring configuration
 	checkInterval := getEnvOrDefault("CHECK_INTERVAL", "60")

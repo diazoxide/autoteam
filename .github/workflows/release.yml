@@ -136,9 +136,9 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ steps.release_notes.outputs.TAG_NAME }}
-        name: Auto-Team ${{ steps.release_notes.outputs.TAG_NAME }}
+        name: AutoTeam ${{ steps.release_notes.outputs.TAG_NAME }}
         body: |
-          # Auto-Team ${{ steps.release_notes.outputs.TAG_NAME }}
+          # AutoTeam ${{ steps.release_notes.outputs.TAG_NAME }}
           
           Universal AI Agent Management System for automated GitHub workflows.
           
@@ -147,11 +147,11 @@ jobs:
           ### Quick Install
           ```bash
           # Install latest version (macOS/Linux)  
-          curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh | bash
+          curl -fsSL https://raw.githubusercontent.com/diazoxide/autoteam/main/scripts/install.sh | bash
           ```
           
           ### Manual Install
-          Download the appropriate binary for your platform below and follow the [installation guide](https://github.com/diazoxide/auto-team/blob/main/INSTALL.md).
+          Download the appropriate binary for your platform below and follow the [installation guide](https://github.com/diazoxide/autoteam/blob/main/INSTALL.md).
           
           ${{ steps.release_notes.outputs.CHANGELOG }}
           
@@ -166,7 +166,7 @@ jobs:
           
           ---
           
-          **Full Changelog**: https://github.com/diazoxide/auto-team/compare/${{ steps.release_notes.outputs.PREVIOUS_TAG }}...${{ steps.release_notes.outputs.TAG_NAME }}
+          **Full Changelog**: https://github.com/diazoxide/autoteam/compare/${{ steps.release_notes.outputs.PREVIOUS_TAG }}...${{ steps.release_notes.outputs.TAG_NAME }}
         files: |
           dist/*.tar.gz
           build/autoteam-entrypoint-linux-*
@@ -213,6 +213,6 @@ jobs:
     - name: Update Homebrew formula
       run: |
         echo "TODO: Update Homebrew formula"
-        echo "This would update the formula in a separate homebrew-auto-team repository"
+        echo "This would update the formula in a separate homebrew-autoteam repository"
         echo "For now, this is a placeholder for future implementation"
 

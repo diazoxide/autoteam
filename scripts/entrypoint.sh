@@ -1,11 +1,11 @@
 #!/bin/sh
 
-# Auto-Team Universal Container Entrypoint
+# AutoTeam Universal Container Entrypoint
 # This script handles platform detection and entrypoint binary execution
 
 set -e  # Exit on any error
 
-echo "=== Auto-Team Agent Starting ==="
+echo "=== AutoTeam Agent Starting ==="
 echo "Agent: ${AGENT_NAME:-unknown}"
 echo "Repository: ${GITHUB_REPO:-unknown}"
 echo "Current working directory: $(pwd)"
@@ -31,7 +31,7 @@ case "$CONTAINER_ARCH" in
 esac
 
 PLATFORM="${CONTAINER_OS}-${CONTAINER_ARCH}"
-ENTRYPOINT_BINARY="/opt/auto-team/entrypoints/autoteam-entrypoint-${PLATFORM}"
+ENTRYPOINT_BINARY="/opt/autoteam/entrypoints/autoteam-entrypoint-${PLATFORM}"
 
 echo "📦 Detected platform: ${PLATFORM}"
 echo "🔍 Looking for entrypoint binary: ${ENTRYPOINT_BINARY}"

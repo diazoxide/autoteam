@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"auto-team/internal/config"
-	"auto-team/internal/testutil"
+	"autoteam/internal/config"
+	"autoteam/internal/testutil"
 )
 
 func TestGenerator_GenerateCompose(t *testing.T) {

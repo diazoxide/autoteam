@@ -1,4 +1,4 @@
-module auto-team
+module autoteam
 
 go 1.22
 

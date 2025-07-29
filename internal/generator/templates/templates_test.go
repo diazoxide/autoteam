@@ -6,8 +6,8 @@ import (
 	"testing"
 	"text/template"
 
-	"auto-team/internal/config"
-	"auto-team/internal/generator"
+	"autoteam/internal/config"
+	"autoteam/internal/generator"
 )
 
 func TestComposeTemplate(t *testing.T) {
@@ -86,9 +86,9 @@ func TestComposeTemplate(t *testing.T) {
 		"ENTRYPOINT_VERSION: ${ENTRYPOINT_VERSION:-latest}",
 		"MAX_RETRIES: ${MAX_RETRIES:-100}",
 		"DEBUG: ${DEBUG:-false}",
-		"/opt/auto-team/codebase",
+		"/opt/autoteam/codebase",
 		"/home/developer/.claude",
-		"entrypoint: [\"/opt/auto-team/entrypoints/entrypoint.sh\"]",
+		"entrypoint: [\"/opt/autoteam/entrypoints/entrypoint.sh\"]",
 		"IS_SANDBOX: 1",
 	}
 
@@ -172,7 +172,7 @@ func TestComposeTemplateWithMinimalConfig(t *testing.T) {
 		Settings: config.Settings{
 			DockerImage:   "node:18.17.1",
 			DockerUser:    "developer",
-			TeamName:      "auto-team",
+			TeamName:      "autoteam",
 			CheckInterval: 60,
 			InstallDeps:   false,
 		},
@@ -318,7 +318,7 @@ func TestComposeTemplateWithAgentSpecificSettings(t *testing.T) {
 	if !strings.Contains(result, "image: node:18.17.1") {
 		t.Error("dev1 should use global docker image")
 	}
-	if !strings.Contains(result, "/opt/auto-team/codebase") {
+	if !strings.Contains(result, "/opt/autoteam/codebase") {
 		t.Error("dev1 should use standard codebase directory")
 	}
 	if !strings.Contains(result, "/home/developer/.claude") {
@@ -335,7 +335,7 @@ func TestComposeTemplateWithAgentSpecificSettings(t *testing.T) {
 	if !strings.Contains(result, "image: python:3.11") {
 		t.Error("python-dev should use overridden docker image")
 	}
-	if !strings.Contains(result, "/opt/auto-team/codebase") {
+	if !strings.Contains(result, "/opt/autoteam/codebase") {
 		t.Error("python-dev should use standard codebase directory")
 	}
 	if !strings.Contains(result, "/home/pythonista/.claude") {
@@ -437,7 +437,7 @@ func TestComposeTemplateWithCustomVolumesAndEntrypoints(t *testing.T) {
 	result := buf.String()
 
 	// Both agents should now use the standard entrypoint.sh script
-	if !strings.Contains(result, "entrypoint: [\"/opt/auto-team/entrypoints/entrypoint.sh\"]") {
+	if !strings.Contains(result, "entrypoint: [\"/opt/autoteam/entrypoints/entrypoint.sh\"]") {
 		t.Error("both agents should use standard entrypoint.sh script")
 	}
 

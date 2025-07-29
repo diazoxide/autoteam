@@ -3,7 +3,7 @@ package config
 // System paths and directories
 const (
 	// SystemEntrypointsDir is the system-wide installation directory for entrypoint binaries
-	SystemEntrypointsDir = "/opt/auto-team/entrypoints"
+	SystemEntrypointsDir = "/opt/autoteam/entrypoints"
 
 	// AutoTeamDir is the main .autoteam directory for all generated files
 	AutoTeamDir = ".autoteam"

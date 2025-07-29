@@ -11,7 +11,7 @@ import (
 const (
 	DefaultDockerImage = "node:18.17.1"
 	DefaultDockerUser  = "developer"
-	DefaultTeamName    = "auto-team"
+	DefaultTeamName    = "autoteam"
 	DefaultMainBranch  = "main"
 )
 

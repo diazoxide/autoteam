@@ -1,5 +1,5 @@
 repository:
-    url: diazoxide/auto-team-website #https://github.com/diazoxide/auto-team-website.git
+    url: diazoxide/autoteam-website #https://github.com/diazoxide/autoteam-website.git
     main_branch: main
 agents:
     - name: dev1
@@ -16,7 +16,7 @@ settings:
     docker_image: node:18.17.1
     docker_user: root
     check_interval: 60
-    team_name: auto-team
+    team_name: autoteam
     install_deps: false
 #    volumes:
 #      - "./autoteam-entrypoint-linux-arm64:/autoteam-entrypoint-linux-arm64"

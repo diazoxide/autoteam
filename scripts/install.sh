@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# Auto-Team Universal Installation Script
+# AutoTeam Universal Installation Script
 # Supports macOS and Linux with automatic platform detection
 
 set -e
 
 # Configuration
-REPO="diazoxide/auto-team"
+REPO="diazoxide/autoteam"
 DEFAULT_BINARY="autoteam"
 BINARY_NAME=""
 INSTALL_DIR="/usr/local/bin"
-ENTRYPOINTS_DIR="/opt/auto-team/entrypoints"
+ENTRYPOINTS_DIR="/opt/autoteam/entrypoints"
 TEMP_DIR=$(mktemp -d)
 VERSION=${VERSION:-latest}
 INSTALL_ENTRYPOINTS="true"
@@ -54,10 +54,10 @@ log_header() {
 # Platform detection
 detect_platform() {
     local os arch
-    
+
     os=$(uname -s | tr '[:upper:]' '[:lower:]')
     arch=$(uname -m)
-    
+
     case "$os" in
         darwin)
             OS="darwin"
@@ -70,7 +70,7 @@ detect_platform() {
             exit 1
             ;;
     esac
-    
+
     case "$arch" in
         x86_64)
             ARCH="amd64"
@@ -89,7 +89,7 @@ detect_platform() {
             exit 1
             ;;
     esac
-    
+
     PLATFORM="${OS}/${ARCH}"
     log_info "Detected platform: $PLATFORM"
 }
@@ -100,15 +100,15 @@ check_existing() {
         local current_version
         current_version=$($BINARY_NAME --version 2>/dev/null | head -1 || echo "unknown")
         log_warning "$BINARY_NAME is already installed: $current_version"
-        
+
         if [ "$FORCE_INSTALL" != "true" ]; then
             # Check if we're running in a pipe (non-interactive)
             if [ ! -t 0 ]; then
                 log_info "Non-interactive mode detected. Use -f/--force flag to reinstall."
-                log_info "Or run: curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh | bash -s -- --force"
+                log_info "Or run: curl -fsSL https://raw.githubusercontent.com/diazoxide/autoteam/main/scripts/install.sh | bash -s -- --force"
                 exit 0
             fi
-            
+
             echo -n "Do you want to reinstall? [y/N]: "
             read -r response </dev/tty
             case "$response" in
@@ -127,14 +127,14 @@ check_existing() {
 # Check dependencies
 check_dependencies() {
     local missing_deps=()
-    
+
     # Check for required commands
     for cmd in curl tar sudo; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
             missing_deps+=("$cmd")
         fi
     done
-    
+
     if [ ${#missing_deps[@]} -ne 0 ]; then
         log_error "Missing required dependencies: ${missing_deps[*]}"
         log_info "Please install them and run this script again."
@@ -145,32 +145,32 @@ check_dependencies() {
 # Download binary
 download_binary() {
     local download_url binary_name
-    
+
     if [ "$VERSION" = "latest" ]; then
         # For entrypoint binary, try direct download first, then build from source
         if [ "$BINARY_NAME" = "autoteam-entrypoint" ]; then
             binary_name="${BINARY_NAME}-${OS}-${ARCH}"
             download_url="https://github.com/${REPO}/releases/download/${VERSION}/${binary_name}"
-            
+
             log_info "Downloading $binary_name..."
             if curl -fsSL "$download_url" -o "$TEMP_DIR/$BINARY_NAME" 2>/dev/null; then
                 chmod +x "$TEMP_DIR/$BINARY_NAME"
                 return
             fi
         fi
-        
+
         # Fall back to building from source
         log_info "Building from source..."
         build_from_source
         return
     fi
-    
+
     # For versioned releases, use packaged downloads
     if [ "$BINARY_NAME" = "autoteam-entrypoint" ]; then
         # Direct binary download for entrypoint
         binary_name="${BINARY_NAME}-${OS}-${ARCH}"
         download_url="https://github.com/${REPO}/releases/download/v${VERSION}/${binary_name}"
-        
+
         log_info "Downloading $binary_name..."
         if ! curl -fsSL "$download_url" -o "$TEMP_DIR/$BINARY_NAME"; then
             log_error "Failed to download binary from $download_url"
@@ -183,19 +183,19 @@ download_binary() {
         # Packaged download for main binary
         binary_name="${BINARY_NAME}-${VERSION}-${OS}-${ARCH}.tar.gz"
         download_url="https://github.com/${REPO}/releases/download/v${VERSION}/${binary_name}"
-        
+
         log_info "Downloading $binary_name..."
-        
+
         if ! curl -fsSL "$download_url" -o "$TEMP_DIR/$binary_name"; then
             log_error "Failed to download binary from $download_url"
             log_info "Falling back to building from source..."
             build_from_source
             return
         fi
-        
+
         log_info "Extracting binary..."
         tar -xzf "$TEMP_DIR/$binary_name" -C "$TEMP_DIR"
-        
+
         local extracted_dir="$TEMP_DIR/${BINARY_NAME}-${VERSION}-${OS}-${ARCH}"
         if [ -f "$extracted_dir/$BINARY_NAME" ]; then
             cp "$extracted_dir/$BINARY_NAME" "$TEMP_DIR/$BINARY_NAME"
@@ -209,31 +209,31 @@ download_binary() {
 # Build from source
 build_from_source() {
     log_info "Building $BINARY_NAME from source..."
-    
+
     # Check for Go
     if ! command -v go >/dev/null 2>&1; then
         log_error "Go is required to build from source"
         log_info "Please install Go from https://golang.org/dl/"
         exit 1
     fi
-    
+
     # Check for git
     if ! command -v git >/dev/null 2>&1; then
         log_error "Git is required to build from source"
         exit 1
     fi
-    
-    local repo_dir="$TEMP_DIR/auto-team"
-    
+
+    local repo_dir="$TEMP_DIR/autoteam"
+
     log_info "Cloning repository..."
-    git clone https://github.com/diazoxide/auto-team.git "$repo_dir" >/dev/null 2>&1 || {
+    git clone https://github.com/diazoxide/autoteam.git "$repo_dir" >/dev/null 2>&1 || {
         log_error "Failed to clone repository"
         log_info "You can build manually by running: make build"
         exit 1
     }
-    
+
     cd "$repo_dir"
-    
+
     log_info "Building binary..."
     if [ "$BINARY_NAME" = "autoteam-entrypoint" ]; then
         if ! make build-entrypoint >/dev/null 2>&1; then
@@ -246,22 +246,22 @@ build_from_source() {
             exit 1
         fi
     fi
-    
+
     cp "build/$BINARY_NAME" "$TEMP_DIR/$BINARY_NAME"
 }
 
 # Install binary
 install_binary() {
     local install_path
-    
+
     if [ -n "$TARGET_PATH" ]; then
         install_path="$TARGET_PATH"
     else
         install_path="$INSTALL_DIR/$BINARY_NAME"
     fi
-    
+
     log_info "Installing $BINARY_NAME to $install_path..."
-    
+
     # Create directory if it doesn't exist
     local install_dir=$(dirname "$install_path")
     if [ ! -d "$install_dir" ]; then
@@ -272,7 +272,7 @@ install_binary() {
             mkdir -p "$install_dir"
         fi
     fi
-    
+
     # Install the binary
     if [ ! -w "$install_dir" ]; then
         log_info "Administrator privileges required for installation"
@@ -282,26 +282,26 @@ install_binary() {
         cp "$TEMP_DIR/$BINARY_NAME" "$install_path"
         chmod +x "$install_path"
     fi
-    
+
     log_success "$BINARY_NAME installed successfully to $install_path!"
 }
 
 # Verify installation
 verify_installation() {
     local install_path
-    
+
     if [ -n "$TARGET_PATH" ]; then
         install_path="$TARGET_PATH"
     else
         install_path="$INSTALL_DIR/$BINARY_NAME"
     fi
-    
+
     # Check if the binary exists at the install path
     if [ -f "$install_path" ] && [ -x "$install_path" ]; then
         local version
         version=$("$install_path" --version 2>/dev/null | head -1 || echo "unknown")
         log_success "Verification successful: $version"
-        
+
         # Only suggest running the binary if it's in PATH
         if [ -z "$TARGET_PATH" ] && command -v "$BINARY_NAME" >/dev/null 2>&1; then
             log_info "Try running: $BINARY_NAME --help"
@@ -317,7 +317,7 @@ verify_installation() {
 
 # Usage information
 usage() {
-    echo "Auto-Team Installation Script"
+    echo "AutoTeam Installation Script"
     echo ""
     echo "Usage: $0 [OPTIONS]"
     echo ""
@@ -350,7 +350,7 @@ parse_args() {
     # Set default binary
     BINARY_NAME="$DEFAULT_BINARY"
     TARGET_PATH=""
-    
+
     while [[ $# -gt 0 ]]; do
         case $1 in
             -b|--binary)
@@ -400,12 +400,12 @@ parse_args() {
 
 # Install entrypoint binaries for all supported platforms
 install_entrypoints() {
-    log_header "Installing Auto-Team Entrypoint Binaries"
+    log_header "Installing AutoTeam Entrypoint Binaries"
     log_header "========================================"
-    
+
     # Supported platforms
     local platforms=("linux-amd64" "linux-arm64" "darwin-amd64" "darwin-arm64")
-    
+
     # Create entrypoints directory
     log_info "Creating entrypoints directory: $ENTRYPOINTS_DIR"
     if [ ! -w "$(dirname "$ENTRYPOINTS_DIR")" ]; then
@@ -413,11 +413,11 @@ install_entrypoints() {
     else
         mkdir -p "$ENTRYPOINTS_DIR"
     fi
-    
+
     # Install entrypoint.sh script
     local script_url="https://raw.githubusercontent.com/$REPO/main/scripts/entrypoint.sh"
     log_info "Installing entrypoint.sh script..."
-    
+
     if curl -fsSL "$script_url" -o "$TEMP_DIR/entrypoint.sh" 2>/dev/null; then
         if [ ! -w "$ENTRYPOINTS_DIR" ]; then
             sudo cp "$TEMP_DIR/entrypoint.sh" "$ENTRYPOINTS_DIR/entrypoint.sh"
@@ -432,14 +432,14 @@ install_entrypoints() {
         # Create a local copy if download fails
         cat > "$TEMP_DIR/entrypoint.sh" << 'EOF'
 #!/bin/bash
-# Auto-Team Universal Container Entrypoint
+# AutoTeam Universal Container Entrypoint
 set -e
-echo "=== Auto-Team Agent Starting ==="
+echo "=== AutoTeam Agent Starting ==="
 echo "Agent: ${AGENT_NAME:-unknown}"
 echo "Repository: ${GITHUB_REPO:-unknown}"
 echo "Platform: $(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/armv7l/arm/')"
 PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/armv7l/arm/')"
-ENTRYPOINT_BINARY="/opt/auto-team/entrypoints/autoteam-entrypoint-${PLATFORM}"
+ENTRYPOINT_BINARY="/opt/autoteam/entrypoints/autoteam-entrypoint-${PLATFORM}"
 if [ -f "$ENTRYPOINT_BINARY" ] && [ -x "$ENTRYPOINT_BINARY" ]; then
   cp "$ENTRYPOINT_BINARY" /tmp/autoteam-entrypoint
   chmod +x /tmp/autoteam-entrypoint
@@ -459,16 +459,16 @@ EOF
         fi
         log_success "Created fallback entrypoint.sh at $ENTRYPOINTS_DIR/entrypoint.sh"
     fi
-    
+
     # Download and install binaries for each platform
     for platform in "${platforms[@]}"; do
         local os=$(echo "$platform" | cut -d'-' -f1)
         local arch=$(echo "$platform" | cut -d'-' -f2)
         local binary_name="autoteam-entrypoint-$platform"
         local binary_path="$ENTRYPOINTS_DIR/$binary_name"
-        
+
         log_info "Installing entrypoint binary for $platform..."
-        
+
         # Download binary for this platform
         local download_url
         if [ "$VERSION" = "latest" ]; then
@@ -476,13 +476,13 @@ EOF
         else
             download_url="https://github.com/$REPO/releases/download/$VERSION/$binary_name"
         fi
-        
+
         log_info "Downloading from: $download_url"
-        
+
         # Try to download the binary
         if curl -fsSL "$download_url" -o "$TEMP_DIR/$binary_name" 2>/dev/null; then
             log_success "Downloaded entrypoint binary for $platform"
-            
+
             # Install the binary
             if [ ! -w "$ENTRYPOINTS_DIR" ]; then
                 sudo cp "$TEMP_DIR/$binary_name" "$binary_path"
@@ -491,27 +491,27 @@ EOF
                 cp "$TEMP_DIR/$binary_name" "$binary_path"
                 chmod +x "$binary_path"
             fi
-            
+
             log_success "Installed entrypoint binary to $binary_path"
         else
             log_warning "Failed to download entrypoint binary for $platform (not available in release)"
-            
+
             # Try to build from source if Go is available
             if command -v go >/dev/null 2>&1 && command -v git >/dev/null 2>&1; then
                 log_info "Attempting to build from source for $platform..."
-                
-                local repo_dir="$TEMP_DIR/auto-team-$platform"
-                git clone https://github.com/diazoxide/auto-team.git "$repo_dir" >/dev/null 2>&1 || {
+
+                local repo_dir="$TEMP_DIR/autoteam-$platform"
+                git clone https://github.com/diazoxide/autoteam.git "$repo_dir" >/dev/null 2>&1 || {
                     log_warning "Failed to clone repository for $platform"
                     continue
                 }
-                
+
                 cd "$repo_dir"
-                
+
                 # Build for the specific platform
                 if GOOS="$os" GOARCH="$arch" go build -ldflags "-s -w" -o "$TEMP_DIR/$binary_name" ./cmd/entrypoint >/dev/null 2>&1; then
                     log_success "Built entrypoint binary for $platform from source"
-                    
+
                     # Install the binary
                     if [ ! -w "$ENTRYPOINTS_DIR" ]; then
                         sudo cp "$TEMP_DIR/$binary_name" "$binary_path"
@@ -520,24 +520,24 @@ EOF
                         cp "$TEMP_DIR/$binary_name" "$binary_path"
                         chmod +x "$binary_path"
                     fi
-                    
+
                     log_success "Installed entrypoint binary to $binary_path"
                 else
                     log_warning "Failed to build entrypoint binary for $platform"
                 fi
-                
+
                 cd - >/dev/null
             else
                 log_warning "Go and Git are required to build from source for $platform"
             fi
         fi
     done
-    
+
     echo ""
     log_success "Entrypoint binaries installation completed!"
     log_info "Binaries installed to: $ENTRYPOINTS_DIR"
     log_info "Available binaries:"
-    
+
     # List installed binaries
     for platform in "${platforms[@]}"; do
         local binary_path="$ENTRYPOINTS_DIR/autoteam-entrypoint-$platform"
@@ -552,24 +552,24 @@ EOF
 # Main installation process
 main() {
     parse_args "$@"
-    
+
     # Regular installation
-    log_header "Auto-Team Installation Script"
+    log_header "AutoTeam Installation Script"
     log_header "=============================="
-    
+
     detect_platform
     check_dependencies
     check_existing
     download_binary
     install_binary
     verify_installation
-    
+
     # Install entrypoints after main binary (unless skipped or installing entrypoint binary)
     if [ "$INSTALL_ENTRYPOINTS" = "true" ] && [ "$BINARY_NAME" != "autoteam-entrypoint" ]; then
         echo ""
         install_entrypoints
     fi
-    
+
     echo ""
     log_success "Installation completed successfully!"
     log_info "Run '$BINARY_NAME --help' to get started."

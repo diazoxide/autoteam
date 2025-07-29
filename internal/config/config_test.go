@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"auto-team/internal/testutil"
+	"autoteam/internal/testutil"
 )
 
 func TestLoadConfig_Valid(t *testing.T) {
@@ -63,7 +63,7 @@ func TestLoadConfig_Valid(t *testing.T) {
 					DockerImage:   "node:18.17.1", // default
 					DockerUser:    "developer",    // default
 					CheckInterval: 60,             // default
-					TeamName:      "auto-team",    // default
+					TeamName:      "autoteam",     // default
 					InstallDeps:   false,          // default
 				},
 			},
@@ -297,8 +297,8 @@ func TestSetDefaults(t *testing.T) {
 	if config.Settings.CheckInterval != 60 {
 		t.Errorf("CheckInterval = %v, want 60", config.Settings.CheckInterval)
 	}
-	if config.Settings.TeamName != "auto-team" {
-		t.Errorf("TeamName = %v, want auto-team", config.Settings.TeamName)
+	if config.Settings.TeamName != "autoteam" {
+		t.Errorf("TeamName = %v, want autoteam", config.Settings.TeamName)
 	}
 	if config.Repository.MainBranch != "main" {
 		t.Errorf("MainBranch = %v, want main", config.Repository.MainBranch)

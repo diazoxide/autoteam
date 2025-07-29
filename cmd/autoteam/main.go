@@ -7,8 +7,8 @@ import (
 	"os"
 	"os/exec"
 
-	"auto-team/internal/config"
-	"auto-team/internal/generator"
+	"autoteam/internal/config"
+	"autoteam/internal/generator"
 
 	"github.com/urfave/cli/v3"
 )

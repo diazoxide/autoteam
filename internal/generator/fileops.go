@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"auto-team/internal/config"
+	"autoteam/internal/config"
 )
 
 // FileOperations handles file and directory operations for the generator

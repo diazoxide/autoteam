@@ -7,8 +7,8 @@ import (
 	"os"
 	"os/exec"
 
-	"auto-team/cmd/entrypoint/internal/agent"
-	"auto-team/cmd/entrypoint/internal/config"
+	"autoteam/cmd/entrypoint/internal/agent"
+	"autoteam/cmd/entrypoint/internal/config"
 )
 
 // Installer handles dependency installation

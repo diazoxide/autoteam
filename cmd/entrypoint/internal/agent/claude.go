@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"auto-team/cmd/entrypoint/internal/config"
+	"autoteam/cmd/entrypoint/internal/config"
 )
 
 // ClaudeAgent implements the Agent interface for Claude Code

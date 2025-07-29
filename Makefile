@@ -1,4 +1,4 @@
-# Auto-Team Makefile
+# AutoTeam Makefile
 # Cross-platform build system for macOS and Linux
 
 # Version and metadata
@@ -25,7 +25,7 @@ ifeq ($(BUILD_MODE),dev)
 	BUILD_SUFFIX := -dev
 else
 	LDFLAGS := -ldflags "-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)"
-	GO_BUILD := go build $(LDFLAGS)  
+	GO_BUILD := go build $(LDFLAGS)
 	BUILD_SUFFIX :=
 endif
 
@@ -62,7 +62,7 @@ all: clean test build
 
 # Help target
 help: ## Show this help
-	@echo "$(CYAN)Auto-Team Build System$(NC)"
+	@echo "$(CYAN)AutoTeam Build System$(NC)"
 	@echo ""
 	@echo "$(YELLOW)Available targets:$(NC)"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -79,7 +79,7 @@ $(BUILD_DIR)/$(BINARY_NAME): $(GO_SOURCES) $(MAIN_SOURCES) | $(BUILD_DIR)
 	$(GO_BUILD) -o $@ $(MAIN_PATH)
 	@echo "$(GREEN)✓ Built: $@$(NC)"
 
-# Build entrypoint binary (current platform) - with dependency tracking  
+# Build entrypoint binary (current platform) - with dependency tracking
 $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME): $(GO_SOURCES) $(ENTRYPOINT_SOURCES) | $(BUILD_DIR)
 	@echo "$(BLUE)Building $(ENTRYPOINT_BINARY_NAME) for current platform...$(NC)"
 	$(GO_BUILD) -o $@ $(ENTRYPOINT_MAIN_PATH)
@@ -93,7 +93,7 @@ build-entrypoint: $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME) ## Build entrypoint bin
 $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
 
-# Build entrypoint binaries for all platforms  
+# Build entrypoint binaries for all platforms
 build-entrypoint-all: $(PLATFORMS:=/entrypoint) ## Build entrypoint binaries for all platforms
 	@echo "$(GREEN)✓ All entrypoint builds completed in $(BUILD_DIR)/$(NC)"
 
@@ -110,7 +110,7 @@ build-darwin: clean-build ## Build binaries for macOS (Intel + Apple Silicon)
 	@echo "$(GREEN)✓ macOS builds completed$(NC)"
 
 # Build for Linux platforms (main + entrypoint binaries) - with parallel execution
-build-linux: clean-build ## Build main and entrypoint binaries for Linux (all architectures) 
+build-linux: clean-build ## Build main and entrypoint binaries for Linux (all architectures)
 	@echo "$(BLUE)Building Linux platforms in parallel...$(NC)"
 	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) linux/amd64 linux/arm64 linux/386 linux/arm linux/amd64/entrypoint linux/arm64/entrypoint
 	@echo "$(GREEN)✓ Linux builds completed$(NC)"
@@ -136,7 +136,7 @@ $(PLATFORMS:=/entrypoint):
 	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o $(BINARY) $(ENTRYPOINT_MAIN_PATH)
 	@echo "$(GREEN)  ✓ $(BINARY)$(NC)"
 
-# Development mode builds  
+# Development mode builds
 dev-mode: ## Switch to development build mode (race detection, no optimization)
 	@echo "$(BLUE)Switching to development build mode...$(NC)"
 	@$(MAKE) BUILD_MODE=dev build
@@ -145,7 +145,7 @@ dev-mode: ## Switch to development build mode (race detection, no optimization)
 # Production mode builds
 prod-mode: ## Switch to production build mode (optimized, stripped)
 	@echo "$(BLUE)Switching to production build mode...$(NC)"
-	@$(MAKE) BUILD_MODE=prod build  
+	@$(MAKE) BUILD_MODE=prod build
 	@echo "$(GREEN)✓ Production build ready$(NC)"
 
 # Development target with hot reload
@@ -277,18 +277,18 @@ install-linux: ## Install on Linux
 		echo "$(YELLOW)⚠ No entrypoint binary found, run 'make build-entrypoint' or 'make build-entrypoint-all' first$(NC)"; \
 	fi
 
-install-entrypoints: ## Install entrypoint binaries for all platforms to /opt/auto-team/entrypoints
+install-entrypoints: ## Install entrypoint binaries for all platforms to /opt/autoteam/entrypoints
 	@echo "$(BLUE)Installing entrypoint binaries for all platforms...$(NC)"
-	@sudo mkdir -p /opt/auto-team/entrypoints
+	@sudo mkdir -p /opt/autoteam/entrypoints
 	@echo "$(BLUE)Installing entrypoint.sh script...$(NC)"
-	@sudo cp scripts/entrypoint.sh /opt/auto-team/entrypoints/entrypoint.sh
-	@sudo chmod +x /opt/auto-team/entrypoints/entrypoint.sh
-	@echo "$(GREEN)✓ Installed entrypoint.sh to /opt/auto-team/entrypoints/entrypoint.sh$(NC)"
+	@sudo cp scripts/entrypoint.sh /opt/autoteam/entrypoints/entrypoint.sh
+	@sudo chmod +x /opt/autoteam/entrypoints/entrypoint.sh
+	@echo "$(GREEN)✓ Installed entrypoint.sh to /opt/autoteam/entrypoints/entrypoint.sh$(NC)"
 	@for platform in $(PLATFORMS); do \
 		GOOS=$$(echo $$platform | cut -d'/' -f1); \
 		GOARCH=$$(echo $$platform | cut -d'/' -f2); \
 		BINARY="$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)-$$GOOS-$$GOARCH"; \
-		TARGET="/opt/auto-team/entrypoints/$(ENTRYPOINT_BINARY_NAME)-$$GOOS-$$GOARCH"; \
+		TARGET="/opt/autoteam/entrypoints/$(ENTRYPOINT_BINARY_NAME)-$$GOOS-$$GOARCH"; \
 		if [ -f "$$BINARY" ]; then \
 			sudo cp "$$BINARY" "$$TARGET"; \
 			sudo chmod +x "$$TARGET"; \
@@ -297,7 +297,7 @@ install-entrypoints: ## Install entrypoint binaries for all platforms to /opt/au
 			echo "$(YELLOW)⚠ Binary not found: $$BINARY$(NC)"; \
 		fi; \
 	done
-	@echo "$(GREEN)✓ All available entrypoint binaries installed to /opt/auto-team/entrypoints$(NC)"
+	@echo "$(GREEN)✓ All available entrypoint binaries installed to /opt/autoteam/entrypoints$(NC)"
 
 # Uninstall target
 uninstall: ## Uninstall binaries from system
@@ -314,11 +314,11 @@ uninstall: ## Uninstall binaries from system
 	else \
 		echo "$(YELLOW)! $(ENTRYPOINT_BINARY_NAME) not found in /usr/local/bin/$(NC)"; \
 	fi
-	@if [ -d "/opt/auto-team/entrypoints" ]; then \
-		sudo rm -rf /opt/auto-team/entrypoints; \
-		echo "$(GREEN)✓ Uninstalled entrypoint binaries from /opt/auto-team/entrypoints$(NC)"; \
+	@if [ -d "/opt/autoteam/entrypoints" ]; then \
+		sudo rm -rf /opt/autoteam/entrypoints; \
+		echo "$(GREEN)✓ Uninstalled entrypoint binaries from /opt/autoteam/entrypoints$(NC)"; \
 	else \
-		echo "$(YELLOW)! Entrypoints directory not found in /opt/auto-team/entrypoints$(NC)"; \
+		echo "$(YELLOW)! Entrypoints directory not found in /opt/autoteam/entrypoints$(NC)"; \
 	fi
 
 # Generate checksums for build artifacts

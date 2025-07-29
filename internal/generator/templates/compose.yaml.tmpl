@@ -5,10 +5,10 @@ services:
     tty: true
     stdin_open: true
     volumes:
-      - ./agents/{{ .Agent.Name }}/codebase:/opt/auto-team/codebase
+      - ./agents/{{ .Agent.Name }}/codebase:/opt/autoteam/codebase
       - ./shared/.claude:/home/{{ .EffectiveSettings.DockerUser }}/.claude
-      - ./shared/.claude.json:/home/{{ .EffectiveSettings.DockerUser }}/.claude.json  
-      - ./entrypoints:/opt/auto-team/entrypoints:ro
+      - ./shared/.claude.json:/home/{{ .EffectiveSettings.DockerUser }}/.claude.json
+      - ./entrypoints:/opt/autoteam/entrypoints:ro
 {{- range .EffectiveSettings.Volumes }}
       - {{ . }}
 {{- end }}
@@ -33,6 +33,6 @@ services:
     entrypoint: |
 {{ .EffectiveSettings.Entrypoint | escapeDockerCompose | indent 6 }}
 {{- else }}
-    entrypoint: ["/opt/auto-team/entrypoints/entrypoint.sh"]
+    entrypoint: ["/opt/autoteam/entrypoints/entrypoint.sh"]
 {{- end }}
 {{- end }}

@@ -1,10 +1,10 @@
-# Auto-Team
+# AutoTeam
 
 Universal AI Agent Management System for automated GitHub workflows.
 
 ## Overview
 
-Auto-Team is a configurable system that deploys AI agents to automatically handle GitHub issues, pull requests, and reviews. Instead of manually checking GitHub and working on tasks, this system continuously monitors for new work and automatically provisions containerized development environments with specialized AI agents.
+AutoTeam is a configurable system that deploys AI agents to automatically handle GitHub issues, pull requests, and reviews. Instead of manually checking GitHub and working on tasks, this system continuously monitors for new work and automatically provisions containerized development environments with specialized AI agents.
 
 ## Features
 
@@ -22,7 +22,7 @@ Auto-Team is a configurable system that deploys AI agents to automatically handl
 **Quick Install (Recommended):**
 ```bash
 # Install latest version (macOS/Linux)
-curl -fsSL https://raw.githubusercontent.com/diazoxide/auto-team/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/diazoxide/autoteam/main/scripts/install.sh | bash
 ```
 
 **Manual Install:**
@@ -53,7 +53,7 @@ Edit `autoteam.yaml` to match your repository and requirements:
 
 ```yaml
 repository:
-  url: "diazoxide/auto-team"
+  url: "diazoxide/autoteam"
   main_branch: "main"
 
 agents:
@@ -68,7 +68,7 @@ settings:
   docker_image: "node:18.17.1"
   docker_user: "developer"
   check_interval: 60
-  team_name: "auto-team"
+  team_name: "autoteam"
   install_deps: true
 ```
 

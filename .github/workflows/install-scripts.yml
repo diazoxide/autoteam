@@ -167,7 +167,7 @@ jobs:
           "/opt/local/bin/$BINARY_NAME"
         )
         
-        echo "Auto-Team Uninstall Script"
+        echo "AutoTeam Uninstall Script"
         echo "=========================="
         
         removed=false
@@ -189,9 +189,9 @@ jobs:
         done
         
         if [ "$removed" = true ]; then
-          echo "✅ Auto-Team uninstalled successfully"
+          echo "✅ AutoTeam uninstalled successfully"
         else
-          echo "ℹ Auto-Team was not found in standard locations"
+          echo "ℹ AutoTeam was not found in standard locations"
         fi
         
         # Verify removal

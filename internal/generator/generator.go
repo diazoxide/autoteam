@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"auto-team/internal/config"
+	"autoteam/internal/config"
 )
 
 //go:embed templates/*
@@ -71,7 +71,7 @@ func (g *Generator) copyEntrypointsDirectory() error {
 		}
 
 		readmePath := filepath.Join(config.LocalEntrypointsPath, config.ReadmeFile)
-		readmeContent := `# Auto-Team Entrypoint Binaries
+		readmeContent := `# AutoTeam Entrypoint Binaries
 
 This directory should contain entrypoint binaries for different platforms.
 

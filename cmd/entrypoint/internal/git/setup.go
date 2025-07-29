@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"auto-team/cmd/entrypoint/internal/config"
+	"autoteam/cmd/entrypoint/internal/config"
 )
 
 // Setup handles Git configuration and credential management
@@ -208,8 +208,8 @@ func (s *Setup) updateRepository(ctx context.Context) error {
 
 // getWorkingDirectory returns the working directory path
 func (s *Setup) getWorkingDirectory() string {
-	// Use /opt/auto-team/codebase as the standard path for container deployments
-	return "/opt/auto-team/codebase"
+	// Use /opt/autoteam/codebase as the standard path for container deployments
+	return "/opt/autoteam/codebase"
 }
 
 // GetWorkingDirectory returns the working directory path (public method)

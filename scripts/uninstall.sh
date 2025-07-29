@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Auto-Team Uninstallation Script
+# AutoTeam Uninstallation Script
 # Removes autoteam binary and configuration files
 
 set -e
@@ -46,21 +46,21 @@ log_error() {
 # Check if binaries are installed
 check_installation() {
     local found=false
-    
+
     if command -v "$BINARY_NAME" >/dev/null 2>&1; then
         local version
         version=$($BINARY_NAME --version 2>/dev/null | head -1 || echo "unknown")
         log_info "Found $BINARY_NAME: $version"
         found=true
     fi
-    
+
     if command -v "$ENTRYPOINT_BINARY_NAME" >/dev/null 2>&1; then
         local version
         version=$($ENTRYPOINT_BINARY_NAME --version 2>/dev/null | head -1 || echo "unknown")
         log_info "Found $ENTRYPOINT_BINARY_NAME: $version"
         found=true
     fi
-    
+
     if [ "$found" = false ]; then
         log_warning "Neither $BINARY_NAME nor $ENTRYPOINT_BINARY_NAME is installed or in PATH"
         return 1
@@ -71,13 +71,13 @@ check_installation() {
 # Find installed binary locations
 find_installations() {
     local found_locations=()
-    
+
     for location in "${INSTALL_LOCATIONS[@]}"; do
         if [ -f "$location" ]; then
             found_locations+=("$location")
         fi
     done
-    
+
     echo "${found_locations[@]}"
 }
 
@@ -85,17 +85,17 @@ find_installations() {
 remove_binaries() {
     local locations=("$@")
     local removed_count=0
-    
+
     for location in "${locations[@]}"; do
         log_info "Removing $location..."
-        
+
         if [ -w "$(dirname "$location")" ]; then
             rm -f "$location"
         else
             log_info "Administrator privileges required to remove $location"
             sudo rm -f "$location"
         fi
-        
+
         if [ ! -f "$location" ]; then
             log_success "Removed $location"
             ((removed_count++))
@@ -103,20 +103,20 @@ remove_binaries() {
             log_error "Failed to remove $location"
         fi
     done
-    
+
     return $removed_count
 }
 
-# Clean up auto-team directories and files
+# Clean up autoteam directories and files
 cleanup_files() {
     local cleanup_paths=(
         "$HOME/.autoteam"
         "$HOME/.config/autoteam"
         "/tmp/autoteam-*"
     )
-    
+
     log_info "Cleaning up configuration files..."
-    
+
     for path in "${cleanup_paths[@]}"; do
         if [[ "$path" == *"*"* ]]; then
             # Handle glob patterns
@@ -137,16 +137,16 @@ cleanup_files() {
 
 # Main uninstallation process
 main() {
-    echo -e "${BLUE}Auto-Team Uninstallation Script${NC}"
+    echo -e "${BLUE}AutoTeam Uninstallation Script${NC}"
     echo -e "${BLUE}===============================${NC}"
     echo ""
-    
+
     # Check if installed
     if ! check_installation; then
         # Still look for binary files
         local found_locations
         mapfile -t found_locations < <(find_installations)
-        
+
         if [ ${#found_locations[@]} -eq 0 ]; then
             log_warning "No $BINARY_NAME installations found"
             echo ""
@@ -154,26 +154,26 @@ main() {
             echo "please remove it manually."
             exit 0
         fi
-        
+
         log_info "Found binary files even though $BINARY_NAME is not in PATH"
     fi
-    
+
     # Find all installations
     local found_locations
     mapfile -t found_locations < <(find_installations)
-    
+
     if [ ${#found_locations[@]} -eq 0 ]; then
         log_warning "No binary files found in standard locations"
         log_info "If $BINARY_NAME is installed elsewhere, please remove it manually"
         exit 0
     fi
-    
+
     echo "Found installations:"
     for location in "${found_locations[@]}"; do
         echo "  - $location"
     done
     echo ""
-    
+
     # Confirmation
     echo -n "Are you sure you want to uninstall $BINARY_NAME? [y/N]: "
     read -r response
@@ -186,17 +186,17 @@ main() {
             exit 0
             ;;
     esac
-    
+
     echo ""
-    
+
     # Remove binaries
     if remove_binaries "${found_locations[@]}"; then
         log_success "Binary files removed successfully"
     fi
-    
+
     # Clean up configuration files
     cleanup_files
-    
+
     # Verify removal
     echo ""
     if ! command -v "$BINARY_NAME" >/dev/null 2>&1; then
@@ -206,14 +206,14 @@ main() {
         log_warning "Warning: $BINARY_NAME is still available in PATH"
         log_info "You may need to restart your shell or check for additional installations"
     fi
-    
+
     echo ""
-    log_info "Thank you for using Auto-Team!"
+    log_info "Thank you for using AutoTeam!"
 }
 
 # Show usage
 usage() {
-    echo "Auto-Team Uninstallation Script"
+    echo "AutoTeam Uninstallation Script"
     echo ""
     echo "Usage: $0 [OPTIONS]"
     echo ""
@@ -221,7 +221,7 @@ usage() {
     echo "  -h, --help              Show this help message"
     echo ""
     echo "This script will:"
-    echo "  - Remove autoteam binary from standard installation directories"  
+    echo "  - Remove autoteam binary from standard installation directories"
     echo "  - Clean up configuration files and temporary data"
     echo "  - Verify complete removal"
 }

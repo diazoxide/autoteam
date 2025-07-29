@@ -9,12 +9,12 @@ import (
 	"syscall"
 	"time"
 
-	"auto-team/cmd/entrypoint/internal/agent"
-	"auto-team/cmd/entrypoint/internal/config"
-	"auto-team/cmd/entrypoint/internal/deps"
-	"auto-team/cmd/entrypoint/internal/git"
-	"auto-team/cmd/entrypoint/internal/github"
-	"auto-team/cmd/entrypoint/internal/monitor"
+	"autoteam/cmd/entrypoint/internal/agent"
+	"autoteam/cmd/entrypoint/internal/config"
+	"autoteam/cmd/entrypoint/internal/deps"
+	"autoteam/cmd/entrypoint/internal/git"
+	"autoteam/cmd/entrypoint/internal/github"
+	"autoteam/cmd/entrypoint/internal/monitor"
 
 	"github.com/urfave/cli/v3"
 )
@@ -29,7 +29,7 @@ var (
 func main() {
 	app := &cli.Command{
 		Name:    "autoteam-entrypoint",
-		Usage:   "Auto-Team Agent Entrypoint - GitHub monitoring and AI agent execution",
+		Usage:   "AutoTeam Agent Entrypoint - GitHub monitoring and AI agent execution",
 		Version: fmt.Sprintf("%s (built %s, commit %s)", Version, BuildTime, GitCommit),
 		Action:  runEntrypoint,
 		Flags: []cli.Flag{
@@ -84,7 +84,7 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:    "team-name",
-				Value:   "auto-team",
+				Value:   "autoteam",
 				Usage:   "Team name for directory structure",
 				Sources: cli.EnvVars("TEAM_NAME"),
 			},
@@ -150,7 +150,7 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		log.Println("Verbose logging enabled")
 	}
 
-	log.Printf("Starting Auto-Team Entrypoint %s", Version)
+	log.Printf("Starting AutoTeam Entrypoint %s", Version)
 	log.Printf("Agent: %s, Repository: %s", cfg.Agent.Name, cfg.GitHub.Repository)
 
 	// Create context for graceful shutdown
