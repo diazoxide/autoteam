@@ -164,10 +164,10 @@ jobs:
       run: |
         # Test generate command with created config
         ./build/autoteam generate
-        test -f compose.yaml
-        test -f entrypoint.sh
+        test -f .autoteam/compose.yaml
+        test -f .autoteam/entrypoints/entrypoint.sh
     
     - name: Validate generated Docker Compose
       run: |
         # Check if compose.yaml is valid
-        docker compose -f compose.yaml config
+        docker compose -f .autoteam/compose.yaml config
