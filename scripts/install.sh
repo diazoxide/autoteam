@@ -223,7 +223,7 @@ build_from_source() {
         exit 1
     fi
 
-    local repo_dir="$TEMP_DIR/autoteam"
+    local repo_dir="$TEMP_DIR/autoteam-source"
 
     log_info "Cloning repository..."
     git clone https://github.com/diazoxide/autoteam.git "$repo_dir" >/dev/null 2>&1 || {
