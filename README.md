@@ -12,8 +12,11 @@ AutoTeam is a configurable system that deploys AI agents to automatically handle
 - **Dynamic Agent Scaling**: Support for any number of specialized agents
 - **Template-Based Generation**: Docker Compose and entrypoint scripts generated from templates
 - **Role-Based Agents**: Each agent can have specialized prompts and responsibilities
+- **Agent-Specific Settings**: Per-agent Docker images, volumes, and environment overrides
+- **Organized File Structure**: All generated files in `.autoteam/` directory
 - **Continuous Monitoring**: Configurable intervals for checking GitHub activity
 - **Docker Integration**: Containerized environments with volume mounting and networking
+- **Cross-Platform Support**: macOS and Linux with universal installation script
 
 ## Quick Start
 
@@ -63,6 +66,10 @@ agents:
   - name: "reviewer"
     prompt: "You are a code reviewer focused on quality and best practices."
     github_token_env: "REVIEWER_GITHUB_TOKEN"
+    settings:
+      docker_image: "golang:1.21"  # Custom image for reviewer
+      volumes:
+        - "./tools:/opt/tools:ro"  # Additional volume mount
 
 settings:
   docker_image: "node:18.17.1"
@@ -105,6 +112,12 @@ autoteam down
 - `prompt`: Primary role and responsibilities
 - `github_token_env`: Environment variable containing GitHub token
 - `common_prompt`: Additional instructions for all agents
+- `settings`: Agent-specific overrides for global settings (optional)
+  - `docker_image`: Custom Docker image for this agent
+  - `docker_user`: Custom user for this agent
+  - `volumes`: Additional volume mounts
+  - `environment`: Additional environment variables
+  - `entrypoint`: Custom entrypoint override
 
 ### Settings
 
@@ -132,10 +145,12 @@ autoteam up        # Generate and start containers
 autoteam down      # Stop containers
 ```
 
+All generated files are organized in the `.autoteam/` directory for better project organization.
+
 ## Architecture
 
 ```
-autoteam.yaml → Generator → compose.yaml + entrypoint.sh
+autoteam.yaml → Generator → .autoteam/compose.yaml + entrypoints/
                      ↓
               Docker Compose → Agent Containers
                      ↓
@@ -147,16 +162,21 @@ autoteam.yaml → Generator → compose.yaml + entrypoint.sh
 ```
 ./
 ├── autoteam.yaml          # Configuration
-├── compose.yaml           # Generated Docker Compose
-├── entrypoint.sh          # Generated startup script
-├── agents/
-│   ├── agent1/
-│   │   ├── codebase/      # Repository clone
-│   │   └── claude/        # Claude configuration
-│   └── agent2/
-│       ├── codebase/
-│       └── claude/
-└── shared/                # Shared configurations
+└── .autoteam/             # Generated files directory
+    ├── compose.yaml       # Docker Compose configuration
+    ├── agents/            # Agent-specific directories
+    │   ├── agent1/
+    │   │   ├── codebase/  # Repository clone
+    │   │   └── claude/    # Claude configuration
+    │   └── agent2/
+    │       ├── codebase/
+    │       └── claude/
+    ├── entrypoints/       # Agent entrypoint binaries
+    │   ├── autoteam-entrypoint-*
+    │   └── entrypoint.sh
+    └── shared/            # Shared configurations
+        ├── .claude
+        └── .claude.json
 ```
 
 ## Testing
@@ -198,7 +218,8 @@ go test ./cmd/entrypoint
 │   ├── generator/         # Template generation & embedded templates
 │   └── testutil/          # Test utilities
 ├── examples/              # Configuration examples
-└── agents/                # Generated agent directories
+├── scripts/               # Installation and utility scripts
+└── .autoteam/             # Generated agent directories (created at runtime)
 ```
 
 ### Building & Development
@@ -250,15 +271,15 @@ See `make help` for all available targets.
 
 ```bash
 # Check generated files
-./autoteam generate
-cat compose.yaml
-cat entrypoint.sh
+autoteam generate
+cat .autoteam/compose.yaml
+ls .autoteam/entrypoints/
 
 # Test individual containers
-docker-compose up agent-name
+docker-compose -f .autoteam/compose.yaml up agent-name
 
 # View container logs
-docker-compose logs agent-name
+docker-compose -f .autoteam/compose.yaml logs agent-name
 ```
 
 ## Contributing
