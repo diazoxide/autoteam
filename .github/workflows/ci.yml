@@ -169,16 +169,7 @@ jobs:
       run: |
         # Test generate command with created config
         ./build/autoteam generate
-        echo "Files in .autoteam directory:"
-        find .autoteam -type f || echo "No .autoteam directory found"
         test -f .autoteam/compose.yaml
-        # Check if entrypoints directory exists and list contents
-        if [ -d .autoteam/entrypoints ]; then
-          echo "Contents of .autoteam/entrypoints:"
-          ls -la .autoteam/entrypoints/
-        else
-          echo ".autoteam/entrypoints directory does not exist"
-        fi
         test -f .autoteam/entrypoints/entrypoint.sh
     
     - name: Validate generated Docker Compose
