@@ -10,12 +10,15 @@ AutoTeam is a configurable system that deploys AI agents to automatically handle
 
 - **Universal Configuration**: Single YAML file to define repository, agents, and settings
 - **Dynamic Agent Scaling**: Support for any number of specialized agents
+- **Smart Name Normalization**: Automatically handles agent names with spaces and special characters
 - **Template-Based Generation**: Docker Compose and entrypoint scripts generated from templates
 - **Role-Based Agents**: Each agent can have specialized prompts and responsibilities
 - **Agent-Specific Settings**: Per-agent Docker images, volumes, and environment overrides
+- **Consolidated Prompt System**: Unified prompt handling with collaborator awareness
 - **Organized File Structure**: All generated files in `.autoteam/` directory
 - **Continuous Monitoring**: Configurable intervals for checking GitHub activity
 - **Docker Integration**: Containerized environments with volume mounting and networking
+- **Security Validation**: GitHub token/user validation for enhanced security
 - **Cross-Platform Support**: macOS and Linux with universal installation script
 
 ## Quick Start
@@ -63,9 +66,11 @@ agents:
   - name: "developer"
     prompt: "You are a developer agent responsible for implementing features and fixing bugs."
     github_token: "ghp_your_developer_token_here"
+    github_user: "your-github-username"
   - name: "reviewer"
     prompt: "You are a code reviewer focused on quality and best practices."
     github_token: "ghp_your_reviewer_token_here"
+    github_user: "your-github-username"
     settings:
       docker_image: "golang:1.21"  # Custom image for reviewer
       volumes:
@@ -131,16 +136,15 @@ autoteam down
 
 ### Agent Configuration
 
-- `name`: Unique identifier for the agent
+- `name`: Unique identifier for the agent (supports names with spaces and special characters)
 - `prompt`: Primary role and responsibilities
 - `github_token`: GitHub personal access token for this agent
-- `common_prompt`: Additional instructions for all agents
+- `github_user`: GitHub username associated with the token (required for security validation)
 - `settings`: Agent-specific overrides for global settings (optional)
   - `docker_image`: Custom Docker image for this agent
   - `docker_user`: Custom user for this agent
   - `volumes`: Additional volume mounts
   - `environment`: Additional environment variables
-  - `entrypoint`: Custom entrypoint override
 
 ### Settings
 
@@ -149,6 +153,9 @@ autoteam down
 - `check_interval`: Monitoring frequency in seconds
 - `team_name`: Project name used in paths
 - `install_deps`: Install dependencies on startup
+- `common_prompt`: Common instructions shared by all agents (optional)
+- `volumes`: Global volume mounts applied to all agents (optional)
+- `environment`: Global environment variables for all agents (optional)
 
 ## Examples
 
@@ -169,6 +176,35 @@ autoteam down      # Stop containers
 ```
 
 All generated files are organized in the `.autoteam/` directory for better project organization.
+
+### Agent Name Normalization
+
+AutoTeam automatically normalizes agent names for Docker Compose services and directory paths while preserving the original names for identification:
+
+```yaml
+agents:
+  - name: "Senior Developer"      # Original name (used in environment variables)
+    prompt: "You are a senior developer"
+    github_token: "ghp_token1"
+    github_user: "senior-dev-user"
+  - name: "API Agent #1"          # Original name with special characters
+    prompt: "You are an API specialist"
+    github_token: "ghp_token2"
+    github_user: "api-dev-user"
+```
+
+This generates Docker Compose services with normalized names:
+- `Senior Developer` → `senior_developer` (service name)
+- `API Agent #1` → `api_agent_1` (service name)
+
+Directory structure uses normalized names:
+```
+.autoteam/agents/
+├── senior_developer/
+│   └── codebase/
+└── api_agent_1/
+    └── codebase/
+```
 
 ## Architecture
 
@@ -225,6 +261,7 @@ go test ./cmd/entrypoint
 - **Unit Tests**: Config parsing, validation, template generation
 - **Integration Tests**: CLI command workflows
 - **Template Tests**: Docker Compose and entrypoint generation
+- **Normalization Tests**: Agent name normalization with various edge cases
 - **Error Handling**: Invalid configurations and edge cases
 
 ## Development
@@ -275,10 +312,12 @@ See `make help` for all available targets.
 ## Security Considerations
 
 - Use separate GitHub tokens for each agent
-- Configure minimal required permissions
+- Configure minimal required permissions for GitHub tokens
+- Ensure `github_user` matches the token owner (validated automatically)
 - Regularly rotate access tokens
 - Monitor API rate limits
 - Review generated Docker configurations
+- Use `.env` files for sensitive tokens instead of committing them to version control
 
 ## Troubleshooting
 
