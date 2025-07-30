@@ -298,7 +298,7 @@ func (i *Installer) installGitHubCLIBinary(ctx context.Context) error {
 
 	// Get the latest release version and download GitHub CLI binary
 	commands := [][]string{
-		{"bash", "-c", fmt.Sprintf("curl -s https://api.github.com/repos/cli/cli/releases/latest | grep 'tag_name' | cut -d'\"' -f4 | sed 's/v//' > /tmp/gh_version")},
+		{"bash", "-c", "curl -s https://api.github.com/repos/cli/cli/releases/latest | grep 'tag_name' | cut -d'\"' -f4 | sed 's/v//' > /tmp/gh_version"},
 		{"bash", "-c", fmt.Sprintf("curl -fsSL https://github.com/cli/cli/releases/latest/download/gh_$(cat /tmp/gh_version)_linux_%s.tar.gz -o /tmp/gh.tar.gz", downloadArch)},
 		{"tar", "-xzf", "/tmp/gh.tar.gz", "-C", "/tmp"},
 		{"bash", "-c", "find /tmp -name 'gh_*_linux_*' -type d | head -1 | xargs -I {} cp {}/bin/gh /usr/local/bin/"},
