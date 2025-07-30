@@ -27,11 +27,10 @@ type Repository struct {
 }
 
 type Agent struct {
-	Name         string         `yaml:"name"`
-	Prompt       string         `yaml:"prompt"`
-	GitHubToken  string         `yaml:"github_token"`
-	CommonPrompt string         `yaml:"common_prompt,omitempty"`
-	Settings     *AgentSettings `yaml:"settings,omitempty"`
+	Name        string         `yaml:"name"`
+	Prompt      string         `yaml:"prompt"`
+	GitHubToken string         `yaml:"github_token"`
+	Settings    *AgentSettings `yaml:"settings,omitempty"`
 }
 
 type AgentSettings struct {
@@ -40,6 +39,7 @@ type AgentSettings struct {
 	CheckInterval *int              `yaml:"check_interval,omitempty"`
 	TeamName      *string           `yaml:"team_name,omitempty"`
 	InstallDeps   *bool             `yaml:"install_deps,omitempty"`
+	CommonPrompt  *string           `yaml:"common_prompt,omitempty"`
 	Volumes       []string          `yaml:"volumes,omitempty"`
 	Entrypoint    *string           `yaml:"entrypoint,omitempty"`
 	Environment   map[string]string `yaml:"environment,omitempty"`
@@ -51,6 +51,7 @@ type Settings struct {
 	CheckInterval int               `yaml:"check_interval"`
 	TeamName      string            `yaml:"team_name"`
 	InstallDeps   bool              `yaml:"install_deps"`
+	CommonPrompt  string            `yaml:"common_prompt,omitempty"`
 	Volumes       []string          `yaml:"volumes,omitempty"`
 	Entrypoint    string            `yaml:"entrypoint,omitempty"`
 	Environment   map[string]string `yaml:"environment,omitempty"`
@@ -128,16 +129,14 @@ func CreateSampleConfig(filename string) error {
 		},
 		Agents: []Agent{
 			{
-				Name:         "dev1",
-				Prompt:       "You are a developer agent responsible for implementing features and fixing bugs.",
-				GitHubToken:  "ghp_your_github_token_here",
-				CommonPrompt: "Always follow coding best practices and write comprehensive tests.",
+				Name:        "dev1",
+				Prompt:      "You are a developer agent responsible for implementing features and fixing bugs.",
+				GitHubToken: "ghp_your_github_token_here",
 			},
 			{
-				Name:         "arch1",
-				Prompt:       "You are an architecture agent responsible for system design and code reviews.",
-				GitHubToken:  "ghp_your_github_token_here",
-				CommonPrompt: "Focus on maintainability, scalability, and architectural best practices.",
+				Name:        "arch1",
+				Prompt:      "You are an architecture agent responsible for system design and code reviews.",
+				GitHubToken: "ghp_your_github_token_here",
 				Settings: &AgentSettings{
 					DockerImage:   stringPtr("python:3.11"),
 					CheckInterval: intPtr(30),
@@ -158,6 +157,7 @@ func CreateSampleConfig(filename string) error {
 			CheckInterval: 60,
 			TeamName:      DefaultTeamName,
 			InstallDeps:   true,
+			CommonPrompt:  "Always follow coding best practices and write comprehensive tests.",
 		},
 	}
 
@@ -197,6 +197,9 @@ func (a *Agent) GetEffectiveSettings(globalSettings Settings) Settings {
 	}
 	if a.Settings.InstallDeps != nil {
 		effective.InstallDeps = *a.Settings.InstallDeps
+	}
+	if a.Settings.CommonPrompt != nil {
+		effective.CommonPrompt = *a.Settings.CommonPrompt
 	}
 
 	// Handle new fields
@@ -240,14 +243,29 @@ type AgentWithSettings struct {
 }
 
 // Helper functions for creating pointers
-func stringPtr(s string) *string {
+func StringPtr(s string) *string {
 	return &s
 }
 
-func intPtr(i int) *int {
+func IntPtr(i int) *int {
 	return &i
 }
 
-func boolPtr(b bool) *bool {
+func BoolPtr(b bool) *bool {
 	return &b
+}
+
+// Deprecated: use StringPtr instead
+func stringPtr(s string) *string {
+	return StringPtr(s)
+}
+
+// Deprecated: use IntPtr instead
+func intPtr(i int) *int {
+	return IntPtr(i)
+}
+
+// Deprecated: use BoolPtr instead
+func boolPtr(b bool) *bool {
+	return BoolPtr(b)
 }

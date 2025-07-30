@@ -17,7 +17,7 @@ services:
       AGENT_NAME: {{ .Agent.Name }}
       AGENT_TYPE: claude
       AGENT_PROMPT: {{ .Agent.Prompt | printf "%q" }}
-      COMMON_PROMPT: {{ .Agent.CommonPrompt | printf "%q" }}
+      COMMON_PROMPT: {{ .EffectiveSettings.CommonPrompt | printf "%q" }}
       TEAM_NAME: {{ .EffectiveSettings.TeamName }}
       CHECK_INTERVAL: {{ .EffectiveSettings.CheckInterval }}
       INSTALL_DEPS: {{ .EffectiveSettings.InstallDeps }}

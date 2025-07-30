@@ -31,10 +31,9 @@ func TestComposeTemplate(t *testing.T) {
 		},
 		Agents: []config.Agent{
 			{
-				Name:         "dev1",
-				Prompt:       "You are a developer",
-				GitHubToken:  "DEV1_TOKEN",
-				CommonPrompt: "Follow best practices",
+				Name:        "dev1",
+				Prompt:      "You are a developer",
+				GitHubToken: "DEV1_TOKEN",
 			},
 			{
 				Name:        "arch1",
@@ -220,16 +219,16 @@ func TestComposeTemplatePromptEscaping(t *testing.T) {
 		Repository: config.Repository{URL: "owner/repo"},
 		Agents: []config.Agent{
 			{
-				Name:         "test",
-				Prompt:       "You are a \"special\" agent with 'quotes' and $variables",
-				GitHubToken:  "TOKEN",
-				CommonPrompt: "Follow \"best practices\" and don't break things",
+				Name:        "test",
+				Prompt:      "You are a \"special\" agent with 'quotes' and $variables",
+				GitHubToken: "TOKEN",
 			},
 		},
 		Settings: config.Settings{
-			DockerImage: "node:test",
-			DockerUser:  "test",
-			TeamName:    "test",
+			DockerImage:  "node:test",
+			DockerUser:   "test",
+			TeamName:     "test",
+			CommonPrompt: "Follow \"best practices\" and don't break things",
 		},
 	}
 

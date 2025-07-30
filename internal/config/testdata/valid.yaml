@@ -6,7 +6,6 @@ agents:
   - name: "dev1"
     prompt: "You are a developer agent"
     github_token: "DEV1_TOKEN"
-    common_prompt: "Follow best practices"
   - name: "arch1"
     prompt: "You are an architect agent"
     github_token: "ARCH1_TOKEN"
@@ -17,3 +16,4 @@ settings:
   check_interval: 60
   team_name: "test-team"
   install_deps: true
+  common_prompt: "Follow best practices"

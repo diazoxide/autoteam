@@ -58,10 +58,9 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 		},
 		Agents: []config.Agent{
 			{
-				Name:         "dev1",
-				Prompt:       "You are a developer agent",
-				GitHubToken:  "DEV1_TOKEN",
-				CommonPrompt: "Follow best practices",
+				Name:        "dev1",
+				Prompt:      "You are a developer agent",
+				GitHubToken: "DEV1_TOKEN",
 			},
 			{
 				Name:        "arch1",

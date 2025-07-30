@@ -24,10 +24,9 @@ func TestLoadConfig_Valid(t *testing.T) {
 				},
 				Agents: []Agent{
 					{
-						Name:         "dev1",
-						Prompt:       "You are a developer agent",
-						GitHubToken:  "DEV1_TOKEN",
-						CommonPrompt: "Follow best practices",
+						Name:        "dev1",
+						Prompt:      "You are a developer agent",
+						GitHubToken: "DEV1_TOKEN",
 					},
 					{
 						Name:        "arch1",
@@ -41,6 +40,7 @@ func TestLoadConfig_Valid(t *testing.T) {
 					CheckInterval: 60,
 					TeamName:      "test-team",
 					InstallDeps:   true,
+					CommonPrompt:  "Follow best practices",
 				},
 			},
 		},
