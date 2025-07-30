@@ -134,7 +134,8 @@ func runDockerCompose(ctx context.Context, args ...string) error {
 // loadGlobalConfig loads the config and stores it in the context
 func loadGlobalConfig(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 	// Skip loading config for init command as it creates the config file
-	if cmd.Name == "init" {
+	// Check command line arguments since Before hook runs on root command
+	if len(os.Args) > 1 && os.Args[1] == "init" {
 		return ctx, nil
 	}
 
