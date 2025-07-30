@@ -172,7 +172,8 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// Validate GitHub token and user for security
-	if err := validateGitHubTokenAndUser(ctx, githubClient, cfg.Git.User); err != nil {
+	err = validateGitHubTokenAndUser(ctx, githubClient, cfg.Git.User)
+	if err != nil {
 		return fmt.Errorf("GitHub token/user validation failed: %w", err)
 	}
 
