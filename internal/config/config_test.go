@@ -27,11 +27,13 @@ func TestLoadConfig_Valid(t *testing.T) {
 						Name:        "dev1",
 						Prompt:      "You are a developer agent",
 						GitHubToken: "DEV1_TOKEN",
+						GitHubUser:  "dev-user",
 					},
 					{
 						Name:        "arch1",
 						Prompt:      "You are an architect agent",
 						GitHubToken: "ARCH1_TOKEN",
+						GitHubUser:  "arch-user",
 					},
 				},
 				Settings: Settings{
@@ -57,6 +59,7 @@ func TestLoadConfig_Valid(t *testing.T) {
 						Name:        "dev1",
 						Prompt:      "Developer",
 						GitHubToken: "TOKEN",
+						GitHubUser:  "dev-user",
 					},
 				},
 				Settings: Settings{
@@ -207,7 +210,7 @@ func TestValidateConfig(t *testing.T) {
 			config: Config{
 				Repository: Repository{URL: "owner/repo"},
 				Agents: []Agent{
-					{Name: "dev1", Prompt: "prompt", GitHubToken: "TOKEN"},
+					{Name: "dev1", Prompt: "prompt", GitHubToken: "TOKEN", GitHubUser: "dev-user"},
 				},
 			},
 			wantErr: "",
@@ -216,7 +219,7 @@ func TestValidateConfig(t *testing.T) {
 			name: "missing repository URL",
 			config: Config{
 				Agents: []Agent{
-					{Name: "dev1", Prompt: "prompt", GitHubToken: "TOKEN"},
+					{Name: "dev1", Prompt: "prompt", GitHubToken: "TOKEN", GitHubUser: "dev-user"},
 				},
 			},
 			wantErr: "repository.url is required",
@@ -234,7 +237,7 @@ func TestValidateConfig(t *testing.T) {
 			config: Config{
 				Repository: Repository{URL: "owner/repo"},
 				Agents: []Agent{
-					{Prompt: "prompt", GitHubToken: "TOKEN"},
+					{Prompt: "prompt", GitHubToken: "TOKEN", GitHubUser: "dev-user"},
 				},
 			},
 			wantErr: "agent[0].name is required",
@@ -244,7 +247,7 @@ func TestValidateConfig(t *testing.T) {
 			config: Config{
 				Repository: Repository{URL: "owner/repo"},
 				Agents: []Agent{
-					{Name: "dev1", GitHubToken: "TOKEN"},
+					{Name: "dev1", GitHubToken: "TOKEN", GitHubUser: "dev-user"},
 				},
 			},
 			wantErr: "agent[0].prompt is required",
@@ -254,7 +257,7 @@ func TestValidateConfig(t *testing.T) {
 			config: Config{
 				Repository: Repository{URL: "owner/repo"},
 				Agents: []Agent{
-					{Name: "dev1", Prompt: "prompt"},
+					{Name: "dev1", Prompt: "prompt", GitHubUser: "dev-user"},
 				},
 			},
 			wantErr: "agent[0].github_token is required",

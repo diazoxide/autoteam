@@ -69,9 +69,11 @@ agents:
   - name: "developer"
     prompt: "Developer agent"
     github_token: "` + os.Getenv("DEVELOPER_TOKEN") + `"
+    github_user: "dev-user"
   - name: "reviewer"
     prompt: "Reviewer agent"
-    github_token: "` + os.Getenv("REVIEWER_TOKEN") + `"`
+    github_token: "` + os.Getenv("REVIEWER_TOKEN") + `"
+    github_user: "rev-user"`
 
 	configPath := filepath.Join(tempDir, "autoteam.yaml")
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
@@ -121,7 +123,8 @@ func TestDotenvOptional(t *testing.T) {
 agents:
   - name: "developer"
     prompt: "Developer agent"
-    github_token: "ghp_direct_token_123"`
+    github_token: "ghp_direct_token_123"
+    github_user: "dev-user"`
 
 	configPath := filepath.Join(tempDir, "autoteam.yaml")
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {

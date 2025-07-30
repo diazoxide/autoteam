@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -187,50 +185,14 @@ func (m *Monitor) buildPrompt(pendingList string) string {
 	// Add pending items
 	promptParts = append(promptParts, pendingList)
 
-	// Add important instructions
-	importantPrompt := "IMPORTANT: Submit only one Pull Request per iteration. Avoid the '1 PR = 1 commit' approach. Large Pull Requests should be broken down into multiple small, logical commits that each represent a cohesive change."
-	promptParts = append(promptParts, "", importantPrompt)
-
-	// Add agent-specific prompt
+	// Add consolidated agent prompt (already includes agent-specific prompt, common prompt, and collaborators list)
 	if m.globalConfig.Agent.Prompt != "" {
 		promptParts = append(promptParts, "", m.globalConfig.Agent.Prompt)
 	}
 
-	// Add common prompt
-	if m.globalConfig.Agent.CommonPrompt != "" {
-		promptParts = append(promptParts, "", m.globalConfig.Agent.CommonPrompt)
-	}
-
-	// Add repository-specific prompts if they exist
-	workingDir := m.gitSetup.GetWorkingDirectory()
-
-	// Common prompt file
-	commonPromptPath := filepath.Join(workingDir, ".autoteam", "common.md")
-	if commonPrompt := m.readPromptFile(commonPromptPath); commonPrompt != "" {
-		promptParts = append(promptParts, "", commonPrompt)
-	}
-
-	// Agent-specific prompt file
-	agentPromptPath := filepath.Join(workingDir, ".autoteam", fmt.Sprintf("agent-%s.md", m.globalConfig.Agent.Name))
-	if agentPrompt := m.readPromptFile(agentPromptPath); agentPrompt != "" {
-		promptParts = append(promptParts, "", agentPrompt)
-	}
+	// Add important instructions at the end
+	importantPrompt := "IMPORTANT: Submit only one Pull Request per iteration. Avoid the '1 PR = 1 commit' approach. Large Pull Requests should be broken down into multiple small, logical commits that each represent a cohesive change."
+	promptParts = append(promptParts, "", importantPrompt)
 
 	return strings.Join(promptParts, "\n")
-}
-
-// readPromptFile reads a prompt file and returns its contents
-func (m *Monitor) readPromptFile(filePath string) string {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		// File doesn't exist or can't be read, which is fine
-		return ""
-	}
-
-	trimmed := strings.TrimSpace(string(content))
-	if trimmed != "" {
-		log.Printf("Loaded prompt from: %s", filePath)
-	}
-
-	return trimmed
 }

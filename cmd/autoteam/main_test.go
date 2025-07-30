@@ -56,7 +56,8 @@ echo "Test entrypoint"`
 agents:
   - name: "dev1"
     prompt: "Test agent"
-    github_token: "TEST_TOKEN"`
+    github_token: "TEST_TOKEN"
+    github_user: "test-user"`
 
 	testutil.CreateTempFile(t, tempDir, "autoteam.yaml", testConfig)
 

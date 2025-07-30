@@ -34,11 +34,13 @@ func TestComposeTemplate(t *testing.T) {
 				Name:        "dev1",
 				Prompt:      "You are a developer",
 				GitHubToken: "DEV1_TOKEN",
+				GitHubUser:  "dev-user",
 			},
 			{
 				Name:        "arch1",
 				Prompt:      "You are an architect",
 				GitHubToken: "ARCH1_TOKEN",
+				GitHubUser:  "arch-user",
 			},
 		},
 		Settings: config.Settings{
@@ -96,7 +98,7 @@ func TestComposeTemplate(t *testing.T) {
 		}
 	}
 
-	// Verify structure - should have both agent services
+	// Verify structure - should have both agent services with normalized names
 	lines := strings.Split(result, "\n")
 	dev1Found := false
 	arch1Found := false
@@ -116,6 +118,14 @@ func TestComposeTemplate(t *testing.T) {
 	}
 	if !arch1Found {
 		t.Errorf("compose template should generate arch1 service")
+	}
+
+	// Verify normalized paths are used
+	if !strings.Contains(result, "/opt/autoteam/agents/dev1/codebase") {
+		t.Errorf("compose template should contain normalized path for dev1")
+	}
+	if !strings.Contains(result, "/opt/autoteam/agents/arch1/codebase") {
+		t.Errorf("compose template should contain normalized path for arch1")
 	}
 }
 
@@ -165,6 +175,7 @@ func TestComposeTemplateWithMinimalConfig(t *testing.T) {
 				Name:        "single-agent",
 				Prompt:      "Test",
 				GitHubToken: "TOKEN",
+				GitHubUser:  "test-user",
 			},
 		},
 		Settings: config.Settings{
@@ -192,9 +203,9 @@ func TestComposeTemplateWithMinimalConfig(t *testing.T) {
 
 	result := buf.String()
 
-	// Should work with single agent
-	if !strings.Contains(result, "single-agent:") {
-		t.Errorf("should contain single-agent service")
+	// Should work with single agent (normalized)
+	if !strings.Contains(result, "single_agent:") {
+		t.Errorf("should contain single_agent service")
 	}
 
 	// Should handle false boolean correctly
@@ -222,6 +233,7 @@ func TestComposeTemplatePromptEscaping(t *testing.T) {
 				Name:        "test",
 				Prompt:      "You are a \"special\" agent with 'quotes' and $variables",
 				GitHubToken: "TOKEN",
+				GitHubUser:  "test-user",
 			},
 		},
 		Settings: config.Settings{
@@ -248,13 +260,12 @@ func TestComposeTemplatePromptEscaping(t *testing.T) {
 
 	result := buf.String()
 
-	// Should properly escape quotes in YAML
-	if !strings.Contains(result, `AGENT_PROMPT: "You are a \"special\" agent with 'quotes' and $variables"`) {
-		t.Errorf("should properly escape quotes in agent prompt")
-	}
-
-	if !strings.Contains(result, `COMMON_PROMPT: "Follow \"best practices\" and don't break things"`) {
-		t.Errorf("should properly escape quotes in common prompt")
+	// Should properly escape quotes in YAML and consolidate both prompts (including collaborators list if multiple agents)
+	expectedConsolidated := `AGENT_PROMPT: "You are a \"special\" agent with 'quotes' and $variables\n\nFollow \"best practices\" and don't break things"`
+	if !strings.Contains(result, expectedConsolidated) {
+		t.Errorf("should properly escape quotes in consolidated prompt")
+		t.Logf("Expected: %s", expectedConsolidated)
+		t.Logf("Actual result:\n%s", result)
 	}
 }
 
@@ -273,12 +284,14 @@ func TestComposeTemplateWithAgentSpecificSettings(t *testing.T) {
 				Name:        "dev1",
 				Prompt:      "You are a developer",
 				GitHubToken: "DEV1_TOKEN",
+				GitHubUser:  "dev-user",
 				Settings:    nil, // Uses global settings
 			},
 			{
 				Name:        "python-dev",
 				Prompt:      "You are a Python developer",
 				GitHubToken: "PYTHON_DEV_TOKEN",
+				GitHubUser:  "python-user",
 				Settings: &config.AgentSettings{
 					DockerImage:   stringPtr("python:3.11"),
 					DockerUser:    stringPtr("pythonista"),
@@ -330,7 +343,7 @@ func TestComposeTemplateWithAgentSpecificSettings(t *testing.T) {
 	if !strings.Contains(result, "image: python:3.11") {
 		t.Error("python-dev should use overridden docker image")
 	}
-	if !strings.Contains(result, "/opt/autoteam/agents/python-dev/codebase") {
+	if !strings.Contains(result, "/opt/autoteam/agents/python_dev/codebase") {
 		t.Error("python-dev should use agent-specific codebase directory")
 	}
 	if !strings.Contains(result, "CHECK_INTERVAL: 30") {
@@ -344,8 +357,8 @@ func TestComposeTemplateWithAgentSpecificSettings(t *testing.T) {
 	if !strings.Contains(result, "dev1:") {
 		t.Error("Template should contain dev1 service")
 	}
-	if !strings.Contains(result, "python-dev:") {
-		t.Error("Template should contain python-dev service")
+	if !strings.Contains(result, "python_dev:") {
+		t.Error("Template should contain python_dev service")
 	}
 }
 
@@ -377,12 +390,14 @@ func TestComposeTemplateWithCustomVolumesAndEntrypoints(t *testing.T) {
 				Name:        "standard-agent",
 				Prompt:      "You are a standard agent",
 				GitHubToken: "STANDARD_TOKEN",
+				GitHubUser:  "standard-user",
 				Settings:    nil, // Uses default entrypoint
 			},
 			{
 				Name:        "custom-agent",
 				Prompt:      "You are a custom agent",
 				GitHubToken: "CUSTOM_TOKEN",
+				GitHubUser:  "custom-user",
 				Settings: &config.AgentSettings{
 					DockerImage: stringPtr("python:3.11"),
 					Volumes: []string{
@@ -462,12 +477,12 @@ func TestComposeTemplateWithCustomVolumesAndEntrypoints(t *testing.T) {
 		t.Error("custom-agent should inherit GLOBAL_VAR from global settings")
 	}
 
-	// Verify both agents are present
-	if !strings.Contains(result, "standard-agent:") {
-		t.Error("Template should contain standard-agent service")
+	// Verify both agents are present (normalized)
+	if !strings.Contains(result, "standard_agent:") {
+		t.Error("Template should contain standard_agent service")
 	}
-	if !strings.Contains(result, "custom-agent:") {
-		t.Error("Template should contain custom-agent service")
+	if !strings.Contains(result, "custom_agent:") {
+		t.Error("Template should contain custom_agent service")
 	}
 
 	// Verify Docker images
@@ -476,5 +491,81 @@ func TestComposeTemplateWithCustomVolumesAndEntrypoints(t *testing.T) {
 	}
 	if !strings.Contains(result, "image: python:3.11") {
 		t.Error("custom-agent should use custom docker image")
+	}
+}
+
+func TestComposeTemplateNameNormalization(t *testing.T) {
+	templateContent, err := os.ReadFile("compose.yaml.tmpl")
+	if err != nil {
+		t.Fatalf("failed to read compose template: %v", err)
+	}
+
+	tmpl, err := template.New("compose").Funcs(generator.GetTemplateFunctions()).Parse(string(templateContent))
+	if err != nil {
+		t.Fatalf("failed to parse compose template: %v", err)
+	}
+
+	// Config with agent names that need normalization
+	cfg := &config.Config{
+		Repository: config.Repository{URL: "owner/repo"},
+		Agents: []config.Agent{
+			{
+				Name:        "Senior Developer",
+				Prompt:      "You are a senior developer",
+				GitHubToken: "TOKEN1",
+				GitHubUser:  "senior-dev",
+			},
+			{
+				Name:        "API-Agent #1",
+				Prompt:      "You are an API agent",
+				GitHubToken: "TOKEN2",
+				GitHubUser:  "api-dev",
+			},
+		},
+		Settings: config.Settings{
+			DockerImage: "node:test",
+			DockerUser:  "test",
+			TeamName:    "test",
+		},
+	}
+
+	// Create template data with agents that have effective settings
+	templateData := struct {
+		*config.Config
+		AgentsWithSettings []config.AgentWithSettings
+	}{
+		Config:             cfg,
+		AgentsWithSettings: cfg.GetAllAgentsWithEffectiveSettings(),
+	}
+
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, templateData); err != nil {
+		t.Fatalf("failed to execute template with names requiring normalization: %v", err)
+	}
+
+	result := buf.String()
+
+	// Should use normalized service names
+	if !strings.Contains(result, "senior_developer:") {
+		t.Errorf("should contain normalized service name 'senior_developer:'")
+	}
+	if !strings.Contains(result, "api_agent_1:") {
+		t.Errorf("should contain normalized service name 'api_agent_1:'")
+	}
+
+	// Should use normalized directory paths
+	if !strings.Contains(result, "/opt/autoteam/agents/senior_developer/codebase") {
+		t.Errorf("should contain normalized path for senior_developer")
+	}
+	if !strings.Contains(result, "/opt/autoteam/agents/api_agent_1/codebase") {
+		t.Errorf("should contain normalized path for api_agent_1")
+	}
+
+	// Should still use original names in AGENT_NAME environment variable
+	if !strings.Contains(result, "AGENT_NAME: Senior Developer") {
+		t.Errorf("should preserve original name in AGENT_NAME environment variable")
+	}
+	if !strings.Contains(result, "AGENT_NAME: API-Agent #1") {
+		t.Errorf("should preserve original name in AGENT_NAME environment variable")
 	}
 }

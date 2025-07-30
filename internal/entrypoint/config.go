@@ -27,10 +27,9 @@ type GitHubConfig struct {
 
 // AgentConfig contains AI agent configuration
 type AgentConfig struct {
-	Name         string
-	Type         string
-	Prompt       string
-	CommonPrompt string
+	Name   string
+	Type   string
+	Prompt string
 }
 
 // GitConfig contains Git-related configuration
@@ -79,7 +78,6 @@ func Load() (*Config, error) {
 
 	cfg.Agent.Type = getEnvOrDefault("AGENT_TYPE", "claude")
 	cfg.Agent.Prompt = os.Getenv("AGENT_PROMPT")
-	cfg.Agent.CommonPrompt = os.Getenv("COMMON_PROMPT")
 
 	// Git configuration
 	cfg.Git.User = os.Getenv("GH_USER")

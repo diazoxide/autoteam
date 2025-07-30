@@ -6,9 +6,11 @@ agents:
   - name: "dev1"
     prompt: "Test developer agent"
     github_token: "TEST_DEV1_TOKEN"
+    github_user: "test-dev-user"
   - name: "arch1"
     prompt: "Test architect agent"
     github_token: "TEST_ARCH1_TOKEN"
+    github_user: "test-arch-user"
 
 settings:
   docker_image: "node:test"

@@ -99,8 +99,9 @@ Supported platforms:
 
 func (g *Generator) createAgentDirectories(cfg *config.Config) error {
 	for _, agent := range cfg.Agents {
-		if err := g.fileOps.CreateAgentDirectoryStructure(agent.Name); err != nil {
-			return fmt.Errorf("failed to create directory structure for agent %s: %w", agent.Name, err)
+		normalizedName := agent.GetNormalizedName()
+		if err := g.fileOps.CreateAgentDirectoryStructure(normalizedName); err != nil {
+			return fmt.Errorf("failed to create directory structure for agent %s (normalized: %s): %w", agent.Name, normalizedName, err)
 		}
 	}
 

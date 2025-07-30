@@ -69,11 +69,6 @@ func main() {
 				Usage:   "Primary prompt for the agent",
 				Sources: cli.EnvVars("AGENT_PROMPT"),
 			},
-			&cli.StringFlag{
-				Name:    "common-prompt",
-				Usage:   "Common prompt shared by all agents",
-				Sources: cli.EnvVars("COMMON_PROMPT"),
-			},
 
 			// Git Configuration (optional overrides)
 			&cli.StringFlag{
@@ -176,6 +171,11 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("failed to create GitHub client: %w", err)
 	}
 
+	// Validate GitHub token and user for security
+	if err := validateGitHubTokenAndUser(ctx, githubClient, cfg.Git.User); err != nil {
+		return fmt.Errorf("GitHub token/user validation failed: %w", err)
+	}
+
 	// Initialize agent registry and register available agents
 	agentRegistry := agent.NewRegistry()
 	claudeAgent := agent.NewClaudeAgent(cfg.Agent)
@@ -230,7 +230,6 @@ func buildConfigFromFlags(cmd *cli.Command) (*entrypoint.Config, error) {
 	cfg.Agent.Name = cmd.String("agent-name")
 	cfg.Agent.Type = cmd.String("agent-type")
 	cfg.Agent.Prompt = cmd.String("agent-prompt")
-	cfg.Agent.CommonPrompt = cmd.String("common-prompt")
 
 	// Git configuration
 	cfg.Git.User = cmd.String("git-user")
@@ -252,4 +251,35 @@ func buildConfigFromFlags(cmd *cli.Command) (*entrypoint.Config, error) {
 	cfg.Debug = cmd.Bool("debug")
 
 	return cfg, nil
+}
+
+// validateGitHubTokenAndUser validates that the GitHub token belongs to the expected user
+func validateGitHubTokenAndUser(ctx context.Context, client *github.Client, expectedUser string) error {
+	if expectedUser == "" {
+		log.Println("Warning: No GitHub user specified for validation, skipping token/user validation")
+		return nil
+	}
+
+	log.Printf("Validating GitHub token for user: %s", expectedUser)
+
+	// Get the authenticated user from the token
+	user, err := client.GetAuthenticatedUser(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get authenticated user from token: %w", err)
+	}
+
+	// Check if the token belongs to the expected user
+	var actualUser string
+	if user.Login != nil {
+		actualUser = *user.Login
+	} else {
+		return fmt.Errorf("unable to determine authenticated user from token")
+	}
+
+	if actualUser != expectedUser {
+		return fmt.Errorf("security validation failed: token belongs to user '%s' but expected user '%s'", actualUser, expectedUser)
+	}
+
+	log.Printf("GitHub token/user validation successful: token belongs to user '%s'", actualUser)
+	return nil
 }

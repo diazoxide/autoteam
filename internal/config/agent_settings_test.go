@@ -24,6 +24,7 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 				Name:        "test1",
 				Prompt:      "test prompt",
 				GitHubToken: "TOKEN1",
+				GitHubUser:  "test-user",
 				Settings:    nil,
 			},
 			expectedResult: globalSettings,
@@ -34,6 +35,7 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 				Name:        "test2",
 				Prompt:      "test prompt",
 				GitHubToken: "TOKEN2",
+				GitHubUser:  "test-user",
 				Settings: &AgentSettings{
 					DockerImage:   stringPtr("python:3.11"),
 					CheckInterval: intPtr(30),
@@ -53,6 +55,7 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 				Name:        "test3",
 				Prompt:      "test prompt",
 				GitHubToken: "TOKEN3",
+				GitHubUser:  "test-user",
 				Settings: &AgentSettings{
 					DockerImage:   stringPtr("golang:1.21"),
 					DockerUser:    stringPtr("admin"),
@@ -105,12 +108,14 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 				Name:        "dev",
 				Prompt:      "developer prompt",
 				GitHubToken: "DEV_TOKEN",
+				GitHubUser:  "dev-user",
 				Settings:    nil, // no overrides
 			},
 			{
 				Name:        "arch",
 				Prompt:      "architect prompt",
 				GitHubToken: "ARCH_TOKEN",
+				GitHubUser:  "arch-user",
 				Settings: &AgentSettings{
 					DockerImage:   stringPtr("python:3.11"),
 					CheckInterval: intPtr(30),
@@ -187,6 +192,7 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 				Name:        "test1",
 				Prompt:      "test prompt",
 				GitHubToken: "TOKEN1",
+				GitHubUser:  "test-user",
 				Settings: &AgentSettings{
 					Volumes: []string{
 						"./custom-vol:/app/custom",
@@ -211,6 +217,7 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 				Name:        "test2",
 				Prompt:      "test prompt",
 				GitHubToken: "TOKEN2",
+				GitHubUser:  "test-user",
 				Settings: &AgentSettings{
 					Entrypoint: stringPtr("/custom/entrypoint.sh"),
 				},
@@ -232,6 +239,7 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 				Name:        "test3",
 				Prompt:      "test prompt",
 				GitHubToken: "TOKEN3",
+				GitHubUser:  "test-user",
 				Settings: &AgentSettings{
 					Environment: map[string]string{
 						"CUSTOM_VAR": "custom_value",
@@ -260,6 +268,7 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 				Name:        "test4",
 				Prompt:      "test prompt",
 				GitHubToken: "TOKEN4",
+				GitHubUser:  "test-user",
 				Settings: &AgentSettings{
 					DockerImage: stringPtr("python:3.11"),
 					Volumes:     []string{"./python-vol:/app/python"},

@@ -1,11 +1,11 @@
 services:
 {{- range .AgentsWithSettings }}
-  {{ .Agent.Name }}:
+  {{ .Agent.GetNormalizedName }}:
     image: {{ .EffectiveSettings.DockerImage }}
     tty: true
     stdin_open: true
     volumes:
-      - ./agents/{{ .Agent.Name }}/codebase:/opt/autoteam/agents/{{ .Agent.Name }}/codebase
+      - ./agents/{{ .Agent.GetNormalizedName }}/codebase:/opt/autoteam/agents/{{ .Agent.GetNormalizedName }}/codebase
       - ./entrypoints:/opt/autoteam/entrypoints:ro
 {{- range .EffectiveSettings.Volumes }}
       - {{ . }}
@@ -13,11 +13,11 @@ services:
     environment:
       IS_SANDBOX: 1 # for claude code to work on the {{ .EffectiveSettings.DockerUser }} user
       GH_TOKEN: {{ .Agent.GitHubToken }}
+      GH_USER: {{ .Agent.GitHubUser }}
       GITHUB_REPO: {{ $.Repository.URL }}
       AGENT_NAME: {{ .Agent.Name }}
       AGENT_TYPE: claude
-      AGENT_PROMPT: {{ .Agent.Prompt | printf "%q" }}
-      COMMON_PROMPT: {{ .EffectiveSettings.CommonPrompt | printf "%q" }}
+      AGENT_PROMPT: {{ .GetConsolidatedPrompt $.Config | printf "%q" }}
       TEAM_NAME: {{ .EffectiveSettings.TeamName }}
       CHECK_INTERVAL: {{ .EffectiveSettings.CheckInterval }}
       INSTALL_DEPS: {{ .EffectiveSettings.InstallDeps }}

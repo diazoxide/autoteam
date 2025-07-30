@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -30,6 +32,7 @@ type Agent struct {
 	Name        string         `yaml:"name"`
 	Prompt      string         `yaml:"prompt"`
 	GitHubToken string         `yaml:"github_token"`
+	GitHubUser  string         `yaml:"github_user"`
 	Settings    *AgentSettings `yaml:"settings,omitempty"`
 }
 
@@ -95,6 +98,9 @@ func validateConfig(config *Config) error {
 		if agent.GitHubToken == "" {
 			return fmt.Errorf("agent[%d].github_token is required", i)
 		}
+		if agent.GitHubUser == "" {
+			return fmt.Errorf("agent[%d].github_user is required", i)
+		}
 		if agent.Prompt == "" {
 			return fmt.Errorf("agent[%d].prompt is required", i)
 		}
@@ -132,11 +138,13 @@ func CreateSampleConfig(filename string) error {
 				Name:        "dev1",
 				Prompt:      "You are a developer agent responsible for implementing features and fixing bugs.",
 				GitHubToken: "ghp_your_github_token_here",
+				GitHubUser:  "your-github-username",
 			},
 			{
 				Name:        "arch1",
 				Prompt:      "You are an architecture agent responsible for system design and code reviews.",
 				GitHubToken: "ghp_your_github_token_here",
+				GitHubUser:  "your-github-username",
 				Settings: &AgentSettings{
 					DockerImage:   stringPtr("python:3.11"),
 					CheckInterval: intPtr(30),
@@ -240,6 +248,80 @@ func (c *Config) GetAllAgentsWithEffectiveSettings() []AgentWithSettings {
 type AgentWithSettings struct {
 	Agent             Agent
 	EffectiveSettings Settings
+}
+
+// GetConsolidatedPrompt returns the agent prompt combined with common prompt and collaborators list
+func (aws *AgentWithSettings) GetConsolidatedPrompt(cfg *Config) string {
+	var promptParts []string
+
+	// Add agent-specific prompt
+	if aws.Agent.Prompt != "" {
+		promptParts = append(promptParts, aws.Agent.Prompt)
+	}
+
+	// Add common prompt
+	if aws.EffectiveSettings.CommonPrompt != "" {
+		promptParts = append(promptParts, aws.EffectiveSettings.CommonPrompt)
+	}
+
+	// Add list of all collaborators
+	if collaboratorsList := buildCollaboratorsList(cfg); collaboratorsList != "" {
+		promptParts = append(promptParts, collaboratorsList)
+	}
+
+	if len(promptParts) == 0 {
+		return ""
+	}
+
+	return strings.Join(promptParts, "\n\n")
+}
+
+// buildCollaboratorsList builds a list of all agents/collaborators from the config
+func buildCollaboratorsList(cfg *Config) string {
+	if len(cfg.Agents) <= 1 {
+		// If there's only one agent, no need to show collaborators list
+		return ""
+	}
+
+	var collaborators []string
+	collaborators = append(collaborators, "# List of all collaborators:")
+
+	for i, agent := range cfg.Agents {
+		if agent.GitHubUser != "" && agent.Name != "" {
+			collaborators = append(collaborators, fmt.Sprintf("%d. %s - %s", i+1, agent.GitHubUser, agent.Name))
+		}
+	}
+
+	// Only return the list if we have more than just the header
+	if len(collaborators) > 1 {
+		return strings.Join(collaborators, "\n")
+	}
+
+	return ""
+}
+
+// normalizeAgentName converts agent names to snake_case for use in service names and paths
+func normalizeAgentName(name string) string {
+	// Replace any non-alphanumeric characters with underscores
+	reg := regexp.MustCompile(`[^a-zA-Z0-9]+`)
+	normalized := reg.ReplaceAllString(name, "_")
+
+	// Convert to lowercase
+	normalized = strings.ToLower(normalized)
+
+	// Remove leading/trailing underscores
+	normalized = strings.Trim(normalized, "_")
+
+	// Replace multiple consecutive underscores with single underscore
+	multiUnderscoreReg := regexp.MustCompile(`_+`)
+	normalized = multiUnderscoreReg.ReplaceAllString(normalized, "_")
+
+	return normalized
+}
+
+// GetNormalizedName returns the normalized agent name suitable for service names and paths
+func (a *Agent) GetNormalizedName() string {
+	return normalizeAgentName(a.Name)
 }
 
 // Helper functions for creating pointers

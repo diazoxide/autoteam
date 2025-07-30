@@ -61,11 +61,13 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 				Name:        "dev1",
 				Prompt:      "You are a developer agent",
 				GitHubToken: "DEV1_TOKEN",
+				GitHubUser:  "dev-user",
 			},
 			{
 				Name:        "arch1",
 				Prompt:      "You are an architect agent",
 				GitHubToken: "ARCH1_TOKEN",
+				GitHubUser:  "arch-user",
 			},
 		},
 		Settings: config.Settings{
@@ -189,8 +191,8 @@ Agent: {{ .Name }} - {{ .Prompt }}
 		Repository: config.Repository{URL: "owner/repo"},
 		Settings:   config.Settings{TeamName: "test-team"},
 		Agents: []config.Agent{
-			{Name: "dev1", Prompt: "Developer"},
-			{Name: "arch1", Prompt: "Architect"},
+			{Name: "dev1", Prompt: "Developer", GitHubToken: "DEV_TOKEN", GitHubUser: "dev-user"},
+			{Name: "arch1", Prompt: "Architect", GitHubToken: "ARCH_TOKEN", GitHubUser: "arch-user"},
 		},
 	}
 

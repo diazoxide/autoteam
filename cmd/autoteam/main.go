@@ -85,7 +85,7 @@ func upCommand(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	fmt.Println("Starting containers...")
-	if err := runDockerCompose(ctx, "up", "-d"); err != nil {
+	if err := runDockerCompose(ctx, "up", "-d", "--remove-orphans"); err != nil {
 		return fmt.Errorf("failed to start containers: %w", err)
 	}
 
