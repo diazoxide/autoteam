@@ -9,17 +9,17 @@ import (
 	"strings"
 	"time"
 
-	"autoteam/cmd/entrypoint/internal/config"
+	"autoteam/internal/entrypoint"
 )
 
 // ClaudeAgent implements the Agent interface for Claude Code
 type ClaudeAgent struct {
-	config     config.AgentConfig
+	config     entrypoint.AgentConfig
 	binaryPath string
 }
 
 // NewClaudeAgent creates a new Claude agent instance
-func NewClaudeAgent(cfg config.AgentConfig) *ClaudeAgent {
+func NewClaudeAgent(cfg entrypoint.AgentConfig) *ClaudeAgent {
 	return &ClaudeAgent{
 		config:     cfg,
 		binaryPath: "claude", // Will be found in PATH after installation

@@ -27,11 +27,11 @@ type Repository struct {
 }
 
 type Agent struct {
-	Name           string         `yaml:"name"`
-	Prompt         string         `yaml:"prompt"`
-	GitHubTokenEnv string         `yaml:"github_token_env"`
-	CommonPrompt   string         `yaml:"common_prompt,omitempty"`
-	Settings       *AgentSettings `yaml:"settings,omitempty"`
+	Name         string         `yaml:"name"`
+	Prompt       string         `yaml:"prompt"`
+	GitHubToken  string         `yaml:"github_token"`
+	CommonPrompt string         `yaml:"common_prompt,omitempty"`
+	Settings     *AgentSettings `yaml:"settings,omitempty"`
 }
 
 type AgentSettings struct {
@@ -91,8 +91,8 @@ func validateConfig(config *Config) error {
 		if agent.Name == "" {
 			return fmt.Errorf("agent[%d].name is required", i)
 		}
-		if agent.GitHubTokenEnv == "" {
-			return fmt.Errorf("agent[%d].github_token_env is required", i)
+		if agent.GitHubToken == "" {
+			return fmt.Errorf("agent[%d].github_token is required", i)
 		}
 		if agent.Prompt == "" {
 			return fmt.Errorf("agent[%d].prompt is required", i)
@@ -128,16 +128,16 @@ func CreateSampleConfig(filename string) error {
 		},
 		Agents: []Agent{
 			{
-				Name:           "dev1",
-				Prompt:         "You are a developer agent responsible for implementing features and fixing bugs.",
-				GitHubTokenEnv: "DEV1_GITHUB_TOKEN",
-				CommonPrompt:   "Always follow coding best practices and write comprehensive tests.",
+				Name:         "dev1",
+				Prompt:       "You are a developer agent responsible for implementing features and fixing bugs.",
+				GitHubToken:  "ghp_your_github_token_here",
+				CommonPrompt: "Always follow coding best practices and write comprehensive tests.",
 			},
 			{
-				Name:           "arch1",
-				Prompt:         "You are an architecture agent responsible for system design and code reviews.",
-				GitHubTokenEnv: "ARCH1_GITHUB_TOKEN",
-				CommonPrompt:   "Focus on maintainability, scalability, and architectural best practices.",
+				Name:         "arch1",
+				Prompt:       "You are an architecture agent responsible for system design and code reviews.",
+				GitHubToken:  "ghp_your_github_token_here",
+				CommonPrompt: "Focus on maintainability, scalability, and architectural best practices.",
 				Settings: &AgentSettings{
 					DockerImage:   stringPtr("python:3.11"),
 					CheckInterval: intPtr(30),

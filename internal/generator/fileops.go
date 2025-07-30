@@ -162,26 +162,10 @@ func (f *FileOperations) ValidatePath(path string) error {
 func (f *FileOperations) CreateAgentDirectoryStructure(agentName string) error {
 	agentDir := filepath.Join(config.AgentsDir, agentName)
 	codebaseDir := filepath.Join(agentDir, config.CodebaseSubdir)
-	claudeDir := filepath.Join(agentDir, config.ClaudeSubdir)
 
-	// Create agent directories
+	// Create codebase directory
 	if err := f.EnsureDirectory(codebaseDir, config.DirPerm); err != nil {
 		return fmt.Errorf("failed to create codebase directory for agent %s: %w", agentName, err)
-	}
-
-	if err := f.EnsureDirectory(claudeDir, config.DirPerm); err != nil {
-		return fmt.Errorf("failed to create claude directory for agent %s: %w", agentName, err)
-	}
-
-	// Create empty .claude and .claude.json files if they don't exist
-	claudeConfigPath := filepath.Join(claudeDir, config.ClaudeConfigFile)
-	if err := f.WriteFileIfNotExists(claudeConfigPath, []byte(""), config.ConfigFilePerm); err != nil {
-		return fmt.Errorf("failed to create %s file for agent %s: %w", config.ClaudeConfigFile, agentName, err)
-	}
-
-	claudeJSONPath := filepath.Join(claudeDir, config.ClaudeJSONFile)
-	if err := f.WriteFileIfNotExists(claudeJSONPath, []byte("{}"), config.ConfigFilePerm); err != nil {
-		return fmt.Errorf("failed to create %s file for agent %s: %w", config.ClaudeJSONFile, agentName, err)
 	}
 
 	return nil

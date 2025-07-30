@@ -14,24 +14,12 @@ const (
 	// AgentsDir is the base directory for all agent-specific directories
 	AgentsDir = AutoTeamDir + "/agents"
 
-	// SharedDir is the directory for shared configuration files
-	SharedDir = AutoTeamDir + "/shared"
-
 	// CodebaseSubdir is the subdirectory name for agent codebase
 	CodebaseSubdir = "codebase"
-
-	// ClaudeSubdir is the subdirectory name for Claude configuration
-	ClaudeSubdir = "claude"
 )
 
 // File names and extensions
 const (
-	// ClaudeConfigFile is the name of the Claude configuration file
-	ClaudeConfigFile = ".claude"
-
-	// ClaudeJSONFile is the name of the Claude JSON configuration file
-	ClaudeJSONFile = ".claude.json"
-
 	// ComposeFile is the name of the Docker Compose file
 	ComposeFile = "compose.yaml"
 
@@ -49,9 +37,6 @@ const (
 const (
 	// DirPerm is the default permission for directories
 	DirPerm = 0755
-
-	// ConfigFilePerm is the permission for configuration files
-	ConfigFilePerm = 0600
 
 	// ExecutablePerm is the permission for executable files
 	ExecutablePerm = 0755

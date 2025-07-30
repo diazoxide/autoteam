@@ -24,15 +24,15 @@ func TestLoadConfig_Valid(t *testing.T) {
 				},
 				Agents: []Agent{
 					{
-						Name:           "dev1",
-						Prompt:         "You are a developer agent",
-						GitHubTokenEnv: "DEV1_TOKEN",
-						CommonPrompt:   "Follow best practices",
+						Name:         "dev1",
+						Prompt:       "You are a developer agent",
+						GitHubToken:  "DEV1_TOKEN",
+						CommonPrompt: "Follow best practices",
 					},
 					{
-						Name:           "arch1",
-						Prompt:         "You are an architect agent",
-						GitHubTokenEnv: "ARCH1_TOKEN",
+						Name:        "arch1",
+						Prompt:      "You are an architect agent",
+						GitHubToken: "ARCH1_TOKEN",
 					},
 				},
 				Settings: Settings{
@@ -54,9 +54,9 @@ func TestLoadConfig_Valid(t *testing.T) {
 				},
 				Agents: []Agent{
 					{
-						Name:           "dev1",
-						Prompt:         "Developer",
-						GitHubTokenEnv: "TOKEN",
+						Name:        "dev1",
+						Prompt:      "Developer",
+						GitHubToken: "TOKEN",
 					},
 				},
 				Settings: Settings{
@@ -96,8 +96,8 @@ func TestLoadConfig_Valid(t *testing.T) {
 				if agent.Prompt != wantAgent.Prompt {
 					t.Errorf("Agent[%d].Prompt = %v, want %v", i, agent.Prompt, wantAgent.Prompt)
 				}
-				if agent.GitHubTokenEnv != wantAgent.GitHubTokenEnv {
-					t.Errorf("Agent[%d].GitHubTokenEnv = %v, want %v", i, agent.GitHubTokenEnv, wantAgent.GitHubTokenEnv)
+				if agent.GitHubToken != wantAgent.GitHubToken {
+					t.Errorf("Agent[%d].GitHubToken = %v, want %v", i, agent.GitHubToken, wantAgent.GitHubToken)
 				}
 			}
 
@@ -207,7 +207,7 @@ func TestValidateConfig(t *testing.T) {
 			config: Config{
 				Repository: Repository{URL: "owner/repo"},
 				Agents: []Agent{
-					{Name: "dev1", Prompt: "prompt", GitHubTokenEnv: "TOKEN"},
+					{Name: "dev1", Prompt: "prompt", GitHubToken: "TOKEN"},
 				},
 			},
 			wantErr: "",
@@ -216,7 +216,7 @@ func TestValidateConfig(t *testing.T) {
 			name: "missing repository URL",
 			config: Config{
 				Agents: []Agent{
-					{Name: "dev1", Prompt: "prompt", GitHubTokenEnv: "TOKEN"},
+					{Name: "dev1", Prompt: "prompt", GitHubToken: "TOKEN"},
 				},
 			},
 			wantErr: "repository.url is required",
@@ -234,7 +234,7 @@ func TestValidateConfig(t *testing.T) {
 			config: Config{
 				Repository: Repository{URL: "owner/repo"},
 				Agents: []Agent{
-					{Prompt: "prompt", GitHubTokenEnv: "TOKEN"},
+					{Prompt: "prompt", GitHubToken: "TOKEN"},
 				},
 			},
 			wantErr: "agent[0].name is required",
@@ -244,7 +244,7 @@ func TestValidateConfig(t *testing.T) {
 			config: Config{
 				Repository: Repository{URL: "owner/repo"},
 				Agents: []Agent{
-					{Name: "dev1", GitHubTokenEnv: "TOKEN"},
+					{Name: "dev1", GitHubToken: "TOKEN"},
 				},
 			},
 			wantErr: "agent[0].prompt is required",
@@ -257,7 +257,7 @@ func TestValidateConfig(t *testing.T) {
 					{Name: "dev1", Prompt: "prompt"},
 				},
 			},
-			wantErr: "agent[0].github_token_env is required",
+			wantErr: "agent[0].github_token is required",
 		},
 	}
 

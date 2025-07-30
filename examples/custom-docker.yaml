@@ -8,7 +8,7 @@ agents:
   - name: "python-dev"
     prompt: |
       You are a Python developer specializing in data science projects.
-    github_token_env: "PYTHON_DEV_TOKEN"
+    github_token: "ghp_your_python_dev_token_here"
 
 settings:
   docker_image: "python:3.11-slim"

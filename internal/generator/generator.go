@@ -39,11 +39,6 @@ func (g *Generator) GenerateCompose(cfg *config.Config) error {
 		return fmt.Errorf("failed to generate compose.yaml: %w", err)
 	}
 
-	// Ensure shared directory exists
-	if err := g.fileOps.EnsureDirectory(config.SharedDir, config.DirPerm); err != nil {
-		return fmt.Errorf("failed to create shared directory: %w", err)
-	}
-
 	// Copy system entrypoints directory
 	if err := g.copyEntrypointsDirectory(); err != nil {
 		return fmt.Errorf("failed to copy entrypoints directory: %w", err)

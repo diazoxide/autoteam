@@ -12,6 +12,13 @@
 - Use `make fmt` to format Go code properly
 - All tests should pass before creating commits
 
+## Recent Implementation Notes
+- Successfully implemented dotenv support for both `autoteam` and `entrypoint` commands using godotenv
+- Added Docker Compose stack naming using team_name from config via `-p` flag
+- Implemented urfave/cli Before hook pattern for global config loading and context passing
+- All tests pass - context-based architecture working correctly
+- Docker Compose commands now use configured team_name instead of default "autoteam"
+
 ## Build and Template Workflow
 - Use `make build` to build the main autoteam binary (required after template changes due to go:embed)
 - Use `make build-entrypoint` to build the entrypoint binary for current platform

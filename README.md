@@ -62,10 +62,10 @@ repository:
 agents:
   - name: "developer"
     prompt: "You are a developer agent responsible for implementing features and fixing bugs."
-    github_token_env: "DEVELOPER_GITHUB_TOKEN"
+    github_token: "ghp_your_developer_token_here"
   - name: "reviewer"
     prompt: "You are a code reviewer focused on quality and best practices."
-    github_token_env: "REVIEWER_GITHUB_TOKEN"
+    github_token: "ghp_your_reviewer_token_here"
     settings:
       docker_image: "golang:1.21"  # Custom image for reviewer
       volumes:
@@ -79,11 +79,34 @@ settings:
   install_deps: true
 ```
 
-### 4. Set Environment Variables
+### 4. Add Your GitHub Tokens
 
+You have two options for providing GitHub tokens:
+
+**Option A: Direct in autoteam.yaml**
+```yaml
+agents:
+  - name: "developer"
+    github_token: "ghp_your_actual_developer_token"
+  - name: "reviewer"  
+    github_token: "ghp_your_actual_reviewer_token"
+```
+
+**Option B: Using .env file (recommended for security)**
+Create a `.env` file in your project root:
 ```bash
-export DEVELOPER_GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
-export REVIEWER_GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
+# .env file
+DEVELOPER_TOKEN=ghp_your_actual_developer_token
+REVIEWER_TOKEN=ghp_your_actual_reviewer_token
+```
+
+Then reference them in `autoteam.yaml`:
+```yaml
+agents:
+  - name: "developer"
+    github_token: "${DEVELOPER_TOKEN}"
+  - name: "reviewer"  
+    github_token: "${REVIEWER_TOKEN}"
 ```
 
 ### 5. Deploy Your Team
@@ -110,7 +133,7 @@ autoteam down
 
 - `name`: Unique identifier for the agent
 - `prompt`: Primary role and responsibilities
-- `github_token_env`: Environment variable containing GitHub token
+- `github_token`: GitHub personal access token for this agent
 - `common_prompt`: Additional instructions for all agents
 - `settings`: Agent-specific overrides for global settings (optional)
   - `docker_image`: Custom Docker image for this agent

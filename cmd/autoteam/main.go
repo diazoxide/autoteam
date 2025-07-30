@@ -10,6 +10,7 @@ import (
 	"autoteam/internal/config"
 	"autoteam/internal/generator"
 
+	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
 )
 
@@ -20,11 +21,20 @@ var (
 	GitCommit = "unknown"
 )
 
+// Context key for storing config
+type contextKey string
+
+const configContextKey contextKey = "config"
+
 func main() {
+	// Load .env file if it exists (ignore errors for optional file)
+	_ = godotenv.Load()
+
 	app := &cli.Command{
 		Name:    "autoteam",
 		Usage:   "Universal AI Agent Management System",
 		Version: fmt.Sprintf("%s (built %s, commit %s)", Version, BuildTime, GitCommit),
+		Before:  loadGlobalConfig,
 		Commands: []*cli.Command{
 			{
 				Name:   "generate",
@@ -55,9 +65,9 @@ func main() {
 }
 
 func generateCommand(ctx context.Context, cmd *cli.Command) error {
-	cfg, err := config.LoadConfig("autoteam.yaml")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+	cfg := getConfigFromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("config not available in context")
 	}
 
 	gen := generator.New()
@@ -75,7 +85,7 @@ func upCommand(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	fmt.Println("Starting containers...")
-	if err := runDockerCompose("up", "-d"); err != nil {
+	if err := runDockerCompose(ctx, "up", "-d"); err != nil {
 		return fmt.Errorf("failed to start containers: %w", err)
 	}
 
@@ -85,7 +95,7 @@ func upCommand(ctx context.Context, cmd *cli.Command) error {
 
 func downCommand(ctx context.Context, cmd *cli.Command) error {
 	fmt.Println("Stopping containers...")
-	if err := runDockerCompose("down"); err != nil {
+	if err := runDockerCompose(ctx, "down"); err != nil {
 		return fmt.Errorf("failed to stop containers: %w", err)
 	}
 
@@ -102,13 +112,45 @@ func initCommand(ctx context.Context, cmd *cli.Command) error {
 	return nil
 }
 
-func runDockerCompose(args ...string) error {
+func runDockerCompose(ctx context.Context, args ...string) error {
+	cfg := getConfigFromContext(ctx)
+
 	// Use the compose.yaml file from .autoteam directory
 	composeArgs := []string{"-f", config.ComposeFilePath}
+
+	// If config is available, use custom project name, otherwise use default
+	if cfg != nil && cfg.Settings.TeamName != "" {
+		composeArgs = append(composeArgs, "-p", cfg.Settings.TeamName)
+	}
+
 	composeArgs = append(composeArgs, args...)
 
 	cmd := exec.Command("docker-compose", composeArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// loadGlobalConfig loads the config and stores it in the context
+func loadGlobalConfig(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+	// Skip loading config for init command as it creates the config file
+	if cmd.Name == "init" {
+		return ctx, nil
+	}
+
+	cfg, err := config.LoadConfig("autoteam.yaml")
+	if err != nil {
+		return ctx, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	return context.WithValue(ctx, configContextKey, cfg), nil
+}
+
+// getConfigFromContext retrieves the config from context
+func getConfigFromContext(ctx context.Context) *config.Config {
+	cfg, ok := ctx.Value(configContextKey).(*config.Config)
+	if !ok {
+		return nil
+	}
+	return cfg
 }

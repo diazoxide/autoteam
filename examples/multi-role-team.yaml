@@ -9,22 +9,22 @@ agents:
   - name: "developer"
     prompt: |
       You are a senior developer responsible for feature implementation.
-    github_token_env: "DEVELOPER_TOKEN"
+    github_token: "ghp_your_developer_token_here"
     
   - name: "architect"
     prompt: |
       You are a system architect focused on design and scalability.
-    github_token_env: "ARCHITECT_TOKEN"
+    github_token: "ghp_your_architect_token_here"
     
   - name: "reviewer"
     prompt: |
       You are a code reviewer ensuring quality and best practices.
-    github_token_env: "REVIEWER_TOKEN"
+    github_token: "ghp_your_reviewer_token_here"
 
   - name: "tester"
     prompt: |
       You are a QA engineer responsible for testing and bug validation.
-    github_token_env: "TESTER_TOKEN"
+    github_token: "ghp_your_tester_token_here"
 
 settings:
   docker_image: "node:18.17.1"

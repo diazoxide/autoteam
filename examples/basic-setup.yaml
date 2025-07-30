@@ -9,12 +9,12 @@ agents:
   - name: "developer"
     prompt: |
       You are a developer agent responsible for implementing features and fixing bugs.
-    github_token_env: "DEVELOPER_GITHUB_TOKEN"
+    github_token: "ghp_your_developer_token_here"
     
   - name: "reviewer"
     prompt: |
       You are a code reviewer focused on quality and best practices.
-    github_token_env: "REVIEWER_GITHUB_TOKEN"
+    github_token: "ghp_your_reviewer_token_here"
 
 settings:
   check_interval: 30

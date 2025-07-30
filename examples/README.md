@@ -36,7 +36,7 @@ Example showing how to customize Docker settings for specific technology stacks.
 
 1. Choose the example that best matches your use case
 2. Copy the configuration to your project as `autoteam.yaml`
-3. Update the repository URL and GitHub token environment variables
+3. Update the repository URL and replace placeholder GitHub tokens with real ones
 4. Customize agent prompts and roles for your specific needs
 5. Run `autoteam generate` to create the Docker Compose configuration
 
@@ -49,7 +49,7 @@ Example showing how to customize Docker settings for specific technology stacks.
 ### Agent Configuration
 - `name`: Unique identifier for the agent (used in container names)
 - `prompt`: Primary role and responsibilities of the agent
-- `github_token_env`: Environment variable containing the GitHub token
+- `github_token`: GitHub personal access token for this agent
 - `common_prompt`: Additional instructions applied to all agents
 
 ### Settings
@@ -59,15 +59,36 @@ Example showing how to customize Docker settings for specific technology stacks.
 - `team_name`: Project name used in container paths
 - `install_deps`: Whether to install dependencies on container startup
 
-## Environment Variables
+## GitHub Tokens
 
-Each agent needs a GitHub token with appropriate permissions:
+Each agent needs a GitHub personal access token. You have two options:
 
-```bash
-export DEVELOPER_GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
-export REVIEWER_GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
-# ... additional tokens for other agents
+**Option A: Direct in YAML**
+```yaml
+agents:
+  - name: "developer"
+    github_token: "ghp_your_developer_token_here"
+  - name: "reviewer"
+    github_token: "ghp_your_reviewer_token_here"
 ```
+
+**Option B: Using .env file (recommended)**
+Create a `.env` file:
+```bash
+DEVELOPER_TOKEN=ghp_your_actual_token
+REVIEWER_TOKEN=ghp_your_actual_token
+```
+
+Then reference in YAML:
+```yaml
+agents:
+  - name: "developer"
+    github_token: "${DEVELOPER_TOKEN}"
+  - name: "reviewer"
+    github_token: "${REVIEWER_TOKEN}"
+```
+
+Both autoteam and entrypoint commands automatically load `.env` files if present.
 
 ## Scaling Considerations
 

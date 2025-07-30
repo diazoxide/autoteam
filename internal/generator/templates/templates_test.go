@@ -31,15 +31,15 @@ func TestComposeTemplate(t *testing.T) {
 		},
 		Agents: []config.Agent{
 			{
-				Name:           "dev1",
-				Prompt:         "You are a developer",
-				GitHubTokenEnv: "DEV1_TOKEN",
-				CommonPrompt:   "Follow best practices",
+				Name:         "dev1",
+				Prompt:       "You are a developer",
+				GitHubToken:  "DEV1_TOKEN",
+				CommonPrompt: "Follow best practices",
 			},
 			{
-				Name:           "arch1",
-				Prompt:         "You are an architect",
-				GitHubTokenEnv: "ARCH1_TOKEN",
+				Name:        "arch1",
+				Prompt:      "You are an architect",
+				GitHubToken: "ARCH1_TOKEN",
 			},
 		},
 		Settings: config.Settings{
@@ -78,16 +78,15 @@ func TestComposeTemplate(t *testing.T) {
 		"AGENT_NAME: arch1",
 		"AGENT_TYPE: claude",
 		"GITHUB_REPO: owner/test-repo",
-		"GH_TOKEN: ${DEV1_TOKEN}",
-		"GH_TOKEN: ${ARCH1_TOKEN}",
+		"GH_TOKEN: DEV1_TOKEN",
+		"GH_TOKEN: ARCH1_TOKEN",
 		"TEAM_NAME: test-team",
 		"CHECK_INTERVAL: 60",
 		"INSTALL_DEPS: true",
 		"ENTRYPOINT_VERSION: ${ENTRYPOINT_VERSION:-latest}",
 		"MAX_RETRIES: ${MAX_RETRIES:-100}",
 		"DEBUG: ${DEBUG:-false}",
-		"/opt/autoteam/codebase",
-		"/home/developer/.claude",
+		"/opt/autoteam/agents/",
 		"entrypoint: [\"/opt/autoteam/entrypoints/entrypoint.sh\"]",
 		"IS_SANDBOX: 1",
 	}
@@ -164,9 +163,9 @@ func TestComposeTemplateWithMinimalConfig(t *testing.T) {
 		},
 		Agents: []config.Agent{
 			{
-				Name:           "single-agent",
-				Prompt:         "Test",
-				GitHubTokenEnv: "TOKEN",
+				Name:        "single-agent",
+				Prompt:      "Test",
+				GitHubToken: "TOKEN",
 			},
 		},
 		Settings: config.Settings{
@@ -221,10 +220,10 @@ func TestComposeTemplatePromptEscaping(t *testing.T) {
 		Repository: config.Repository{URL: "owner/repo"},
 		Agents: []config.Agent{
 			{
-				Name:           "test",
-				Prompt:         "You are a \"special\" agent with 'quotes' and $variables",
-				GitHubTokenEnv: "TOKEN",
-				CommonPrompt:   "Follow \"best practices\" and don't break things",
+				Name:         "test",
+				Prompt:       "You are a \"special\" agent with 'quotes' and $variables",
+				GitHubToken:  "TOKEN",
+				CommonPrompt: "Follow \"best practices\" and don't break things",
 			},
 		},
 		Settings: config.Settings{
@@ -272,15 +271,15 @@ func TestComposeTemplateWithAgentSpecificSettings(t *testing.T) {
 		},
 		Agents: []config.Agent{
 			{
-				Name:           "dev1",
-				Prompt:         "You are a developer",
-				GitHubTokenEnv: "DEV1_TOKEN",
-				Settings:       nil, // Uses global settings
+				Name:        "dev1",
+				Prompt:      "You are a developer",
+				GitHubToken: "DEV1_TOKEN",
+				Settings:    nil, // Uses global settings
 			},
 			{
-				Name:           "python-dev",
-				Prompt:         "You are a Python developer",
-				GitHubTokenEnv: "PYTHON_DEV_TOKEN",
+				Name:        "python-dev",
+				Prompt:      "You are a Python developer",
+				GitHubToken: "PYTHON_DEV_TOKEN",
 				Settings: &config.AgentSettings{
 					DockerImage:   stringPtr("python:3.11"),
 					DockerUser:    stringPtr("pythonista"),
@@ -318,11 +317,8 @@ func TestComposeTemplateWithAgentSpecificSettings(t *testing.T) {
 	if !strings.Contains(result, "image: node:18.17.1") {
 		t.Error("dev1 should use global docker image")
 	}
-	if !strings.Contains(result, "/opt/autoteam/codebase") {
-		t.Error("dev1 should use standard codebase directory")
-	}
-	if !strings.Contains(result, "/home/developer/.claude") {
-		t.Error("dev1 should use global docker user for claude config")
+	if !strings.Contains(result, "/opt/autoteam/agents/dev1/codebase") {
+		t.Error("dev1 should use agent-specific codebase directory")
 	}
 	if !strings.Contains(result, "CHECK_INTERVAL: 60") {
 		t.Error("dev1 should use global check interval")
@@ -335,11 +331,8 @@ func TestComposeTemplateWithAgentSpecificSettings(t *testing.T) {
 	if !strings.Contains(result, "image: python:3.11") {
 		t.Error("python-dev should use overridden docker image")
 	}
-	if !strings.Contains(result, "/opt/autoteam/codebase") {
-		t.Error("python-dev should use standard codebase directory")
-	}
-	if !strings.Contains(result, "/home/pythonista/.claude") {
-		t.Error("python-dev should use overridden docker user for claude config")
+	if !strings.Contains(result, "/opt/autoteam/agents/python-dev/codebase") {
+		t.Error("python-dev should use agent-specific codebase directory")
 	}
 	if !strings.Contains(result, "CHECK_INTERVAL: 30") {
 		t.Error("python-dev should use overridden check interval")
@@ -382,15 +375,15 @@ func TestComposeTemplateWithCustomVolumesAndEntrypoints(t *testing.T) {
 		},
 		Agents: []config.Agent{
 			{
-				Name:           "standard-agent",
-				Prompt:         "You are a standard agent",
-				GitHubTokenEnv: "STANDARD_TOKEN",
-				Settings:       nil, // Uses default entrypoint
+				Name:        "standard-agent",
+				Prompt:      "You are a standard agent",
+				GitHubToken: "STANDARD_TOKEN",
+				Settings:    nil, // Uses default entrypoint
 			},
 			{
-				Name:           "custom-agent",
-				Prompt:         "You are a custom agent",
-				GitHubTokenEnv: "CUSTOM_TOKEN",
+				Name:        "custom-agent",
+				Prompt:      "You are a custom agent",
+				GitHubToken: "CUSTOM_TOKEN",
 				Settings: &config.AgentSettings{
 					DockerImage: stringPtr("python:3.11"),
 					Volumes: []string{

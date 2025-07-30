@@ -39,7 +39,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
     environment:
       AGENT_NAME: {{ .Name }}
       GITHUB_REPO: {{ $.Repository.URL }}
-      GH_TOKEN: ${{"${"}}{{ .GitHubTokenEnv }}{{"}"}}
+      GH_TOKEN: {{ .GitHubToken }}
 {{- end }}`
 
 	entrypointTemplate := `#!/bin/bash
@@ -58,15 +58,15 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 		},
 		Agents: []config.Agent{
 			{
-				Name:           "dev1",
-				Prompt:         "You are a developer agent",
-				GitHubTokenEnv: "DEV1_TOKEN",
-				CommonPrompt:   "Follow best practices",
+				Name:         "dev1",
+				Prompt:       "You are a developer agent",
+				GitHubToken:  "DEV1_TOKEN",
+				CommonPrompt: "Follow best practices",
 			},
 			{
-				Name:           "arch1",
-				Prompt:         "You are an architect agent",
-				GitHubTokenEnv: "ARCH1_TOKEN",
+				Name:        "arch1",
+				Prompt:      "You are an architect agent",
+				GitHubToken: "ARCH1_TOKEN",
 			},
 		},
 		Settings: config.Settings{
@@ -109,34 +109,13 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 	// Verify agent directories were created
 	agentDirs := []string{
 		".autoteam/agents/dev1/codebase",
-		".autoteam/agents/dev1/claude",
 		".autoteam/agents/arch1/codebase",
-		".autoteam/agents/arch1/claude",
 	}
 
 	for _, dir := range agentDirs {
 		if !testutil.FileExists(dir) {
 			t.Errorf("directory %s should be created", dir)
 		}
-	}
-
-	// Verify claude config files were created
-	claudeFiles := []string{
-		".autoteam/agents/dev1/claude/.claude",
-		".autoteam/agents/dev1/claude/.claude.json",
-		".autoteam/agents/arch1/claude/.claude",
-		".autoteam/agents/arch1/claude/.claude.json",
-	}
-
-	for _, file := range claudeFiles {
-		if !testutil.FileExists(file) {
-			t.Errorf("file %s should be created", file)
-		}
-	}
-
-	// Verify shared directory was created
-	if !testutil.FileExists(".autoteam/shared") {
-		t.Errorf(".autoteam/shared directory should be created")
 	}
 }
 
@@ -169,35 +148,13 @@ func TestGenerator_CreateAgentDirectories(t *testing.T) {
 	// Verify directories were created
 	expectedDirs := []string{
 		".autoteam/agents/test1/codebase",
-		".autoteam/agents/test1/claude",
 		".autoteam/agents/test2/codebase",
-		".autoteam/agents/test2/claude",
 	}
 
 	for _, dir := range expectedDirs {
 		if !testutil.FileExists(dir) {
 			t.Errorf("directory %s should be created", dir)
 		}
-	}
-
-	// Verify claude config files were created
-	expectedFiles := []string{
-		".autoteam/agents/test1/claude/.claude",
-		".autoteam/agents/test1/claude/.claude.json",
-		".autoteam/agents/test2/claude/.claude",
-		".autoteam/agents/test2/claude/.claude.json",
-	}
-
-	for _, file := range expectedFiles {
-		if !testutil.FileExists(file) {
-			t.Errorf("file %s should be created", file)
-		}
-	}
-
-	// Verify .claude.json has valid JSON
-	jsonContent := testutil.ReadFile(t, ".autoteam/agents/test1/claude/.claude.json")
-	if jsonContent != "{}" {
-		t.Errorf(".claude.json should contain '{}', got %s", jsonContent)
 	}
 }
 

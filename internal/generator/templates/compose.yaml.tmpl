@@ -5,16 +5,14 @@ services:
     tty: true
     stdin_open: true
     volumes:
-      - ./agents/{{ .Agent.Name }}/codebase:/opt/autoteam/codebase
-      - ./shared/.claude:/home/{{ .EffectiveSettings.DockerUser }}/.claude
-      - ./shared/.claude.json:/home/{{ .EffectiveSettings.DockerUser }}/.claude.json
+      - ./agents/{{ .Agent.Name }}/codebase:/opt/autoteam/agents/{{ .Agent.Name }}/codebase
       - ./entrypoints:/opt/autoteam/entrypoints:ro
 {{- range .EffectiveSettings.Volumes }}
       - {{ . }}
 {{- end }}
     environment:
       IS_SANDBOX: 1 # for claude code to work on the {{ .EffectiveSettings.DockerUser }} user
-      GH_TOKEN: ${{ "{"}}{{ .Agent.GitHubTokenEnv }}{{ "}" }}
+      GH_TOKEN: {{ .Agent.GitHubToken }}
       GITHUB_REPO: {{ $.Repository.URL }}
       AGENT_NAME: {{ .Agent.Name }}
       AGENT_TYPE: claude

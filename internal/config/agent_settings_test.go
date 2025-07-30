@@ -21,19 +21,19 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 		{
 			name: "no agent settings - should use global",
 			agent: Agent{
-				Name:           "test1",
-				Prompt:         "test prompt",
-				GitHubTokenEnv: "TOKEN1",
-				Settings:       nil,
+				Name:        "test1",
+				Prompt:      "test prompt",
+				GitHubToken: "TOKEN1",
+				Settings:    nil,
 			},
 			expectedResult: globalSettings,
 		},
 		{
 			name: "partial agent settings - should override only specified",
 			agent: Agent{
-				Name:           "test2",
-				Prompt:         "test prompt",
-				GitHubTokenEnv: "TOKEN2",
+				Name:        "test2",
+				Prompt:      "test prompt",
+				GitHubToken: "TOKEN2",
 				Settings: &AgentSettings{
 					DockerImage:   stringPtr("python:3.11"),
 					CheckInterval: intPtr(30),
@@ -50,9 +50,9 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 		{
 			name: "full agent settings - should override all",
 			agent: Agent{
-				Name:           "test3",
-				Prompt:         "test prompt",
-				GitHubTokenEnv: "TOKEN3",
+				Name:        "test3",
+				Prompt:      "test prompt",
+				GitHubToken: "TOKEN3",
 				Settings: &AgentSettings{
 					DockerImage:   stringPtr("golang:1.21"),
 					DockerUser:    stringPtr("admin"),
@@ -102,15 +102,15 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 		},
 		Agents: []Agent{
 			{
-				Name:           "dev",
-				Prompt:         "developer prompt",
-				GitHubTokenEnv: "DEV_TOKEN",
-				Settings:       nil, // no overrides
+				Name:        "dev",
+				Prompt:      "developer prompt",
+				GitHubToken: "DEV_TOKEN",
+				Settings:    nil, // no overrides
 			},
 			{
-				Name:           "arch",
-				Prompt:         "architect prompt",
-				GitHubTokenEnv: "ARCH_TOKEN",
+				Name:        "arch",
+				Prompt:      "architect prompt",
+				GitHubToken: "ARCH_TOKEN",
 				Settings: &AgentSettings{
 					DockerImage:   stringPtr("python:3.11"),
 					CheckInterval: intPtr(30),
@@ -184,9 +184,9 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 		{
 			name: "custom volumes should override global",
 			agent: Agent{
-				Name:           "test1",
-				Prompt:         "test prompt",
-				GitHubTokenEnv: "TOKEN1",
+				Name:        "test1",
+				Prompt:      "test prompt",
+				GitHubToken: "TOKEN1",
 				Settings: &AgentSettings{
 					Volumes: []string{
 						"./custom-vol:/app/custom",
@@ -208,9 +208,9 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 		{
 			name: "custom entrypoint should override global",
 			agent: Agent{
-				Name:           "test2",
-				Prompt:         "test prompt",
-				GitHubTokenEnv: "TOKEN2",
+				Name:        "test2",
+				Prompt:      "test prompt",
+				GitHubToken: "TOKEN2",
 				Settings: &AgentSettings{
 					Entrypoint: stringPtr("/custom/entrypoint.sh"),
 				},
@@ -229,9 +229,9 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 		{
 			name: "custom environment should merge with global",
 			agent: Agent{
-				Name:           "test3",
-				Prompt:         "test prompt",
-				GitHubTokenEnv: "TOKEN3",
+				Name:        "test3",
+				Prompt:      "test prompt",
+				GitHubToken: "TOKEN3",
 				Settings: &AgentSettings{
 					Environment: map[string]string{
 						"CUSTOM_VAR": "custom_value",
@@ -257,9 +257,9 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 		{
 			name: "all custom fields combined",
 			agent: Agent{
-				Name:           "test4",
-				Prompt:         "test prompt",
-				GitHubTokenEnv: "TOKEN4",
+				Name:        "test4",
+				Prompt:      "test prompt",
+				GitHubToken: "TOKEN4",
 				Settings: &AgentSettings{
 					DockerImage: stringPtr("python:3.11"),
 					Volumes:     []string{"./python-vol:/app/python"},

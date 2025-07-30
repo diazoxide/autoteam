@@ -7,17 +7,17 @@ import (
 	"os"
 	"os/exec"
 
-	"autoteam/cmd/entrypoint/internal/agent"
-	"autoteam/cmd/entrypoint/internal/config"
+	"autoteam/internal/agent"
+	"autoteam/internal/entrypoint"
 )
 
 // Installer handles dependency installation
 type Installer struct {
-	config config.DependenciesConfig
+	config entrypoint.DependenciesConfig
 }
 
 // NewInstaller creates a new dependency installer
-func NewInstaller(cfg config.DependenciesConfig) *Installer {
+func NewInstaller(cfg entrypoint.DependenciesConfig) *Installer {
 	return &Installer{
 		config: cfg,
 	}

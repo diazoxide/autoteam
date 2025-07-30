@@ -9,13 +9,14 @@ import (
 	"syscall"
 	"time"
 
-	"autoteam/cmd/entrypoint/internal/agent"
-	"autoteam/cmd/entrypoint/internal/config"
-	"autoteam/cmd/entrypoint/internal/deps"
-	"autoteam/cmd/entrypoint/internal/git"
-	"autoteam/cmd/entrypoint/internal/github"
-	"autoteam/cmd/entrypoint/internal/monitor"
+	"autoteam/internal/agent"
+	"autoteam/internal/deps"
+	"autoteam/internal/entrypoint"
+	"autoteam/internal/git"
+	"autoteam/internal/github"
+	"autoteam/internal/monitor"
 
+	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
 )
 
@@ -27,6 +28,9 @@ var (
 )
 
 func main() {
+	// Load .env file if it exists (ignore errors for optional file)
+	_ = godotenv.Load()
+
 	app := &cli.Command{
 		Name:    "autoteam-entrypoint",
 		Usage:   "AutoTeam Agent Entrypoint - GitHub monitoring and AI agent execution",
@@ -210,8 +214,8 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 }
 
 // buildConfigFromFlags builds a Config struct from CLI flags
-func buildConfigFromFlags(cmd *cli.Command) (*config.Config, error) {
-	cfg := &config.Config{}
+func buildConfigFromFlags(cmd *cli.Command) (*entrypoint.Config, error) {
+	cfg := &entrypoint.Config{}
 
 	// GitHub configuration
 	cfg.GitHub.Token = cmd.String("gh-token")

@@ -9,17 +9,17 @@ import (
 	"path/filepath"
 	"strings"
 
-	"autoteam/cmd/entrypoint/internal/config"
+	"autoteam/internal/entrypoint"
 )
 
 // Setup handles Git configuration and credential management
 type Setup struct {
-	gitConfig    config.GitConfig
-	githubConfig config.GitHubConfig
+	gitConfig    entrypoint.GitConfig
+	githubConfig entrypoint.GitHubConfig
 }
 
 // NewSetup creates a new Git setup instance
-func NewSetup(gitConfig config.GitConfig, githubConfig config.GitHubConfig) *Setup {
+func NewSetup(gitConfig entrypoint.GitConfig, githubConfig entrypoint.GitHubConfig) *Setup {
 	return &Setup{
 		gitConfig:    gitConfig,
 		githubConfig: githubConfig,
@@ -208,8 +208,12 @@ func (s *Setup) updateRepository(ctx context.Context) error {
 
 // getWorkingDirectory returns the working directory path
 func (s *Setup) getWorkingDirectory() string {
-	// Use /opt/autoteam/codebase as the standard path for container deployments
-	return "/opt/autoteam/codebase"
+	// Use agent-specific path for container deployments
+	agentName := os.Getenv("AGENT_NAME")
+	if agentName == "" {
+		agentName = "default"
+	}
+	return fmt.Sprintf("/opt/autoteam/agents/%s/codebase", agentName)
 }
 
 // GetWorkingDirectory returns the working directory path (public method)

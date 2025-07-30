@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"autoteam/cmd/entrypoint/internal/agent"
-	"autoteam/cmd/entrypoint/internal/config"
-	"autoteam/cmd/entrypoint/internal/git"
-	"autoteam/cmd/entrypoint/internal/github"
+	"autoteam/internal/agent"
+	"autoteam/internal/entrypoint"
+	"autoteam/internal/git"
+	"autoteam/internal/github"
 )
 
 // Config contains configuration for the monitor
@@ -28,12 +28,12 @@ type Monitor struct {
 	githubClient *github.Client
 	agent        agent.Agent
 	config       Config
-	globalConfig *config.Config
+	globalConfig *entrypoint.Config
 	gitSetup     *git.Setup
 }
 
 // New creates a new monitor instance
-func New(githubClient *github.Client, selectedAgent agent.Agent, monitorConfig Config, globalConfig *config.Config) *Monitor {
+func New(githubClient *github.Client, selectedAgent agent.Agent, monitorConfig Config, globalConfig *entrypoint.Config) *Monitor {
 	gitSetup := git.NewSetup(globalConfig.Git, globalConfig.GitHub)
 
 	return &Monitor{
