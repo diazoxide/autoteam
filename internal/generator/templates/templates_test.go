@@ -77,6 +77,8 @@ func TestComposeTemplate(t *testing.T) {
 		"image: node:18.17.1",
 		"AGENT_NAME: dev1",
 		"AGENT_NAME: arch1",
+		"AGENT_NORMALIZED_NAME: dev1",
+		"AGENT_NORMALIZED_NAME: arch1",
 		"AGENT_TYPE: claude",
 		"GITHUB_REPO: owner/test-repo",
 		"GH_TOKEN: DEV1_TOKEN",
@@ -567,5 +569,13 @@ func TestComposeTemplateNameNormalization(t *testing.T) {
 	}
 	if !strings.Contains(result, "AGENT_NAME: API-Agent #1") {
 		t.Errorf("should preserve original name in AGENT_NAME environment variable")
+	}
+
+	// Should use normalized names in AGENT_NORMALIZED_NAME environment variable
+	if !strings.Contains(result, "AGENT_NORMALIZED_NAME: senior_developer") {
+		t.Errorf("should use normalized name in AGENT_NORMALIZED_NAME environment variable")
+	}
+	if !strings.Contains(result, "AGENT_NORMALIZED_NAME: api_agent_1") {
+		t.Errorf("should use normalized name in AGENT_NORMALIZED_NAME environment variable")
 	}
 }

@@ -16,6 +16,7 @@ services:
       GH_USER: {{ .Agent.GitHubUser }}
       GITHUB_REPO: {{ $.Repository.URL }}
       AGENT_NAME: {{ .Agent.Name }}
+      AGENT_NORMALIZED_NAME: {{ .Agent.GetNormalizedName }}
       AGENT_TYPE: claude
       AGENT_PROMPT: {{ .GetConsolidatedPrompt $.Config | printf "%q" }}
       TEAM_NAME: {{ .EffectiveSettings.TeamName }}

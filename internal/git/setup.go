@@ -209,9 +209,10 @@ func (s *Setup) updateRepository(ctx context.Context) error {
 // getWorkingDirectory returns the working directory path
 func (s *Setup) getWorkingDirectory() string {
 	// Use agent-specific path for container deployments
-	agentName := os.Getenv("AGENT_NAME")
+	// Require normalized name for directory structure
+	agentName := os.Getenv("AGENT_NORMALIZED_NAME")
 	if agentName == "" {
-		agentName = "default"
+		panic("AGENT_NORMALIZED_NAME environment variable is required but not set")
 	}
 	return fmt.Sprintf("/opt/autoteam/agents/%s/codebase", agentName)
 }
