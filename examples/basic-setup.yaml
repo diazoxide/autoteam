@@ -1,9 +1,9 @@
 # Basic AutoTeam Configuration
 # Two-agent setup with developer and reviewer roles
 
-repository:
-  url: "owner/repo-name"
-  main_branch: "main"
+repositories:
+  include:
+    - "owner/repo-name"
 
 agents:
   - name: "developer"

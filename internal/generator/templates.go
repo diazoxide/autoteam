@@ -10,6 +10,7 @@ func GetTemplateFunctions() template.FuncMap {
 	return template.FuncMap{
 		"indent":              indentFunction,
 		"escapeDockerCompose": escapeDockerComposeFunction,
+		"join":                joinFunction,
 	}
 }
 
@@ -37,4 +38,9 @@ func indentFunction(spaces int, text string) string {
 // This prevents Docker Compose from trying to substitute shell variables
 func escapeDockerComposeFunction(text string) string {
 	return strings.ReplaceAll(text, "$", "$$")
+}
+
+// joinFunction joins a slice of strings with a separator
+func joinFunction(slice []string, separator string) string {
+	return strings.Join(slice, separator)
 }

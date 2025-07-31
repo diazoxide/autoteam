@@ -12,12 +12,13 @@ import (
 // PrioritizedItem represents an item with its calculated priority score
 type PrioritizedItem struct {
 	// Item details
-	Type      string
-	Number    int
-	Title     string
-	URL       string
-	Author    string
-	UpdatedAt time.Time
+	Type       string
+	Number     int
+	Repository string
+	Title      string
+	URL        string
+	Author     string
+	UpdatedAt  time.Time
 
 	// Prioritization
 	Score  int
@@ -59,7 +60,7 @@ func (p *ItemPrioritizer) SelectNextItem(pendingItems *github.PendingItems) *Pri
 
 	// Select the highest priority item that's not in cooldown
 	for _, item := range allItems {
-		itemKey := GetItemKey(item.Type, item.Number)
+		itemKey := GetItemKey(item.Type, item.Repository, item.Number)
 
 		if p.stateManager.IsItemInCooldown(itemKey) {
 			log.Printf("Skipping item %s #%d - in cooldown period", item.Type, item.Number)
@@ -82,12 +83,13 @@ func (p *ItemPrioritizer) collectAndPrioritizeItems(pendingItems *github.Pending
 	// Process review requests (highest base priority)
 	for _, pr := range pendingItems.ReviewRequests {
 		item := &PrioritizedItem{
-			Type:      "review_request",
-			Number:    pr.Number,
-			Title:     pr.Title,
-			URL:       pr.URL,
-			Author:    pr.Author,
-			UpdatedAt: pr.UpdatedAt,
+			Type:       "review_request",
+			Number:     pr.Number,
+			Repository: pr.Repository,
+			Title:      pr.Title,
+			URL:        pr.URL,
+			Author:     pr.Author,
+			UpdatedAt:  pr.UpdatedAt,
 		}
 		item.Score, item.Reason = p.calculatePriority(item, 1000) // Base score: 1000
 		allItems = append(allItems, item)
@@ -96,12 +98,13 @@ func (p *ItemPrioritizer) collectAndPrioritizeItems(pendingItems *github.Pending
 	// Process assigned PRs (high priority)
 	for _, pr := range pendingItems.AssignedPRs {
 		item := &PrioritizedItem{
-			Type:      "assigned_pr",
-			Number:    pr.Number,
-			Title:     pr.Title,
-			URL:       pr.URL,
-			Author:    pr.Author,
-			UpdatedAt: pr.UpdatedAt,
+			Type:       "assigned_pr",
+			Number:     pr.Number,
+			Repository: pr.Repository,
+			Title:      pr.Title,
+			URL:        pr.URL,
+			Author:     pr.Author,
+			UpdatedAt:  pr.UpdatedAt,
 		}
 		item.Score, item.Reason = p.calculatePriority(item, 800) // Base score: 800
 		allItems = append(allItems, item)
@@ -110,12 +113,13 @@ func (p *ItemPrioritizer) collectAndPrioritizeItems(pendingItems *github.Pending
 	// Process PRs with changes requested (medium priority)
 	for _, pr := range pendingItems.PRsWithChanges {
 		item := &PrioritizedItem{
-			Type:      "pr_with_changes",
-			Number:    pr.Number,
-			Title:     pr.Title,
-			URL:       pr.URL,
-			Author:    pr.Author,
-			UpdatedAt: pr.UpdatedAt,
+			Type:       "pr_with_changes",
+			Number:     pr.Number,
+			Repository: pr.Repository,
+			Title:      pr.Title,
+			URL:        pr.URL,
+			Author:     pr.Author,
+			UpdatedAt:  pr.UpdatedAt,
 		}
 		item.Score, item.Reason = p.calculatePriority(item, 600) // Base score: 600
 		allItems = append(allItems, item)
@@ -124,12 +128,13 @@ func (p *ItemPrioritizer) collectAndPrioritizeItems(pendingItems *github.Pending
 	// Process assigned issues (lower priority)
 	for _, issue := range pendingItems.AssignedIssues {
 		item := &PrioritizedItem{
-			Type:      "assigned_issue",
-			Number:    issue.Number,
-			Title:     issue.Title,
-			URL:       issue.URL,
-			Author:    issue.Author,
-			UpdatedAt: issue.UpdatedAt,
+			Type:       "assigned_issue",
+			Number:     issue.Number,
+			Repository: issue.Repository,
+			Title:      issue.Title,
+			URL:        issue.URL,
+			Author:     issue.Author,
+			UpdatedAt:  issue.UpdatedAt,
 		}
 		item.Score, item.Reason = p.calculatePriority(item, 400) // Base score: 400
 		allItems = append(allItems, item)
@@ -182,7 +187,7 @@ func (p *ItemPrioritizer) calculatePriority(item *PrioritizedItem, baseScore int
 	}
 
 	// Apply failure penalty
-	itemKey := GetItemKey(item.Type, item.Number)
+	itemKey := GetItemKey(item.Type, item.Repository, item.Number)
 	failureCount := p.stateManager.GetFailureCount(itemKey)
 
 	if failureCount > 0 {

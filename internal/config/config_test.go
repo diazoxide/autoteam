@@ -18,9 +18,8 @@ func TestLoadConfig_Valid(t *testing.T) {
 			name:     "valid config",
 			filename: "testdata/valid.yaml",
 			want: Config{
-				Repository: Repository{
-					URL:        "owner/test-repo",
-					MainBranch: "main",
+				Repositories: Repositories{
+					Include: []string{"owner/test-repo"},
 				},
 				Agents: []Agent{
 					{
@@ -50,9 +49,8 @@ func TestLoadConfig_Valid(t *testing.T) {
 			name:     "minimal config with defaults",
 			filename: "testdata/minimal.yaml",
 			want: Config{
-				Repository: Repository{
-					URL:        "owner/repo",
-					MainBranch: "main", // default
+				Repositories: Repositories{
+					Include: []string{"owner/repo"},
 				},
 				Agents: []Agent{
 					{
@@ -80,11 +78,11 @@ func TestLoadConfig_Valid(t *testing.T) {
 				t.Fatalf("LoadConfig() error = %v", err)
 			}
 
-			if got.Repository.URL != tt.want.Repository.URL {
-				t.Errorf("Repository.URL = %v, want %v", got.Repository.URL, tt.want.Repository.URL)
+			if len(got.Repositories.Include) != len(tt.want.Repositories.Include) {
+				t.Errorf("Repositories.Include length = %v, want %v", len(got.Repositories.Include), len(tt.want.Repositories.Include))
 			}
-			if got.Repository.MainBranch != tt.want.Repository.MainBranch {
-				t.Errorf("Repository.MainBranch = %v, want %v", got.Repository.MainBranch, tt.want.Repository.MainBranch)
+			if len(got.Repositories.Include) > 0 && got.Repositories.Include[0] != tt.want.Repositories.Include[0] {
+				t.Errorf("Repositories.Include[0] = %v, want %v", got.Repositories.Include[0], tt.want.Repositories.Include[0])
 			}
 
 			if len(got.Agents) != len(tt.want.Agents) {
@@ -129,7 +127,7 @@ func TestLoadConfig_Invalid(t *testing.T) {
 		{
 			name:     "missing repository",
 			filename: "testdata/invalid_no_repo.yaml",
-			wantErr:  "repository.url is required",
+			wantErr:  "at least one repository must be specified in repositories.include",
 		},
 		{
 			name:     "no agents",
@@ -182,8 +180,8 @@ func TestCreateSampleConfig(t *testing.T) {
 	}
 
 	// Verify some basic properties
-	if cfg.Repository.URL != "owner/repo-name" {
-		t.Errorf("Sample config Repository.URL = %v, want owner/repo-name", cfg.Repository.URL)
+	if len(cfg.Repositories.Include) == 0 || cfg.Repositories.Include[0] != "myorg/project-alpha" {
+		t.Errorf("Sample config Repositories.Include[0] = %v, want myorg/project-alpha", cfg.Repositories.Include)
 	}
 
 	if len(cfg.Agents) != 2 {
@@ -208,7 +206,7 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "valid config",
 			config: Config{
-				Repository: Repository{URL: "owner/repo"},
+				Repositories: Repositories{Include: []string{"owner/repo"}},
 				Agents: []Agent{
 					{Name: "dev1", Prompt: "prompt", GitHubToken: "TOKEN", GitHubUser: "dev-user"},
 				},
@@ -222,20 +220,20 @@ func TestValidateConfig(t *testing.T) {
 					{Name: "dev1", Prompt: "prompt", GitHubToken: "TOKEN", GitHubUser: "dev-user"},
 				},
 			},
-			wantErr: "repository.url is required",
+			wantErr: "at least one repository must be specified in repositories.include",
 		},
 		{
 			name: "no agents",
 			config: Config{
-				Repository: Repository{URL: "owner/repo"},
-				Agents:     []Agent{},
+				Repositories: Repositories{Include: []string{"owner/repo"}},
+				Agents:       []Agent{},
 			},
 			wantErr: "at least one agent must be configured",
 		},
 		{
 			name: "agent missing name",
 			config: Config{
-				Repository: Repository{URL: "owner/repo"},
+				Repositories: Repositories{Include: []string{"owner/repo"}},
 				Agents: []Agent{
 					{Prompt: "prompt", GitHubToken: "TOKEN", GitHubUser: "dev-user"},
 				},
@@ -245,7 +243,7 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "agent missing prompt",
 			config: Config{
-				Repository: Repository{URL: "owner/repo"},
+				Repositories: Repositories{Include: []string{"owner/repo"}},
 				Agents: []Agent{
 					{Name: "dev1", GitHubToken: "TOKEN", GitHubUser: "dev-user"},
 				},
@@ -255,7 +253,7 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "agent missing github token env",
 			config: Config{
-				Repository: Repository{URL: "owner/repo"},
+				Repositories: Repositories{Include: []string{"owner/repo"}},
 				Agents: []Agent{
 					{Name: "dev1", Prompt: "prompt", GitHubUser: "dev-user"},
 				},
@@ -303,9 +301,7 @@ func TestSetDefaults(t *testing.T) {
 	if config.Settings.TeamName != "autoteam" {
 		t.Errorf("TeamName = %v, want autoteam", config.Settings.TeamName)
 	}
-	if config.Repository.MainBranch != "main" {
-		t.Errorf("MainBranch = %v, want main", config.Repository.MainBranch)
-	}
+	// MainBranch is no longer a global config setting - it's handled per repository
 
 	// Test that existing values are not overridden
 	config2 := &Config{
@@ -315,8 +311,8 @@ func TestSetDefaults(t *testing.T) {
 			CheckInterval: 120,
 			TeamName:      "custom-team",
 		},
-		Repository: Repository{
-			MainBranch: "develop",
+		Repositories: Repositories{
+			Include: []string{"owner/repo"},
 		},
 	}
 
@@ -334,7 +330,5 @@ func TestSetDefaults(t *testing.T) {
 	if config2.Settings.TeamName != "custom-team" {
 		t.Errorf("TeamName should not be overridden, got %v", config2.Settings.TeamName)
 	}
-	if config2.Repository.MainBranch != "develop" {
-		t.Errorf("MainBranch should not be overridden, got %v", config2.Repository.MainBranch)
-	}
+	// MainBranch is no longer a global config setting
 }

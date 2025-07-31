@@ -62,8 +62,9 @@ REVIEWER_TOKEN=ghp_rev_token_789`
 	}
 
 	// Test that config can reference environment variables
-	configContent := `repository:
-  url: "owner/test-repo"
+	configContent := `repositories:
+  include:
+    - "owner/test-repo"
 
 agents:
   - name: "developer"
@@ -117,8 +118,9 @@ func TestDotenvOptional(t *testing.T) {
 	// in our implementation, so we just verify this doesn't cause the app to crash
 
 	// Create a basic config without .env file
-	configContent := `repository:
-  url: "owner/test-repo"
+	configContent := `repositories:
+  include:
+    - "owner/test-repo"
 
 agents:
   - name: "developer"

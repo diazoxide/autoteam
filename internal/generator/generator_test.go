@@ -38,7 +38,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
     image: {{ $.Settings.DockerImage }}
     environment:
       AGENT_NAME: {{ .Name }}
-      GITHUB_REPO: {{ $.Repository.URL }}
+      GITHUB_REPO: {{ (index $.Repositories.Include 0) }}
       GH_TOKEN: {{ .GitHubToken }}
 {{- end }}`
 
@@ -52,9 +52,8 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 
 	// Create test config inline
 	cfg := &config.Config{
-		Repository: config.Repository{
-			URL:        "owner/test-repo",
-			MainBranch: "main",
+		Repositories: config.Repositories{
+			Include: []string{"owner/test-repo"},
 		},
 		Agents: []config.Agent{
 			{
@@ -179,7 +178,7 @@ func TestGenerator_GenerateFile(t *testing.T) {
 		t.Fatalf("failed to create templates directory: %v", err)
 	}
 
-	templateContent := `Repository: {{ .Repository.URL }}
+	templateContent := `Repository: {{ (index .Repositories.Include 0) }}
 Team: {{ .Settings.TeamName }}
 {{- range .Agents }}
 Agent: {{ .Name }} - {{ .Prompt }}
@@ -188,8 +187,8 @@ Agent: {{ .Name }} - {{ .Prompt }}
 	testutil.CreateTempFile(t, templatesDir, "test.tmpl", templateContent)
 
 	cfg := &config.Config{
-		Repository: config.Repository{URL: "owner/repo"},
-		Settings:   config.Settings{TeamName: "test-team"},
+		Repositories: config.Repositories{Include: []string{"owner/repo"}},
+		Settings:     config.Settings{TeamName: "test-team"},
 		Agents: []config.Agent{
 			{Name: "dev1", Prompt: "Developer", GitHubToken: "DEV_TOKEN", GitHubUser: "dev-user"},
 			{Name: "arch1", Prompt: "Architect", GitHubToken: "ARCH_TOKEN", GitHubUser: "arch-user"},

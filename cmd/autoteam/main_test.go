@@ -41,7 +41,7 @@ func TestGenerateCommand(t *testing.T) {
     image: {{ $.Settings.DockerImage }}
     environment:
       AGENT_NAME: {{ .Name }}
-      GITHUB_REPO: {{ $.Repository.URL }}
+      GITHUB_REPO: {{ (index $.Repositories.Include 0) }}
 {{- end }}`
 
 	entrypointTemplate := `#!/bin/bash
@@ -51,8 +51,9 @@ echo "Test entrypoint"`
 	testutil.CreateTempFile(t, templatesDir, "entrypoint.sh.tmpl", entrypointTemplate)
 
 	// Create test config
-	testConfig := `repository:
-  url: "owner/test-repo"
+	testConfig := `repositories:
+  include:
+    - "owner/test-repo"
 agents:
   - name: "dev1"
     prompt: "Test agent"
@@ -155,8 +156,8 @@ func TestInitCommand(t *testing.T) {
 
 	// Verify content contains expected sample data
 	content := testutil.ReadFile(t, "autoteam.yaml")
-	if !strings.Contains(content, "repository:") {
-		t.Errorf("autoteam.yaml should contain repository section")
+	if !strings.Contains(content, "repositories:") {
+		t.Errorf("autoteam.yaml should contain repositories section")
 	}
 	if !strings.Contains(content, "agents:") {
 		t.Errorf("autoteam.yaml should contain agents section")

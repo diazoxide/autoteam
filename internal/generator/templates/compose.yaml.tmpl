@@ -14,7 +14,10 @@ services:
       IS_SANDBOX: 1 # for claude code to work on the {{ .EffectiveSettings.DockerUser }} user
       GH_TOKEN: {{ .Agent.GitHubToken }}
       GH_USER: {{ .Agent.GitHubUser }}
-      GITHUB_REPO: {{ $.Repository.URL }}
+      REPOSITORIES_INCLUDE: {{ join $.Repositories.Include "," | printf "%q" }}
+{{- if $.Repositories.Exclude }}
+      REPOSITORIES_EXCLUDE: {{ join $.Repositories.Exclude "," | printf "%q" }}
+{{- end }}
       AGENT_NAME: {{ .Agent.Name }}
       AGENT_NORMALIZED_NAME: {{ .Agent.GetNormalizedName }}
       AGENT_TYPE: claude

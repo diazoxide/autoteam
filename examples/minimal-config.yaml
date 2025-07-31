@@ -1,8 +1,9 @@
 # Minimal AutoTeam Configuration
 # This example shows the absolute minimum required configuration
 
-repository:
-  url: "user/simple-project"
+repositories:
+  include:
+    - "user/simple-project"
 
 agents:
   - name: "bot"

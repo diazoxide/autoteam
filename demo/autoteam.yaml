@@ -1,6 +1,6 @@
-repository:
-    url: diazoxide/autoteam-website #https://github.com/diazoxide/autoteam-website.git
-    main_branch: main
+repositories:
+    include:
+        - diazoxide/autoteam-website #https://github.com/diazoxide/autoteam-website.git
 agents:
     - name: dev1
       prompt: You are a developer agent responsible for implementing features and fixing bugs.

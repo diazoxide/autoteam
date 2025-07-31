@@ -41,7 +41,7 @@ type Monitor struct {
 
 // New creates a new monitor instance
 func New(githubClient *github.Client, selectedAgent agent.Agent, monitorConfig Config, globalConfig *entrypoint.Config) *Monitor {
-	gitSetup := git.NewSetup(globalConfig.Git, globalConfig.GitHub)
+	gitSetup := git.NewSetup(globalConfig.Git, globalConfig.GitHub, globalConfig.Repositories)
 
 	// Initialize new components
 	stateManager := NewStateManager()
@@ -80,12 +80,35 @@ func (m *Monitor) Start(ctx context.Context) error {
 	username := user.GetLogin()
 	log.Printf("Authenticated as GitHub user: %s", username)
 
-	// Get repository info and default branch
-	defaultBranch, err := m.githubClient.GetDefaultBranch(ctx)
+	// TODO: Multi-repository support - get default branch per repository
+	// For now, use "main" as default branch for multi-repo compatibility
+	defaultBranch := "main"
+	log.Printf("Using default branch: %s (multi-repo support pending)", defaultBranch)
+
+	// Log all matched repositories before starting monitoring
+	log.Println("Initializing repository discovery...")
+	filteredRepos, err := m.githubClient.GetFilteredRepositories(ctx, username)
 	if err != nil {
-		return fmt.Errorf("failed to get default branch: %w", err)
+		log.Printf("Warning: failed to get filtered repositories during initialization: %v", err)
+		// Show patterns as fallback
+		if m.globalConfig.Repositories != nil {
+			log.Printf("Repository patterns configured: include=%v, exclude=%v",
+				m.globalConfig.Repositories.Include, m.globalConfig.Repositories.Exclude)
+		}
+	} else {
+		if len(filteredRepos) == 0 {
+			log.Println("No repositories found matching the configured patterns")
+			if m.globalConfig.Repositories != nil {
+				log.Printf("Configured patterns: include=%v, exclude=%v",
+					m.globalConfig.Repositories.Include, m.globalConfig.Repositories.Exclude)
+			}
+		} else {
+			log.Printf("Found %d repositories matching configured patterns:", len(filteredRepos))
+			for i, repo := range filteredRepos {
+				log.Printf("  %d. %s (%s)", i+1, repo.FullName, repo.URL)
+			}
+		}
 	}
-	log.Printf("Repository default branch: %s", defaultBranch)
 
 	// Run initial check
 	if err := m.checkAndProcess(ctx, username, defaultBranch); err != nil {
@@ -103,7 +126,28 @@ func (m *Monitor) Start(ctx context.Context) error {
 			return ctx.Err()
 
 		case <-ticker.C:
-			log.Printf("%s: Checking for pending items...", time.Now().Format(time.RFC3339))
+			// Build repository list for logging by resolving patterns to actual repos
+			var repoLog string
+			filteredRepos, err := m.githubClient.GetFilteredRepositories(ctx, username)
+			if err != nil {
+				log.Printf("Warning: failed to get filtered repositories for logging: %v", err)
+				// Fallback to showing patterns
+				if m.globalConfig.Repositories != nil {
+					includedPatterns := strings.Join(m.globalConfig.Repositories.Include, ", ")
+					repoLog = fmt.Sprintf(" (patterns: %s)", includedPatterns)
+				}
+			} else {
+				var repoNames []string
+				for _, repo := range filteredRepos {
+					repoNames = append(repoNames, repo.FullName)
+				}
+				if len(repoNames) > 0 {
+					repoLog = fmt.Sprintf(" (tracking: %s)", strings.Join(repoNames, ", "))
+				} else {
+					repoLog = " (no matching repositories found)"
+				}
+			}
+			log.Printf("%s: Checking for pending items...%s", time.Now().Format(time.RFC3339), repoLog)
 
 			if err := m.checkAndProcess(ctx, username, defaultBranch); err != nil {
 				log.Printf("Check failed: %v", err)
@@ -177,17 +221,19 @@ func (m *Monitor) selectAndProcessNextItem(ctx context.Context, username, defaul
 	switch selectedItem.Type {
 	case "review_request", "assigned_pr", "pr_with_changes":
 		processingItem = CreateProcessingItemFromPR(github.PullRequestInfo{
-			Number: selectedItem.Number,
-			Title:  selectedItem.Title,
-			URL:    selectedItem.URL,
-			Author: selectedItem.Author,
+			Number:     selectedItem.Number,
+			Repository: selectedItem.Repository,
+			Title:      selectedItem.Title,
+			URL:        selectedItem.URL,
+			Author:     selectedItem.Author,
 		}, selectedItem.Type)
 	case "assigned_issue":
 		processingItem = CreateProcessingItemFromIssue(github.IssueInfo{
-			Number: selectedItem.Number,
-			Title:  selectedItem.Title,
-			URL:    selectedItem.URL,
-			Author: selectedItem.Author,
+			Number:     selectedItem.Number,
+			Repository: selectedItem.Repository,
+			Title:      selectedItem.Title,
+			URL:        selectedItem.URL,
+			Author:     selectedItem.Author,
 		}, selectedItem.Type)
 	default:
 		return fmt.Errorf("unknown item type: %s", selectedItem.Type)
@@ -203,15 +249,33 @@ func (m *Monitor) selectAndProcessNextItem(ctx context.Context, username, defaul
 }
 
 // processItem processes a single item
-func (m *Monitor) processItem(ctx context.Context, item *ProcessingItem, defaultBranch string, continueMode bool) error {
+func (m *Monitor) processItem(ctx context.Context, item *ProcessingItem, globalDefaultBranch string, continueMode bool) error {
 	log.Printf("Processing %s #%d: %s (attempt %d)", item.Type, item.Number, item.Title, item.AttemptCount)
+
+	// Ensure repository is cloned before processing
+	if err := m.gitSetup.SetupRepository(ctx, item.Repository); err != nil {
+		return fmt.Errorf("failed to setup repository %s: %w", item.Repository, err)
+	}
+
+	// Get the actual default branch for this repository
+	parts := strings.Split(item.Repository, "/")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid repository format: %s", item.Repository)
+	}
+	owner, repo := parts[0], parts[1]
+
+	defaultBranch, err := m.githubClient.GetDefaultBranch(ctx, owner, repo)
+	if err != nil {
+		log.Printf("Warning: failed to get default branch for %s, using %s: %v", item.Repository, globalDefaultBranch, err)
+		defaultBranch = globalDefaultBranch
+	}
 
 	// Git state management: Only reset for new items, preserve state for continuations
 	if !continueMode {
 		// New item: Fresh git state (fetch + reset to main)
-		log.Printf("New item: Switching to %s branch and resetting to clean state...", defaultBranch)
-		if err := m.gitSetup.SwitchToMainBranch(ctx, defaultBranch); err != nil {
-			return fmt.Errorf("failed to switch to main branch: %w", err)
+		log.Printf("New item: Switching to %s branch and resetting to clean state for repository %s...", defaultBranch, item.Repository)
+		if err := m.gitSetup.SwitchToMainBranch(ctx, item.Repository, defaultBranch); err != nil {
+			return fmt.Errorf("failed to switch to main branch for repository %s: %w", item.Repository, err)
 		}
 	} else {
 		// Continuation: Keep existing git state, don't reset
@@ -229,7 +293,7 @@ func (m *Monitor) processItem(ctx context.Context, item *ProcessingItem, default
 		OutputFormat:     "stream-json",
 		Verbose:          true,
 		DryRun:           m.config.DryRun,
-		WorkingDirectory: m.gitSetup.GetWorkingDirectory(),
+		WorkingDirectory: m.gitSetup.GetRepositoryWorkingDirectory(item.Repository),
 	}
 
 	// Increment attempt count
@@ -243,7 +307,7 @@ func (m *Monitor) processItem(ctx context.Context, item *ProcessingItem, default
 		// Record failure if max attempts reached
 		maxAttempts := m.getMaxAttempts()
 		if item.AttemptCount >= maxAttempts {
-			itemKey := GetItemKey(item.Type, item.Number)
+			itemKey := GetItemKeyFromProcessingItem(item)
 			if err := m.stateManager.RecordFailure(itemKey); err != nil {
 				log.Printf("Warning: failed to record failure: %v", err)
 			}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"autoteam/internal/config"
@@ -26,10 +27,11 @@ type ProcessingState struct {
 // ProcessingItem represents an item currently being processed
 type ProcessingItem struct {
 	// Item identification
-	Type   string `json:"type"`   // "review_request", "assigned_pr", "assigned_issue", "pr_with_changes"
-	Number int    `json:"number"` // GitHub issue/PR number
-	URL    string `json:"url"`    // GitHub URL
-	Title  string `json:"title"`  // Issue/PR title
+	Type       string `json:"type"`       // "review_request", "assigned_pr", "assigned_issue", "pr_with_changes"
+	Number     int    `json:"number"`     // GitHub issue/PR number
+	Repository string `json:"repository"` // Repository in "owner/repo" format
+	URL        string `json:"url"`        // GitHub URL
+	Title      string `json:"title"`      // Issue/PR title
 
 	// Processing metadata
 	StartTime    time.Time `json:"start_time"`
@@ -163,6 +165,7 @@ func CreateProcessingItemFromPR(pr github.PullRequestInfo, itemType string) *Pro
 	return &ProcessingItem{
 		Type:         itemType,
 		Number:       pr.Number,
+		Repository:   pr.Repository,
 		URL:          pr.URL,
 		Title:        pr.Title,
 		StartTime:    time.Now(),
@@ -176,6 +179,7 @@ func CreateProcessingItemFromIssue(issue github.IssueInfo, itemType string) *Pro
 	return &ProcessingItem{
 		Type:         itemType,
 		Number:       issue.Number,
+		Repository:   issue.Repository,
 		URL:          issue.URL,
 		Title:        issue.Title,
 		StartTime:    time.Now(),
@@ -184,9 +188,16 @@ func CreateProcessingItemFromIssue(issue github.IssueInfo, itemType string) *Pro
 	}
 }
 
-// GetItemKey generates a unique key for an item
-func GetItemKey(itemType string, number int) string {
-	return fmt.Sprintf("%s_%d", itemType, number)
+// GetItemKey generates a unique key for an item including repository
+func GetItemKey(itemType string, repository string, number int) string {
+	// Normalize repository name for key (replace / with -)
+	normalizedRepo := strings.ReplaceAll(repository, "/", "-")
+	return fmt.Sprintf("%s_%s_%d", itemType, normalizedRepo, number)
+}
+
+// GetItemKeyFromProcessingItem generates a unique key from a ProcessingItem
+func GetItemKeyFromProcessingItem(item *ProcessingItem) string {
+	return GetItemKey(item.Type, item.Repository, item.Number)
 }
 
 // load loads the state from disk

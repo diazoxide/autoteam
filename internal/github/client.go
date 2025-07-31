@@ -3,29 +3,34 @@ package github
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
+
+	"autoteam/internal/config"
 
 	"github.com/google/go-github/v57/github"
 	"golang.org/x/oauth2"
 )
 
-// Client wraps the GitHub API client with convenience methods
-type Client struct {
-	client *github.Client
-	owner  string
-	repo   string
+// RepositoryFilter defines interface for filtering repositories
+type RepositoryFilter interface {
+	ShouldIncludeRepository(repoName string) bool
 }
 
-// NewClient creates a new GitHub API client
-func NewClient(token, repository string) (*Client, error) {
+// Client wraps the GitHub API client with convenience methods for multi-repository operations
+type Client struct {
+	client *github.Client
+	filter RepositoryFilter
+}
+
+// NewClient creates a new GitHub API client with repository filtering
+func NewClient(token string, filter RepositoryFilter) (*Client, error) {
 	if token == "" {
 		return nil, fmt.Errorf("GitHub token is required")
 	}
 
-	// Parse repository (owner/repo format)
-	parts := strings.Split(repository, "/")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("repository must be in format 'owner/repo', got: %s", repository)
+	if filter == nil {
+		return nil, fmt.Errorf("repository filter is required")
 	}
 
 	// Create OAuth2 token source
@@ -37,9 +42,13 @@ func NewClient(token, repository string) (*Client, error) {
 
 	return &Client{
 		client: githubClient,
-		owner:  parts[0],
-		repo:   parts[1],
+		filter: filter,
 	}, nil
+}
+
+// NewClientFromConfig creates a new GitHub client using configuration
+func NewClientFromConfig(token string, repositories *config.Repositories) (*Client, error) {
+	return NewClient(token, repositories)
 }
 
 // GetAuthenticatedUser returns information about the authenticated user
@@ -51,40 +60,98 @@ func (c *Client) GetAuthenticatedUser(ctx context.Context) (*github.User, error)
 	return user, nil
 }
 
-// GetRepository returns information about the repository
-func (c *Client) GetRepository(ctx context.Context) (*github.Repository, error) {
-	repo, _, err := c.client.Repositories.Get(ctx, c.owner, c.repo)
+// GetRepository returns information about a specific repository
+func (c *Client) GetRepository(ctx context.Context, owner, repo string) (*github.Repository, error) {
+	repository, _, err := c.client.Repositories.Get(ctx, owner, repo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get repository %s/%s: %w", c.owner, c.repo, err)
+		return nil, fmt.Errorf("failed to get repository %s/%s: %w", owner, repo, err)
 	}
-	return repo, nil
+	return repository, nil
 }
 
-// GetDefaultBranch returns the default branch name for the repository
-func (c *Client) GetDefaultBranch(ctx context.Context) (string, error) {
-	repo, err := c.GetRepository(ctx)
+// GetDefaultBranch returns the default branch name for a specific repository
+func (c *Client) GetDefaultBranch(ctx context.Context, owner, repo string) (string, error) {
+	repository, err := c.GetRepository(ctx, owner, repo)
 	if err != nil {
 		return "", err
 	}
 
-	if repo.DefaultBranch == nil {
+	if repository.DefaultBranch == nil {
 		return "main", nil // fallback to main
 	}
 
-	return *repo.DefaultBranch, nil
+	return *repository.DefaultBranch, nil
 }
 
-// Owner returns the repository owner
-func (c *Client) Owner() string {
-	return c.owner
+// parseRepository parses a repository string in "owner/repo" format
+func parseRepository(repository string) (owner, repo string, err error) {
+	parts := strings.Split(repository, "/")
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("repository must be in format 'owner/repo', got: %s", repository)
+	}
+	return parts[0], parts[1], nil
 }
 
-// Repo returns the repository name
-func (c *Client) Repo() string {
-	return c.repo
-}
+// GetFilteredRepositories returns all repositories that match the filter criteria
+func (c *Client) GetFilteredRepositories(ctx context.Context, username string) ([]RepositoryInfo, error) {
+	log.Printf("Getting filtered repositories for user: %s", username)
 
-// Repository returns the full repository name (owner/repo)
-func (c *Client) Repository() string {
-	return fmt.Sprintf("%s/%s", c.owner, c.repo)
+	opts := &github.RepositoryListOptions{
+		ListOptions: github.ListOptions{PerPage: 100},
+	}
+
+	var allRepos []RepositoryInfo
+
+	// Get user's own repositories
+	repos, _, err := c.client.Repositories.List(ctx, username, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list repositories for user %s: %w", username, err)
+	}
+	log.Printf("Found %d repositories owned by user %s", len(repos), username)
+
+	for _, repo := range repos {
+		repoName := repo.GetFullName()
+		log.Printf("Checking owned repository: %s", repoName)
+		if c.filter.ShouldIncludeRepository(repoName) {
+			allRepos = append(allRepos, FromGitHubRepository(repo))
+			log.Printf("Added repository to filtered list: %s", repoName)
+		}
+	}
+
+	// Also get repositories the user has access to (collaborator, organization member, etc.)
+	// This uses the authenticated user's accessible repositories
+	searchOpts := &github.RepositoryListByAuthenticatedUserOptions{
+		ListOptions: github.ListOptions{PerPage: 100},
+		Visibility:  "all",
+		Affiliation: "owner,collaborator,organization_member",
+	}
+
+	accessibleRepos, _, err := c.client.Repositories.ListByAuthenticatedUser(ctx, searchOpts)
+	if err != nil {
+		log.Printf("Warning: failed to get accessible repositories: %v", err)
+	} else {
+		log.Printf("Found %d accessible repositories for authenticated user", len(accessibleRepos))
+
+		for _, repo := range accessibleRepos {
+			repoName := repo.GetFullName()
+			log.Printf("Checking accessible repository: %s", repoName)
+
+			// Skip if we already added it from owned repositories
+			alreadyAdded := false
+			for _, existing := range allRepos {
+				if existing.FullName == repoName {
+					alreadyAdded = true
+					break
+				}
+			}
+
+			if !alreadyAdded && c.filter.ShouldIncludeRepository(repoName) {
+				allRepos = append(allRepos, FromGitHubRepository(repo))
+				log.Printf("Added accessible repository to filtered list: %s", repoName)
+			}
+		}
+	}
+
+	log.Printf("Total filtered repositories: %d", len(allRepos))
+	return allRepos, nil
 }

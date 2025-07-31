@@ -9,33 +9,43 @@ import (
 	"path/filepath"
 	"strings"
 
+	"autoteam/internal/config"
 	"autoteam/internal/entrypoint"
 )
 
-// Setup handles Git configuration and credential management
+// Setup handles Git configuration and credential management for multiple repositories
 type Setup struct {
 	gitConfig    entrypoint.GitConfig
 	githubConfig entrypoint.GitHubConfig
+	repositories *config.Repositories
+	clonedRepos  map[string]bool // tracks which repositories have been cloned
 }
 
-// NewSetup creates a new Git setup instance
-func NewSetup(gitConfig entrypoint.GitConfig, githubConfig entrypoint.GitHubConfig) *Setup {
+// NewSetup creates a new Git setup instance for multi-repository operations
+func NewSetup(gitConfig entrypoint.GitConfig, githubConfig entrypoint.GitHubConfig, repositories *config.Repositories) *Setup {
 	return &Setup{
 		gitConfig:    gitConfig,
 		githubConfig: githubConfig,
+		repositories: repositories,
+		clonedRepos:  make(map[string]bool),
 	}
 }
 
 // getRepositoryOwner extracts the owner from repository URL (e.g., "owner/repo" -> "owner")
-func (s *Setup) getRepositoryOwner() string {
-	parts := strings.Split(s.githubConfig.Repository, "/")
+func (s *Setup) getRepositoryOwner(repository string) string {
+	parts := strings.Split(repository, "/")
 	if len(parts) >= 1 {
 		return parts[0]
 	}
 	return ""
 }
 
-// Configure sets up Git configuration and credentials
+// normalizeRepositoryName converts "owner/repo" to "owner-repo" for directory names
+func (s *Setup) normalizeRepositoryName(repository string) string {
+	return strings.ReplaceAll(repository, "/", "-")
+}
+
+// Configure sets up Git configuration and credentials for multi-repository operations
 func (s *Setup) Configure(ctx context.Context) error {
 	log.Println("Setting up Git configuration and credentials...")
 
@@ -59,12 +69,8 @@ func (s *Setup) Configure(ctx context.Context) error {
 		return fmt.Errorf("failed to setup credentials file: %w", err)
 	}
 
-	// Clone or update repository
-	if err := s.setupRepository(ctx); err != nil {
-		return fmt.Errorf("failed to setup repository: %w", err)
-	}
-
 	log.Println("Git configuration completed successfully")
+	log.Println("Repositories will be cloned on-demand when needed")
 	return nil
 }
 
@@ -79,10 +85,10 @@ func (s *Setup) checkGitAvailable(ctx context.Context) error {
 
 // configureGitUser sets up the global Git user configuration
 func (s *Setup) configureGitUser(ctx context.Context) error {
-	// Determine user name - use provided user or repository owner
+	// Determine user name - use provided user or fall back to first repository owner
 	userName := s.gitConfig.User
-	if userName == "" {
-		userName = s.getRepositoryOwner()
+	if userName == "" && len(s.repositories.Include) > 0 {
+		userName = s.getRepositoryOwner(s.repositories.Include[0])
 	}
 
 	// Set user name
@@ -142,74 +148,102 @@ func (s *Setup) setupCredentialsFile() error {
 	}
 
 	log.Printf("Created git credentials file at: %s", credentialsPath)
-	log.Printf("Repository URL format: https://github.com/%s.git", s.githubConfig.Repository)
+	log.Println("Will support all repositories configured for this agent")
 	return nil
 }
 
-// setupRepository clones or updates the repository
-func (s *Setup) setupRepository(ctx context.Context) error {
-	workingDir := s.getWorkingDirectory()
+// SetupRepository clones or updates a specific repository on-demand
+func (s *Setup) SetupRepository(ctx context.Context, repository string) error {
+	if !s.repositories.ShouldIncludeRepository(repository) {
+		return fmt.Errorf("repository %s is not included in the configured patterns", repository)
+	}
+
+	workingDir := s.getRepositoryWorkingDirectory(repository)
 
 	// Create the working directory if it doesn't exist
 	if err := os.MkdirAll(workingDir, 0755); err != nil {
-		return fmt.Errorf("failed to create working directory: %w", err)
-	}
-
-	// Change to the working directory
-	if err := os.Chdir(workingDir); err != nil {
-		return fmt.Errorf("failed to change to working directory: %w", err)
+		return fmt.Errorf("failed to create working directory for %s: %w", repository, err)
 	}
 
 	// Check if repository is already cloned
-	if s.isRepositoryCloned() {
-		log.Println("Repository already cloned, updating...")
-		return s.updateRepository(ctx)
+	if s.isRepositoryCloned(repository) {
+		log.Printf("Repository %s already cloned, updating...", repository)
+		return s.updateRepository(ctx, repository)
 	}
 
-	log.Println("Cloning repository...")
-	return s.cloneRepository(ctx)
+	log.Printf("Cloning repository %s...", repository)
+	return s.cloneRepository(ctx, repository)
 }
 
-// isRepositoryCloned checks if the repository is already cloned
-func (s *Setup) isRepositoryCloned() bool {
-	if _, err := os.Stat(".git"); os.IsNotExist(err) {
+// isRepositoryCloned checks if a specific repository is already cloned
+func (s *Setup) isRepositoryCloned(repository string) bool {
+	workingDir := s.getRepositoryWorkingDirectory(repository)
+	gitDir := filepath.Join(workingDir, ".git")
+	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
 		return false
 	}
+	s.clonedRepos[repository] = true
 	return true
 }
 
-// cloneRepository clones the repository using HTTPS
-func (s *Setup) cloneRepository(ctx context.Context) error {
-	repoURL := fmt.Sprintf("https://github.com/%s.git", s.githubConfig.Repository)
+// cloneRepository clones a specific repository using HTTPS
+func (s *Setup) cloneRepository(ctx context.Context, repository string) error {
+	workingDir := s.getRepositoryWorkingDirectory(repository)
+	repoURL := fmt.Sprintf("https://github.com/%s.git", repository)
 
-	cmd := exec.CommandContext(ctx, "git", "clone", repoURL, ".")
+	cmd := exec.CommandContext(ctx, "git", "clone", repoURL, workingDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to clone repository: %w", err)
+		return fmt.Errorf("failed to clone repository %s: %w", repository, err)
 	}
 
-	log.Printf("Successfully cloned repository: %s", s.githubConfig.Repository)
+	s.clonedRepos[repository] = true
+	log.Printf("Successfully cloned repository: %s to %s", repository, workingDir)
 	return nil
 }
 
-// updateRepository updates the existing repository
-func (s *Setup) updateRepository(ctx context.Context) error {
+// updateRepository updates an existing repository
+func (s *Setup) updateRepository(ctx context.Context, repository string) error {
+	workingDir := s.getRepositoryWorkingDirectory(repository)
+
+	// Change to repository directory
+	if err := os.Chdir(workingDir); err != nil {
+		return fmt.Errorf("failed to change to repository directory %s: %w", workingDir, err)
+	}
+
 	// Fetch latest changes
 	cmd := exec.CommandContext(ctx, "git", "fetch", "origin")
 	if err := cmd.Run(); err != nil {
-		log.Printf("Warning: failed to fetch from origin: %v", err)
+		log.Printf("Warning: failed to fetch from origin for %s: %v", repository, err)
 	}
 
-	log.Println("Repository updated")
+	log.Printf("Repository %s updated", repository)
 	return nil
 }
 
-// getWorkingDirectory returns the working directory path
-func (s *Setup) getWorkingDirectory() string {
+// getRepositoryWorkingDirectory returns the working directory path for a specific repository
+func (s *Setup) getRepositoryWorkingDirectory(repository string) string {
 	// Use agent-specific path for container deployments
 	// Require normalized name for directory structure
+	agentName := os.Getenv("AGENT_NORMALIZED_NAME")
+	if agentName == "" {
+		panic("AGENT_NORMALIZED_NAME environment variable is required but not set")
+	}
+
+	// Normalize repository name for directory structure
+	normalizedRepo := s.normalizeRepositoryName(repository)
+	return fmt.Sprintf("/opt/autoteam/agents/%s/codebase/%s", agentName, normalizedRepo)
+}
+
+// GetRepositoryWorkingDirectory returns the working directory path for a repository (public method)
+func (s *Setup) GetRepositoryWorkingDirectory(repository string) string {
+	return s.getRepositoryWorkingDirectory(repository)
+}
+
+// GetWorkingDirectory returns the base working directory path
+func (s *Setup) GetWorkingDirectory() string {
 	agentName := os.Getenv("AGENT_NORMALIZED_NAME")
 	if agentName == "" {
 		panic("AGENT_NORMALIZED_NAME environment variable is required but not set")
@@ -217,39 +251,34 @@ func (s *Setup) getWorkingDirectory() string {
 	return fmt.Sprintf("/opt/autoteam/agents/%s/codebase", agentName)
 }
 
-// GetWorkingDirectory returns the working directory path (public method)
-func (s *Setup) GetWorkingDirectory() string {
-	return s.getWorkingDirectory()
-}
-
-// SwitchToMainBranch switches to the main branch and resets to origin
-func (s *Setup) SwitchToMainBranch(ctx context.Context, mainBranch string) error {
-	workingDir := s.getWorkingDirectory()
+// SwitchToMainBranch switches to the main branch and resets to origin for a specific repository
+func (s *Setup) SwitchToMainBranch(ctx context.Context, repository, mainBranch string) error {
+	workingDir := s.getRepositoryWorkingDirectory(repository)
 
 	// Change to working directory
 	if err := os.Chdir(workingDir); err != nil {
-		return fmt.Errorf("failed to change to working directory: %w", err)
+		return fmt.Errorf("failed to change to working directory %s: %w", workingDir, err)
 	}
 
 	// Fetch latest changes
 	cmd := exec.CommandContext(ctx, "git", "fetch")
 	if err := cmd.Run(); err != nil {
-		log.Printf("Warning: failed to fetch: %v", err)
+		log.Printf("Warning: failed to fetch for %s: %v", repository, err)
 	}
 
 	// Checkout main branch
 	cmd = exec.CommandContext(ctx, "git", "checkout", mainBranch)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to checkout %s branch: %w", mainBranch, err)
+		return fmt.Errorf("failed to checkout %s branch in %s: %w", mainBranch, repository, err)
 	}
 
 	// Hard reset to origin
 	originBranch := fmt.Sprintf("origin/%s", mainBranch)
 	cmd = exec.CommandContext(ctx, "git", "reset", "--hard", originBranch)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to reset to %s: %w", originBranch, err)
+		return fmt.Errorf("failed to reset to %s in %s: %w", originBranch, repository, err)
 	}
 
-	log.Printf("Switched to %s branch and reset to origin", mainBranch)
+	log.Printf("Switched to %s branch and reset to origin for repository %s", mainBranch, repository)
 	return nil
 }

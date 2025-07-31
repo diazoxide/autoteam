@@ -1,9 +1,9 @@
 # Multi-Role Team Configuration
 # Comprehensive example with multiple specialized agents
 
-repository:
-  url: "owner/large-project"
-  main_branch: "main"
+repositories:
+  include:
+    - "owner/large-project"
 
 agents:
   - name: "developer"

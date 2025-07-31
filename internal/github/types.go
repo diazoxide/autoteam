@@ -16,12 +16,13 @@ type PendingItems struct {
 
 // PullRequestInfo contains information about a pull request
 type PullRequestInfo struct {
-	Number    int       `json:"number"`
-	Title     string    `json:"title"`
-	URL       string    `json:"url"`
-	Author    string    `json:"author"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Number     int       `json:"number"`
+	Title      string    `json:"title"`
+	URL        string    `json:"url"`
+	Author     string    `json:"author"`
+	Repository string    `json:"repository"` // owner/repo format
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 	// For PRs with changes requested
 	HasChangesRequested bool         `json:"has_changes_requested,omitempty"`
 	Reviews             []ReviewInfo `json:"reviews,omitempty"`
@@ -29,13 +30,27 @@ type PullRequestInfo struct {
 
 // IssueInfo contains information about an issue
 type IssueInfo struct {
-	Number    int       `json:"number"`
-	Title     string    `json:"title"`
-	URL       string    `json:"url"`
-	Author    string    `json:"author"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Labels    []string  `json:"labels"`
+	Number     int       `json:"number"`
+	Title      string    `json:"title"`
+	URL        string    `json:"url"`
+	Author     string    `json:"author"`
+	Repository string    `json:"repository"` // owner/repo format
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	Labels     []string  `json:"labels"`
+}
+
+// RepositoryInfo contains information about a repository
+type RepositoryInfo struct {
+	Name          string    `json:"name"`
+	FullName      string    `json:"full_name"` // owner/repo format
+	Owner         string    `json:"owner"`
+	URL           string    `json:"url"`
+	DefaultBranch string    `json:"default_branch"`
+	Private       bool      `json:"private"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	Description   string    `json:"description,omitempty"`
 }
 
 // ReviewInfo contains information about a pull request review
@@ -106,6 +121,31 @@ func FromGitHubReview(review *github.PullRequestReview) ReviewInfo {
 
 	if review.User != nil {
 		info.Author = review.User.GetLogin()
+	}
+
+	return info
+}
+
+// FromGitHubRepository converts a GitHub repository to our RepositoryInfo
+func FromGitHubRepository(repo *github.Repository) RepositoryInfo {
+	info := RepositoryInfo{
+		Name:        repo.GetName(),
+		FullName:    repo.GetFullName(),
+		URL:         repo.GetHTMLURL(),
+		Private:     repo.GetPrivate(),
+		CreatedAt:   repo.GetCreatedAt().Time,
+		UpdatedAt:   repo.GetUpdatedAt().Time,
+		Description: repo.GetDescription(),
+	}
+
+	if repo.Owner != nil {
+		info.Owner = repo.Owner.GetLogin()
+	}
+
+	if repo.DefaultBranch != nil {
+		info.DefaultBranch = *repo.DefaultBranch
+	} else {
+		info.DefaultBranch = "main" // fallback
 	}
 
 	return info

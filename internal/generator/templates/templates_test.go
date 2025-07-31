@@ -25,9 +25,8 @@ func TestComposeTemplate(t *testing.T) {
 
 	// Test data
 	cfg := &config.Config{
-		Repository: config.Repository{
-			URL:        "owner/test-repo",
-			MainBranch: "main",
+		Repositories: config.Repositories{
+			Include: []string{"owner/test-repo"},
 		},
 		Agents: []config.Agent{
 			{
@@ -80,7 +79,7 @@ func TestComposeTemplate(t *testing.T) {
 		"AGENT_NORMALIZED_NAME: dev1",
 		"AGENT_NORMALIZED_NAME: arch1",
 		"AGENT_TYPE: claude",
-		"GITHUB_REPO: owner/test-repo",
+		"REPOSITORIES_INCLUDE: \"owner/test-repo\"",
 		"GH_TOKEN: DEV1_TOKEN",
 		"GH_TOKEN: ARCH1_TOKEN",
 		"TEAM_NAME: test-team",
@@ -168,10 +167,7 @@ func TestComposeTemplateWithMinimalConfig(t *testing.T) {
 
 	// Minimal config with defaults
 	cfg := &config.Config{
-		Repository: config.Repository{
-			URL:        "owner/repo",
-			MainBranch: "main",
-		},
+		Repositories: config.Repositories{Include: []string{"owner/test-repo"}},
 		Agents: []config.Agent{
 			{
 				Name:        "single-agent",
@@ -229,7 +225,7 @@ func TestComposeTemplatePromptEscaping(t *testing.T) {
 
 	// Config with special characters in prompts
 	cfg := &config.Config{
-		Repository: config.Repository{URL: "owner/repo"},
+		Repositories: config.Repositories{Include: []string{"owner/test-repo"}},
 		Agents: []config.Agent{
 			{
 				Name:        "test",
@@ -278,9 +274,7 @@ func TestComposeTemplateWithAgentSpecificSettings(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Repository: config.Repository{
-			URL: "owner/test-repo",
-		},
+		Repositories: config.Repositories{Include: []string{"owner/test-repo"}},
 		Agents: []config.Agent{
 			{
 				Name:        "dev1",
@@ -384,9 +378,7 @@ func TestComposeTemplateWithCustomVolumesAndEntrypoints(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Repository: config.Repository{
-			URL: "owner/test-repo",
-		},
+		Repositories: config.Repositories{Include: []string{"owner/test-repo"}},
 		Agents: []config.Agent{
 			{
 				Name:        "standard-agent",
@@ -509,7 +501,7 @@ func TestComposeTemplateNameNormalization(t *testing.T) {
 
 	// Config with agent names that need normalization
 	cfg := &config.Config{
-		Repository: config.Repository{URL: "owner/repo"},
+		Repositories: config.Repositories{Include: []string{"owner/test-repo"}},
 		Agents: []config.Agent{
 			{
 				Name:        "Senior Developer",

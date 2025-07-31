@@ -7,10 +7,11 @@ set -e  # Exit on any error
 
 echo "=== AutoTeam Agent Starting ==="
 echo "Agent: ${AGENT_NAME:-unknown}"
-echo "Repository: ${GITHUB_REPO:-unknown}"
+echo "Repositories Include: ${REPOSITORIES_INCLUDE:-none}"
+echo "Repositories Exclude: ${REPOSITORIES_EXCLUDE:-none}"
 echo "Current working directory: $(pwd)"
 echo "Available environment variables:"
-printenv | grep -E "(GH_|GITHUB_|AGENT_|TEAM_|CHECK_|INSTALL_|ENTRYPOINT_|MAX_|DEBUG)" | sort || true
+printenv | grep -E "(GH_|GITHUB_|AGENT_|TEAM_|CHECK_|INSTALL_|ENTRYPOINT_|MAX_|DEBUG|REPOSITORIES_)" | sort || true
 echo "================================="
 
 # Detect container platform

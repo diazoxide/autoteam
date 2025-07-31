@@ -14,18 +14,17 @@ const (
 	DefaultDockerImage = "node:18.17.1"
 	DefaultDockerUser  = "developer"
 	DefaultTeamName    = "autoteam"
-	DefaultMainBranch  = "main"
 )
 
 type Config struct {
-	Repository Repository `yaml:"repository"`
-	Agents     []Agent    `yaml:"agents"`
-	Settings   Settings   `yaml:"settings"`
+	Repositories Repositories `yaml:"repositories"`
+	Agents       []Agent      `yaml:"agents"`
+	Settings     Settings     `yaml:"settings"`
 }
 
-type Repository struct {
-	URL        string `yaml:"url"`
-	MainBranch string `yaml:"main_branch"`
+type Repositories struct {
+	Include []string `yaml:"include"`
+	Exclude []string `yaml:"exclude"`
 }
 
 type Agent struct {
@@ -84,9 +83,79 @@ func LoadConfig(filename string) (*Config, error) {
 	return &config, nil
 }
 
+// isRegexPattern checks if a pattern is a regex pattern (wrapped with /)
+func isRegexPattern(pattern string) bool {
+	return strings.HasPrefix(pattern, "/") && strings.HasSuffix(pattern, "/") && len(pattern) > 2
+}
+
+// extractRegexPattern extracts the regex pattern from /pattern/ format
+func extractRegexPattern(pattern string) string {
+	if !isRegexPattern(pattern) {
+		return pattern
+	}
+	return pattern[1 : len(pattern)-1]
+}
+
+// matchesPattern checks if a repository name matches a pattern (exact or regex)
+func matchesPattern(repoName, pattern string) bool {
+	if isRegexPattern(pattern) {
+		regex, err := regexp.Compile(extractRegexPattern(pattern))
+		if err != nil {
+			return false // Invalid regex, no match
+		}
+		return regex.MatchString(repoName)
+	}
+	return repoName == pattern
+}
+
+// ShouldIncludeRepository determines if a repository should be included based on include/exclude patterns
+func (r *Repositories) ShouldIncludeRepository(repoName string) bool {
+	// If no include patterns specified, include all by default
+	includeAll := len(r.Include) == 0
+
+	// Check include patterns
+	if !includeAll {
+		included := false
+		for _, pattern := range r.Include {
+			if matchesPattern(repoName, pattern) {
+				included = true
+				break
+			}
+		}
+		if !included {
+			return false
+		}
+	}
+
+	// Check exclude patterns
+	for _, pattern := range r.Exclude {
+		if matchesPattern(repoName, pattern) {
+			return false
+		}
+	}
+
+	return true
+}
+
 func validateConfig(config *Config) error {
-	if config.Repository.URL == "" {
-		return fmt.Errorf("repository.url is required")
+	if len(config.Repositories.Include) == 0 && len(config.Repositories.Exclude) == 0 {
+		return fmt.Errorf("at least one repository must be specified in repositories.include")
+	}
+
+	// Validate regex patterns
+	for i, pattern := range config.Repositories.Include {
+		if isRegexPattern(pattern) {
+			if _, err := regexp.Compile(extractRegexPattern(pattern)); err != nil {
+				return fmt.Errorf("repositories.include[%d]: invalid regex pattern '%s': %w", i, pattern, err)
+			}
+		}
+	}
+	for i, pattern := range config.Repositories.Exclude {
+		if isRegexPattern(pattern) {
+			if _, err := regexp.Compile(extractRegexPattern(pattern)); err != nil {
+				return fmt.Errorf("repositories.exclude[%d]: invalid regex pattern '%s': %w", i, pattern, err)
+			}
+		}
 	}
 
 	if len(config.Agents) == 0 {
@@ -127,16 +196,19 @@ func setDefaults(config *Config) {
 	if config.Settings.MaxAttempts == 0 {
 		config.Settings.MaxAttempts = 3
 	}
-	if config.Repository.MainBranch == "" {
-		config.Repository.MainBranch = DefaultMainBranch
-	}
 }
 
 func CreateSampleConfig(filename string) error {
 	sampleConfig := Config{
-		Repository: Repository{
-			URL:        "owner/repo-name",
-			MainBranch: DefaultMainBranch,
+		Repositories: Repositories{
+			Include: []string{
+				"myorg/project-alpha",
+				"/myorg\\/backend-.*/",
+			},
+			Exclude: []string{
+				"myorg/legacy-project",
+				"/.*-archived$/",
+			},
 		},
 		Agents: []Agent{
 			{

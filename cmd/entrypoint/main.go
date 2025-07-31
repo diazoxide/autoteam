@@ -44,11 +44,18 @@ func main() {
 				Required: true,
 				Sources:  cli.EnvVars("GH_TOKEN"),
 			},
+
+			// Repositories Configuration (multi-repo mode)
 			&cli.StringFlag{
-				Name:     "github-repo",
-				Usage:    "GitHub repository in format 'owner/repo'",
+				Name:     "repositories-include",
+				Usage:    "Comma-separated list of repository patterns to include (supports regex with /pattern/)",
 				Required: true,
-				Sources:  cli.EnvVars("GITHUB_REPO"),
+				Sources:  cli.EnvVars("REPOSITORIES_INCLUDE"),
+			},
+			&cli.StringFlag{
+				Name:    "repositories-exclude",
+				Usage:   "Comma-separated list of repository patterns to exclude (supports regex with /pattern/)",
+				Sources: cli.EnvVars("REPOSITORIES_EXCLUDE"),
 			},
 
 			// Agent Configuration
@@ -156,7 +163,13 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	log.Printf("Starting AutoTeam Entrypoint %s", Version)
-	log.Printf("Agent: %s, Repository: %s", cfg.Agent.Name, cfg.GitHub.Repository)
+	log.Printf("Agent: %s", cfg.Agent.Name)
+	if len(cfg.Repositories.Include) > 0 {
+		log.Printf("Repositories Include: %v", cfg.Repositories.Include)
+	}
+	if len(cfg.Repositories.Exclude) > 0 {
+		log.Printf("Repositories Exclude: %v", cfg.Repositories.Exclude)
+	}
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)
@@ -171,8 +184,8 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		cancel()
 	}()
 
-	// Initialize GitHub client
-	githubClient, err := github.NewClient(cfg.GitHub.Token, cfg.GitHub.Repository)
+	// Initialize GitHub client with repositories filter
+	githubClient, err := github.NewClientFromConfig(cfg.GitHub.Token, cfg.Repositories)
 	if err != nil {
 		return fmt.Errorf("failed to create GitHub client: %w", err)
 	}
@@ -201,7 +214,7 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// Setup Git configuration and credentials
-	gitSetup := git.NewSetup(cfg.Git, cfg.GitHub)
+	gitSetup := git.NewSetup(cfg.Git, cfg.GitHub, cfg.Repositories)
 	if err := gitSetup.Configure(ctx); err != nil {
 		return fmt.Errorf("failed to setup git: %w", err)
 	}
@@ -227,11 +240,15 @@ func buildConfigFromFlags(cmd *cli.Command) (*entrypoint.Config, error) {
 
 	// GitHub configuration
 	cfg.GitHub.Token = cmd.String("gh-token")
-	cfg.GitHub.Repository = cmd.String("github-repo")
 
-	// Parse owner/repo from repository string
-	if err := cfg.ParseRepository(); err != nil {
-		return nil, fmt.Errorf("failed to parse repository: %w", err)
+	// Repositories configuration (multi-repo mode)
+	includeStr := cmd.String("repositories-include")
+	excludeStr := cmd.String("repositories-exclude")
+	cfg.Repositories = entrypoint.BuildRepositoriesConfig(includeStr, excludeStr)
+
+	// Validate that at least one repository is included
+	if len(cfg.Repositories.Include) == 0 {
+		return nil, fmt.Errorf("at least one repository must be configured via REPOSITORIES_INCLUDE")
 	}
 
 	// Agent configuration

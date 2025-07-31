@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
+
+	"autoteam/internal/config"
 )
 
 // Config represents the complete configuration for the entrypoint
 type Config struct {
 	GitHub       GitHubConfig
+	Repositories *config.Repositories
 	Agent        AgentConfig
 	Git          GitConfig
 	Monitoring   MonitoringConfig
@@ -19,10 +23,7 @@ type Config struct {
 
 // GitHubConfig contains GitHub-related configuration
 type GitHubConfig struct {
-	Token      string
-	Repository string
-	Owner      string
-	Repo       string
+	Token string
 }
 
 // AgentConfig contains AI agent configuration
@@ -60,14 +61,14 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("GH_TOKEN environment variable is required")
 	}
 
-	cfg.GitHub.Repository = os.Getenv("GITHUB_REPO")
-	if cfg.GitHub.Repository == "" {
-		return nil, fmt.Errorf("GITHUB_REPO environment variable is required")
-	}
+	// Repositories configuration
+	includeStr := os.Getenv("REPOSITORIES_INCLUDE")
+	excludeStr := os.Getenv("REPOSITORIES_EXCLUDE")
+	cfg.Repositories = BuildRepositoriesConfig(includeStr, excludeStr)
 
-	// Parse owner/repo from repository string
-	if err := cfg.ParseRepository(); err != nil {
-		return nil, fmt.Errorf("failed to parse repository: %w", err)
+	// Validate that at least one repository is included
+	if len(cfg.Repositories.Include) == 0 {
+		return nil, fmt.Errorf("at least one repository must be configured via REPOSITORIES_INCLUDE")
 	}
 
 	// Agent configuration
@@ -107,40 +108,6 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// ParseRepository parses the GITHUB_REPO into owner and repo
-func (c *Config) ParseRepository() error {
-	repo := c.GitHub.Repository
-	if repo == "" {
-		return fmt.Errorf("repository is empty")
-	}
-
-	// Split owner/repo format
-	parts := make([]string, 0, 2)
-	current := ""
-	for _, char := range repo {
-		if char == '/' {
-			if current != "" {
-				parts = append(parts, current)
-				current = ""
-			}
-		} else {
-			current += string(char)
-		}
-	}
-	if current != "" {
-		parts = append(parts, current)
-	}
-
-	if len(parts) != 2 {
-		return fmt.Errorf("repository must be in format 'owner/repo', got: %s", repo)
-	}
-
-	c.GitHub.Owner = parts[0]
-	c.GitHub.Repo = parts[1]
-
-	return nil
-}
-
 // getEnvOrDefault returns the environment variable value or a default value
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
@@ -154,8 +121,8 @@ func (c *Config) Validate() error {
 	if c.GitHub.Token == "" {
 		return fmt.Errorf("GitHub token is required")
 	}
-	if c.GitHub.Owner == "" || c.GitHub.Repo == "" {
-		return fmt.Errorf("GitHub repository owner and repo are required")
+	if len(c.Repositories.Include) == 0 {
+		return fmt.Errorf("at least one repository must be configured via repositories include")
 	}
 	if c.Agent.Name == "" {
 		return fmt.Errorf("agent name is required")
@@ -167,4 +134,33 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("max retries must be at least 1")
 	}
 	return nil
+}
+
+// parseRepositoriesFromString parses comma-separated repository patterns
+func parseRepositoriesFromString(patterns string) []string {
+	if patterns == "" {
+		return nil
+	}
+
+	var result []string
+	for _, pattern := range strings.Split(patterns, ",") {
+		pattern = strings.TrimSpace(pattern)
+		if pattern != "" {
+			result = append(result, pattern)
+		}
+	}
+	return result
+}
+
+// BuildRepositoriesConfig creates repositories configuration from environment variables
+func BuildRepositoriesConfig(includeStr, excludeStr string) *config.Repositories {
+	repositories := &config.Repositories{}
+
+	// Parse include patterns
+	repositories.Include = parseRepositoriesFromString(includeStr)
+
+	// Parse exclude patterns
+	repositories.Exclude = parseRepositoriesFromString(excludeStr)
+
+	return repositories
 }

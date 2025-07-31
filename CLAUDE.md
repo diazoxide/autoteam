@@ -19,6 +19,20 @@
 - All tests pass - context-based architecture working correctly
 - Docker Compose commands now use configured team_name instead of default "autoteam"
 
+## Multi-Repository Architecture
+- Complete multi-repository support with pattern matching and regex
+- Repository filtering with include/exclude patterns using `/pattern/` syntax
+- Cross-repository GitHub API operations with filtering
+- Per-repository git working directories: `/opt/autoteam/agents/{agent}/codebase/{owner-repo}`
+- Repository-aware state management and item tracking
+- On-demand repository cloning when processing items
+
+## Configuration Architecture
+- Main `autoteam` command reads `autoteam.yaml` with repositories configuration
+- Entrypoint command uses multi-repository environment variables (no YAML dependency)
+- REPOSITORIES_INCLUDE/REPOSITORIES_EXCLUDE environment variables (comma-separated patterns)
+- Clean separation: YAML config for main command, env vars for containerized entrypoint
+
 ## Single Item Processing System
 - Implemented complete single item processing workflow with state management
 - Added processing state persistence in `.autoteam/processing_state.json`

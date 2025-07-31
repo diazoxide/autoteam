@@ -99,9 +99,8 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 
 func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 	cfg := &Config{
-		Repository: Repository{
-			URL:        "owner/repo",
-			MainBranch: "main",
+		Repositories: Repositories{
+			Include: []string{"owner/repo"},
 		},
 		Agents: []Agent{
 			{

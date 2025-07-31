@@ -70,72 +70,72 @@ func (rd *ResolutionDetector) CheckItemResolution(ctx context.Context, item *Pro
 // checkInReviewRequests checks if item exists in review requests
 func (rd *ResolutionDetector) checkInReviewRequests(item *ProcessingItem, reviewRequests []github.PullRequestInfo) ResolutionResult {
 	for _, pr := range reviewRequests {
-		if pr.Number == item.Number {
+		if pr.Number == item.Number && pr.Repository == item.Repository {
 			// Item still exists, check if it has changed
 			if pr.Title != item.Title || pr.URL != item.URL {
-				log.Printf("Review request #%d has changed: title or URL updated", item.Number)
+				log.Printf("Review request #%d in %s has changed: title or URL updated", item.Number, item.Repository)
 				return ItemChanged
 			}
-			log.Printf("Review request #%d still pending", item.Number)
+			log.Printf("Review request #%d in %s still pending", item.Number, item.Repository)
 			return ItemStillPending
 		}
 	}
 
-	log.Printf("Review request #%d no longer in pending list - likely resolved", item.Number)
+	log.Printf("Review request #%d in %s no longer in pending list - likely resolved", item.Number, item.Repository)
 	return ItemNotFound
 }
 
 // checkInAssignedPRs checks if item exists in assigned PRs
 func (rd *ResolutionDetector) checkInAssignedPRs(item *ProcessingItem, assignedPRs []github.PullRequestInfo) ResolutionResult {
 	for _, pr := range assignedPRs {
-		if pr.Number == item.Number {
+		if pr.Number == item.Number && pr.Repository == item.Repository {
 			// Item still exists, check if it has changed
 			if pr.Title != item.Title || pr.URL != item.URL {
-				log.Printf("Assigned PR #%d has changed: title or URL updated", item.Number)
+				log.Printf("Assigned PR #%d in %s has changed: title or URL updated", item.Number, item.Repository)
 				return ItemChanged
 			}
-			log.Printf("Assigned PR #%d still pending", item.Number)
+			log.Printf("Assigned PR #%d in %s still pending", item.Number, item.Repository)
 			return ItemStillPending
 		}
 	}
 
-	log.Printf("Assigned PR #%d no longer in pending list - likely resolved", item.Number)
+	log.Printf("Assigned PR #%d in %s no longer in pending list - likely resolved", item.Number, item.Repository)
 	return ItemNotFound
 }
 
 // checkInAssignedIssues checks if item exists in assigned issues
 func (rd *ResolutionDetector) checkInAssignedIssues(item *ProcessingItem, assignedIssues []github.IssueInfo) ResolutionResult {
 	for _, issue := range assignedIssues {
-		if issue.Number == item.Number {
+		if issue.Number == item.Number && issue.Repository == item.Repository {
 			// Item still exists, check if it has changed
 			if issue.Title != item.Title || issue.URL != item.URL {
-				log.Printf("Assigned issue #%d has changed: title or URL updated", item.Number)
+				log.Printf("Assigned issue #%d in %s has changed: title or URL updated", item.Number, item.Repository)
 				return ItemChanged
 			}
-			log.Printf("Assigned issue #%d still pending", item.Number)
+			log.Printf("Assigned issue #%d in %s still pending", item.Number, item.Repository)
 			return ItemStillPending
 		}
 	}
 
-	log.Printf("Assigned issue #%d no longer in pending list - likely resolved", item.Number)
+	log.Printf("Assigned issue #%d in %s no longer in pending list - likely resolved", item.Number, item.Repository)
 	return ItemNotFound
 }
 
 // checkInPRsWithChanges checks if item exists in PRs with changes requested
 func (rd *ResolutionDetector) checkInPRsWithChanges(item *ProcessingItem, prsWithChanges []github.PullRequestInfo) ResolutionResult {
 	for _, pr := range prsWithChanges {
-		if pr.Number == item.Number {
+		if pr.Number == item.Number && pr.Repository == item.Repository {
 			// Item still exists, check if it has changed
 			if pr.Title != item.Title || pr.URL != item.URL {
-				log.Printf("PR with changes #%d has changed: title or URL updated", item.Number)
+				log.Printf("PR with changes #%d in %s has changed: title or URL updated", item.Number, item.Repository)
 				return ItemChanged
 			}
-			log.Printf("PR with changes #%d still pending", item.Number)
+			log.Printf("PR with changes #%d in %s still pending", item.Number, item.Repository)
 			return ItemStillPending
 		}
 	}
 
-	log.Printf("PR with changes #%d no longer in pending list - likely resolved", item.Number)
+	log.Printf("PR with changes #%d in %s no longer in pending list - likely resolved", item.Number, item.Repository)
 	return ItemNotFound
 }
 
@@ -143,10 +143,10 @@ func (rd *ResolutionDetector) checkInPRsWithChanges(item *ProcessingItem, prsWit
 func LogResolutionResult(result ResolutionResult, item *ProcessingItem) {
 	switch result {
 	case ItemNotFound:
-		log.Printf("✅ SUCCESS: %s #%d appears to be resolved", item.Type, item.Number)
+		log.Printf("✅ SUCCESS: %s #%d in %s appears to be resolved", item.Type, item.Number, item.Repository)
 	case ItemStillPending:
-		log.Printf("⚠️  STILL PENDING: %s #%d requires more work", item.Type, item.Number)
+		log.Printf("⚠️  STILL PENDING: %s #%d in %s requires more work", item.Type, item.Number, item.Repository)
 	case ItemChanged:
-		log.Printf("🔄 CHANGED: %s #%d has been modified (partial progress)", item.Type, item.Number)
+		log.Printf("🔄 CHANGED: %s #%d in %s has been modified (partial progress)", item.Type, item.Number, item.Repository)
 	}
 }

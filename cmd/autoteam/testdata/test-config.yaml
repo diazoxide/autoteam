@@ -1,6 +1,6 @@
-repository:
-  url: "owner/integration-test"
-  main_branch: "main"
+repositories:
+  include:
+    - "owner/integration-test"
 
 agents:
   - name: "dev1"
