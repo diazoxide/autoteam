@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"autoteam/internal/config"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -65,7 +66,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 
 		// Start with the service configuration from settings
 		serviceConfig := make(map[string]interface{})
-		
+
 		// Copy all service properties from effective settings
 		if settings.Service != nil {
 			for key, value := range settings.Service {
@@ -82,7 +83,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 			fmt.Sprintf("./agents/%s/codebase:/opt/autoteam/agents/%s/codebase", serviceName, serviceName),
 			"./entrypoints:/opt/autoteam/entrypoints:ro",
 		}
-		
+
 		// Add any additional volumes from service config
 		if existingVolumes, ok := serviceConfig["volumes"]; ok {
 			if volumeSlice, ok := existingVolumes.([]string); ok {
@@ -100,7 +101,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 
 		// Build environment variables
 		environment := make(map[string]string)
-		
+
 		// Add standard environment variables
 		environment["IS_SANDBOX"] = "1"
 		environment["GH_TOKEN"] = agent.GitHubToken
@@ -212,4 +213,3 @@ func (g *Generator) createAgentDirectories(cfg *config.Config) error {
 
 	return nil
 }
-

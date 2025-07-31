@@ -192,8 +192,8 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 	globalSettings := Settings{
 		Service: map[string]interface{}{
-			"image": "node:18",
-			"user":  "developer",
+			"image":   "node:18",
+			"user":    "developer",
 			"volumes": []string{"./global-vol:/app/global"},
 			"environment": map[string]string{
 				"GLOBAL_VAR": "global_value",
@@ -228,8 +228,8 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 			},
 			expectedResult: Settings{
 				Service: map[string]interface{}{
-					"image": "node:18",
-					"user":  "developer",
+					"image":   "node:18",
+					"user":    "developer",
 					"volumes": []string{"./custom-vol:/app/custom", "/host/path:/container/path:ro"},
 					"environment": map[string]string{
 						"GLOBAL_VAR": "global_value",
@@ -256,9 +256,9 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 			},
 			expectedResult: Settings{
 				Service: map[string]interface{}{
-					"image": "node:18",
-					"user":  "developer",
-					"volumes": []string{"./global-vol:/app/global"},
+					"image":      "node:18",
+					"user":       "developer",
+					"volumes":    []string{"./global-vol:/app/global"},
 					"entrypoint": []string{"/custom/entrypoint.sh"},
 					"environment": map[string]string{
 						"GLOBAL_VAR": "global_value",
@@ -288,8 +288,8 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 			},
 			expectedResult: Settings{
 				Service: map[string]interface{}{
-					"image": "node:18",
-					"user":  "developer",
+					"image":   "node:18",
+					"user":    "developer",
 					"volumes": []string{"./global-vol:/app/global"},
 					"environment": map[string]string{
 						"GLOBAL_VAR": "global_value",
@@ -311,18 +311,18 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 				GitHubUser:  "test-user",
 				Settings: &AgentSettings{
 					Service: map[string]interface{}{
-						"image": "python:3.11",
-						"volumes": []string{"./python-vol:/app/python"},
-						"entrypoint": []string{"python", "/app/main.py"},
+						"image":       "python:3.11",
+						"volumes":     []string{"./python-vol:/app/python"},
+						"entrypoint":  []string{"python", "/app/main.py"},
 						"environment": map[string]string{"PYTHON_ENV": "production"},
 					},
 				},
 			},
 			expectedResult: Settings{
 				Service: map[string]interface{}{
-					"image": "python:3.11",
-					"user":  "developer",
-					"volumes": []string{"./python-vol:/app/python"},
+					"image":      "python:3.11",
+					"user":       "developer",
+					"volumes":    []string{"./python-vol:/app/python"},
 					"entrypoint": []string{"python", "/app/main.py"},
 					"environment": map[string]string{
 						"GLOBAL_VAR": "global_value",

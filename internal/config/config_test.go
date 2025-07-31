@@ -67,9 +67,9 @@ func TestLoadConfig_Valid(t *testing.T) {
 						"image": "node:18.17.1", // default
 						"user":  "developer",    // default
 					},
-					CheckInterval: 60,        // default
+					CheckInterval: 60,         // default
 					TeamName:      "autoteam", // default
-					InstallDeps:   false,     // default
+					InstallDeps:   false,      // default
 				},
 			},
 		},

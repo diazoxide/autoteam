@@ -7,6 +7,7 @@ import (
 
 	"autoteam/internal/config"
 	"autoteam/internal/testutil"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -44,7 +45,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 				GitHubUser:  "arch-user",
 				Settings: &config.AgentSettings{
 					Service: map[string]interface{}{
-						"image": "python:3.11",
+						"image":   "python:3.11",
 						"volumes": []string{"./custom-vol:/app/custom"},
 					},
 				},
@@ -52,8 +53,8 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 		},
 		Settings: config.Settings{
 			Service: map[string]interface{}{
-				"image": "node:18",
-				"user":  "testuser",
+				"image":   "node:18",
+				"user":    "testuser",
 				"volumes": []string{"./shared:/app/shared"},
 			},
 			CheckInterval: 30,
@@ -103,7 +104,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 		t.Errorf("arch1 service should inherit global user, got %v", arch1Service["user"])
 	}
 
-	// Verify environment variables are set correctly  
+	// Verify environment variables are set correctly
 	// The YAML unmarshaling converts environment to map[string]interface{}
 	dev1EnvInterface := dev1Service["environment"].(map[string]interface{})
 	if dev1EnvInterface["AGENT_NAME"] != "dev1" {
@@ -225,7 +226,7 @@ func TestGenerator_GenerateComposeYAML(t *testing.T) {
 	}
 
 	gen := New()
-	
+
 	// Ensure .autoteam directory exists
 	if err := os.MkdirAll(".autoteam", 0755); err != nil {
 		t.Fatalf("failed to create .autoteam directory: %v", err)

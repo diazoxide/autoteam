@@ -34,12 +34,12 @@ type Agent struct {
 }
 
 type AgentSettings struct {
-	CheckInterval *int                    `yaml:"check_interval,omitempty"`
-	TeamName      *string                 `yaml:"team_name,omitempty"`
-	InstallDeps   *bool                   `yaml:"install_deps,omitempty"`
-	CommonPrompt  *string                 `yaml:"common_prompt,omitempty"`
-	MaxAttempts   *int                    `yaml:"max_attempts,omitempty"`
-	Service       map[string]interface{}  `yaml:"service,omitempty"`
+	CheckInterval *int                   `yaml:"check_interval,omitempty"`
+	TeamName      *string                `yaml:"team_name,omitempty"`
+	InstallDeps   *bool                  `yaml:"install_deps,omitempty"`
+	CommonPrompt  *string                `yaml:"common_prompt,omitempty"`
+	MaxAttempts   *int                   `yaml:"max_attempts,omitempty"`
+	Service       map[string]interface{} `yaml:"service,omitempty"`
 }
 
 type Settings struct {
@@ -273,7 +273,7 @@ func mergeServiceConfigs(global, agent map[string]interface{}) map[string]interf
 	// Override/merge with agent config
 	for key, agentValue := range agent {
 		globalValue, exists := result[key]
-		
+
 		// If key doesn't exist in global, just add it
 		if !exists {
 			result[key] = agentValue
@@ -312,7 +312,7 @@ func copyServiceConfig(source map[string]interface{}) map[string]interface{} {
 	if source == nil {
 		return nil
 	}
-	
+
 	result := make(map[string]interface{})
 	for key, value := range source {
 		// Special handling for map types (like environment)
