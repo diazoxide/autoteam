@@ -319,7 +319,12 @@ func (m *Monitor) buildPrompt(pendingList string) string {
 	}
 
 	// Add important instructions at the end
-	importantPrompt := "IMPORTANT: Submit only one Pull Request per iteration. Avoid the '1 PR = 1 commit' approach. Large Pull Requests should be broken down into multiple small, logical commits that each represent a cohesive change."
+	importantPrompt := `IMPORTANT GUIDELINES:
+- Work systematically and thoroughly on each assigned item
+- Provide clear documentation of your work and decisions
+- Collaborate effectively with team members when needed
+- Follow project standards and best practices for your role
+- Communicate progress and blockers transparently`
 	promptParts = append(promptParts, "", importantPrompt)
 
 	return strings.Join(promptParts, "\n")
@@ -361,7 +366,7 @@ func (m *Monitor) buildItemPrompt(item *ProcessingItem, continueMode bool) strin
 	}
 
 	// Add important instructions
-	importantPrompt := "IMPORTANT: Focus only on the specific item mentioned above. Submit only one Pull Request per iteration. Ensure your work fully addresses the requirements before completing."
+	importantPrompt := `IMPORTANT: Focus exclusively on the specific item mentioned above. Complete your work thoroughly and ensure all requirements are fully addressed. If you make changes to the codebase, test them appropriately for your role and document your approach.`
 	promptParts = append(promptParts, "", importantPrompt)
 
 	return strings.Join(promptParts, "\n")
