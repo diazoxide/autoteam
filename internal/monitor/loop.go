@@ -341,7 +341,7 @@ func (m *Monitor) buildItemPrompt(item *ProcessingItem, continueMode bool) strin
 		itemContext = fmt.Sprintf("🧷 Assigned PR: [#%d](%s) %s\n\nThis pull request is assigned to you. Please work on it.",
 			item.Number, item.URL, item.Title)
 	case "assigned_issue":
-		itemContext = fmt.Sprintf("🚧 Assigned Issue: [#%d](%s) %s\n\nThis issue is assigned to you. Please address it.",
+		itemContext = fmt.Sprintf("🚧 Assigned Issue: [#%d](%s) %s\n\nThis issue is assigned to you. Please address it. IMPORTANT: If this issue doesn't require a PR and is completed, make sure to close the issue when done.",
 			item.Number, item.URL, item.Title)
 	case "pr_with_changes":
 		itemContext = fmt.Sprintf("🛠 PR with Changes Requested: [#%d](%s) %s\n\nThis is your pull request that has changes requested. Please address the feedback and then re-request review from the reviewers who requested changes. \n\nIMPORTANT: After making your changes, use the GitHub interface to re-request review so the reviewers are notified.",
