@@ -14,10 +14,12 @@ import (
 	"autoteam/internal/entrypoint"
 	"autoteam/internal/git"
 	"autoteam/internal/github"
+	"autoteam/internal/logger"
 	"autoteam/internal/monitor"
 
 	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
+	"go.uber.org/zap"
 )
 
 // Build-time variables (set by ldflags)
@@ -136,6 +138,13 @@ func main() {
 				Name:  "verbose",
 				Usage: "Enable verbose logging",
 			},
+			&cli.StringFlag{
+				Name:    "log-level",
+				Aliases: []string{"l"},
+				Usage:   "Set log level (debug, info, warn, error)",
+				Value:   "info",
+				Sources: cli.EnvVars("LOG_LEVEL"),
+			},
 		},
 	}
 
@@ -145,31 +154,54 @@ func main() {
 }
 
 func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
+	// Setup structured logger first
+	logLevelStr := cmd.String("log-level")
+
+	// Handle legacy debug/verbose flags
+	if cmd.Bool("debug") {
+		logLevelStr = "debug"
+	} else if cmd.Bool("verbose") {
+		logLevelStr = "debug"
+	}
+
+	logLevel, err := logger.ParseLogLevel(logLevelStr)
+	if err != nil {
+		return fmt.Errorf("invalid log level: %w", err)
+	}
+
+	ctx, err = logger.SetupContext(ctx, logLevel)
+	if err != nil {
+		return fmt.Errorf("failed to setup logger: %w", err)
+	}
+
+	log := logger.FromContext(ctx)
+	log.Info("Starting AutoTeam Entrypoint",
+		zap.String("version", Version),
+		zap.String("build_time", BuildTime),
+		zap.String("git_commit", GitCommit),
+		zap.String("log_level", string(logLevel)),
+	)
+
 	// Build configuration from CLI flags
 	cfg, err := buildConfigFromFlags(cmd)
 	if err != nil {
+		log.Error("Failed to build configuration", zap.Error(err))
 		return fmt.Errorf("failed to build configuration: %w", err)
 	}
 
 	// Validate configuration
 	if err = cfg.Validate(); err != nil {
+		log.Error("Invalid configuration", zap.Error(err))
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	// Setup logging
-	if cmd.Bool("verbose") || cmd.Bool("debug") {
-		log.SetFlags(log.LstdFlags | log.Lshortfile)
-		log.Println("Verbose logging enabled")
-	}
-
-	log.Printf("Starting AutoTeam Entrypoint %s", Version)
-	log.Printf("Agent: %s", cfg.Agent.Name)
-	if len(cfg.Repositories.Include) > 0 {
-		log.Printf("Repositories Include: %v", cfg.Repositories.Include)
-	}
-	if len(cfg.Repositories.Exclude) > 0 {
-		log.Printf("Repositories Exclude: %v", cfg.Repositories.Exclude)
-	}
+	log.Info("Configuration loaded successfully",
+		zap.String("agent_name", cfg.Agent.Name),
+		zap.String("agent_type", cfg.Agent.Type),
+		zap.Strings("repositories_include", cfg.Repositories.Include),
+		zap.Strings("repositories_exclude", cfg.Repositories.Exclude),
+		zap.String("team_name", cfg.Git.TeamName),
+	)
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)
@@ -180,23 +212,27 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigChan
-		log.Printf("Received signal %v, shutting down gracefully...", sig)
+		log.Info("Received signal, shutting down gracefully", zap.String("signal", sig.String()))
 		cancel()
 	}()
 
 	// Initialize GitHub client with repositories filter
+	log.Debug("Initializing GitHub client")
 	githubClient, err := github.NewClientFromConfig(cfg.GitHub.Token, cfg.Repositories)
 	if err != nil {
+		log.Error("Failed to create GitHub client", zap.Error(err))
 		return fmt.Errorf("failed to create GitHub client: %w", err)
 	}
 
 	// Validate GitHub token and user for security
 	err = validateGitHubTokenAndUser(ctx, githubClient, cfg.Git.User)
 	if err != nil {
+		log.Error("GitHub token/user validation failed", zap.Error(err))
 		return fmt.Errorf("GitHub token/user validation failed: %w", err)
 	}
 
 	// Initialize agent registry and register available agents
+	log.Debug("Initializing agent registry")
 	agentRegistry := agent.NewRegistry()
 	claudeAgent := agent.NewClaudeAgent(cfg.Agent)
 	agentRegistry.Register("claude", claudeAgent)
@@ -204,18 +240,24 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	// Get the configured agent
 	selectedAgent, err := agentRegistry.Get(cfg.Agent.Type)
 	if err != nil {
+		log.Error("Failed to get agent", zap.String("agent_type", cfg.Agent.Type), zap.Error(err))
 		return fmt.Errorf("failed to get agent %s: %w", cfg.Agent.Type, err)
 	}
+	log.Info("Agent initialized successfully", zap.String("agent_type", cfg.Agent.Type))
 
 	// Install dependencies if needed
+	log.Debug("Installing dependencies")
 	installer := deps.NewInstaller(cfg.Dependencies)
 	if err := installer.Install(ctx, selectedAgent); err != nil {
+		log.Error("Failed to install dependencies", zap.Error(err))
 		return fmt.Errorf("failed to install dependencies: %w", err)
 	}
 
 	// Setup Git configuration and credentials
+	log.Debug("Setting up Git configuration")
 	gitSetup := git.NewSetup(cfg.Git, cfg.GitHub, cfg.Repositories)
 	if err := gitSetup.Configure(ctx); err != nil {
+		log.Error("Failed to setup git", zap.Error(err))
 		return fmt.Errorf("failed to setup git: %w", err)
 	}
 
@@ -230,7 +272,11 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 
 	mon := monitor.New(githubClient, selectedAgent, monitorConfig, cfg)
 
-	log.Println("Starting monitoring loop...")
+	log.Info("Starting monitoring loop",
+		zap.Duration("check_interval", cfg.Monitoring.CheckInterval),
+		zap.Int("max_retries", cfg.Monitoring.MaxRetries),
+		zap.Bool("dry_run", cmd.Bool("dry-run")),
+	)
 	return mon.Start(ctx)
 }
 
@@ -280,16 +326,19 @@ func buildConfigFromFlags(cmd *cli.Command) (*entrypoint.Config, error) {
 
 // validateGitHubTokenAndUser validates that the GitHub token belongs to the expected user
 func validateGitHubTokenAndUser(ctx context.Context, client *github.Client, expectedUser string) error {
+	log := logger.FromContext(ctx)
+
 	if expectedUser == "" {
-		log.Println("Warning: No GitHub user specified for validation, skipping token/user validation")
+		log.Warn("No GitHub user specified for validation, skipping token/user validation")
 		return nil
 	}
 
-	log.Printf("Validating GitHub token for user: %s", expectedUser)
+	log.Info("Validating GitHub token", zap.String("expected_user", expectedUser))
 
 	// Get the authenticated user from the token
 	user, err := client.GetAuthenticatedUser(ctx)
 	if err != nil {
+		log.Error("Failed to get authenticated user from token", zap.Error(err))
 		return fmt.Errorf("failed to get authenticated user from token: %w", err)
 	}
 
@@ -298,13 +347,18 @@ func validateGitHubTokenAndUser(ctx context.Context, client *github.Client, expe
 	if user.Login != nil {
 		actualUser = *user.Login
 	} else {
+		log.Error("Unable to determine authenticated user from token")
 		return fmt.Errorf("unable to determine authenticated user from token")
 	}
 
 	if actualUser != expectedUser {
+		log.Error("Security validation failed: user mismatch",
+			zap.String("actual_user", actualUser),
+			zap.String("expected_user", expectedUser),
+		)
 		return fmt.Errorf("security validation failed: token belongs to user '%s' but expected user '%s'", actualUser, expectedUser)
 	}
 
-	log.Printf("GitHub token/user validation successful: token belongs to user '%s'", actualUser)
+	log.Info("GitHub token/user validation successful", zap.String("validated_user", actualUser))
 	return nil
 }

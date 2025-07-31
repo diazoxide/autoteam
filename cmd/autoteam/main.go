@@ -9,9 +9,11 @@ import (
 
 	"autoteam/internal/config"
 	"autoteam/internal/generator"
+	"autoteam/internal/logger"
 
 	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
+	"go.uber.org/zap"
 )
 
 // Build-time variables (set by ldflags)
@@ -34,7 +36,15 @@ func main() {
 		Name:    "autoteam",
 		Usage:   "Universal AI Agent Management System",
 		Version: fmt.Sprintf("%s (built %s, commit %s)", Version, BuildTime, GitCommit),
-		Before:  loadGlobalConfig,
+		Before:  setupContextWithLogger,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "log-level",
+				Aliases: []string{"l"},
+				Usage:   "Set log level (debug, info, warn, error)",
+				Value:   "info",
+			},
+		},
 		Commands: []*cli.Command{
 			{
 				Name:   "generate",
@@ -65,16 +75,21 @@ func main() {
 }
 
 func generateCommand(ctx context.Context, cmd *cli.Command) error {
+	log := logger.FromContext(ctx)
 	cfg := getConfigFromContext(ctx)
 	if cfg == nil {
+		log.Error("Config not available in context")
 		return fmt.Errorf("config not available in context")
 	}
 
+	log.Info("Generating compose.yaml", zap.String("team_name", cfg.Settings.TeamName))
 	gen := generator.New()
 	if err := gen.GenerateCompose(cfg); err != nil {
+		log.Error("Failed to generate compose.yaml", zap.Error(err))
 		return fmt.Errorf("failed to generate compose.yaml: %w", err)
 	}
 
+	log.Info("Generated compose.yaml successfully")
 	fmt.Println("Generated compose.yaml successfully")
 	return nil
 }
@@ -131,8 +146,28 @@ func runDockerCompose(ctx context.Context, args ...string) error {
 	return cmd.Run()
 }
 
-// loadGlobalConfig loads the config and stores it in the context
-func loadGlobalConfig(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+// setupContextWithLogger sets up logger and loads config into context
+func setupContextWithLogger(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+	// Setup logger first
+	logLevelStr := cmd.String("log-level")
+	logLevel, err := logger.ParseLogLevel(logLevelStr)
+	if err != nil {
+		return ctx, fmt.Errorf("invalid log level: %w", err)
+	}
+
+	ctx, err = logger.SetupContext(ctx, logLevel)
+	if err != nil {
+		return ctx, fmt.Errorf("failed to setup logger: %w", err)
+	}
+
+	log := logger.FromContext(ctx)
+	log.Info("Starting autoteam",
+		zap.String("version", Version),
+		zap.String("build_time", BuildTime),
+		zap.String("git_commit", GitCommit),
+		zap.String("log_level", string(logLevel)),
+	)
+
 	// Skip loading config for init command as it creates the config file
 	// Check command line arguments since Before hook runs on root command
 	if len(os.Args) > 1 && os.Args[1] == "init" {
@@ -141,9 +176,11 @@ func loadGlobalConfig(ctx context.Context, cmd *cli.Command) (context.Context, e
 
 	cfg, err := config.LoadConfig("autoteam.yaml")
 	if err != nil {
+		log.Error("Failed to load config", zap.Error(err))
 		return ctx, fmt.Errorf("failed to load config: %w", err)
 	}
 
+	log.Debug("Config loaded successfully", zap.String("team_name", cfg.Settings.TeamName))
 	return context.WithValue(ctx, configContextKey, cfg), nil
 }
 

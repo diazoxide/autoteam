@@ -3,15 +3,18 @@ package github
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
+	"autoteam/internal/logger"
+
 	"github.com/google/go-github/v57/github"
+	"go.uber.org/zap"
 )
 
 // GetPendingItems retrieves all pending items that need attention across filtered repositories
 func (c *Client) GetPendingItems(ctx context.Context, username string) (*PendingItems, error) {
-	log.Printf("Getting pending items for user: %s", username)
+	log := logger.FromContext(ctx)
+	log.Info("Getting pending items for user", zap.String("username", username))
 	items := &PendingItems{}
 
 	// Get review requests across all filtered repositories
@@ -20,7 +23,7 @@ func (c *Client) GetPendingItems(ctx context.Context, username string) (*Pending
 		return nil, fmt.Errorf("failed to get review requests: %w", err)
 	}
 	items.ReviewRequests = reviewRequests
-	log.Printf("Found %d review requests", len(reviewRequests))
+	log.Info("Found review requests", zap.Int("count", len(reviewRequests)))
 
 	// Get assigned PRs across all filtered repositories
 	assignedPRs, err := c.getAssignedPRs(ctx, username)
@@ -28,7 +31,7 @@ func (c *Client) GetPendingItems(ctx context.Context, username string) (*Pending
 		return nil, fmt.Errorf("failed to get assigned PRs: %w", err)
 	}
 	items.AssignedPRs = assignedPRs
-	log.Printf("Found %d assigned PRs", len(assignedPRs))
+	log.Info("Found assigned PRs", zap.Int("count", len(assignedPRs)))
 
 	// Get assigned issues (excluding those with linked PRs) across all filtered repositories
 	assignedIssues, err := c.getAssignedIssues(ctx, username)
@@ -36,7 +39,7 @@ func (c *Client) GetPendingItems(ctx context.Context, username string) (*Pending
 		return nil, fmt.Errorf("failed to get assigned issues: %w", err)
 	}
 	items.AssignedIssues = assignedIssues
-	log.Printf("Found %d assigned issues", len(assignedIssues))
+	log.Info("Found assigned issues", zap.Int("count", len(assignedIssues)))
 
 	// Get PRs with changes requested across all filtered repositories
 	prsWithChanges, err := c.getPRsWithChangesRequested(ctx, username)
@@ -44,10 +47,10 @@ func (c *Client) GetPendingItems(ctx context.Context, username string) (*Pending
 		return nil, fmt.Errorf("failed to get PRs with changes requested: %w", err)
 	}
 	items.PRsWithChanges = prsWithChanges
-	log.Printf("Found %d PRs with changes requested", len(prsWithChanges))
+	log.Info("Found PRs with changes requested", zap.Int("count", len(prsWithChanges)))
 
 	totalItems := len(reviewRequests) + len(assignedPRs) + len(assignedIssues) + len(prsWithChanges)
-	log.Printf("Total pending items found: %d", totalItems)
+	log.Info("Total pending items found", zap.Int("total", totalItems))
 
 	return items, nil
 }
@@ -56,7 +59,8 @@ func (c *Client) GetPendingItems(ctx context.Context, username string) (*Pending
 func (c *Client) getReviewRequests(ctx context.Context, username string) ([]PullRequestInfo, error) {
 	// Search globally for PRs where the user is requested for review
 	query := fmt.Sprintf("is:pr is:open review-requested:%s", username)
-	log.Printf("Searching for review requests with query: %s", query)
+	log := logger.FromContext(ctx)
+	log.Info("Searching for review requests", zap.String("query", query), zap.String("username", username))
 
 	opts := &github.SearchOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
