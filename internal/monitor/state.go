@@ -3,9 +3,6 @@ package monitor
 import (
 	"encoding/json"
 	"fmt"
-	"autoteam/internal/logger"
-
-	"go.uber.org/zap"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +10,8 @@ import (
 
 	"autoteam/internal/config"
 	"autoteam/internal/github"
+	"autoteam/internal/logger"
+	"go.uber.org/zap"
 )
 
 // ProcessingState represents the current state of item processing
@@ -69,7 +68,10 @@ func NewStateManager() *StateManager {
 
 	// Load existing state if available
 	if err := sm.load(); err != nil {
-		log.Printf("Warning: failed to load existing state: %v", err)
+		// Create a basic logger for startup warnings
+		if startupLogger, logErr := logger.NewLogger(logger.WarnLevel); logErr == nil {
+			startupLogger.Warn("Failed to load existing state", zap.Error(err))
+		}
 	}
 
 	return sm

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 
@@ -70,7 +69,12 @@ func main() {
 	}
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		log.Fatal(err)
+		// Create emergency logger for fatal errors
+		if emergencyLogger, logErr := logger.NewLogger(logger.ErrorLevel); logErr == nil {
+			emergencyLogger.Fatal("Application failed to run", zap.Error(err))
+		} else {
+			os.Exit(1)
+		}
 	}
 }
 

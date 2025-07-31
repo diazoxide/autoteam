@@ -3,11 +3,10 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"autoteam/internal/logger"
-
-	"go.uber.org/zap"
 
 	"autoteam/internal/github"
+	"autoteam/internal/logger"
+	"go.uber.org/zap"
 )
 
 // ResolutionResult represents the result of checking if an item was resolved
@@ -38,11 +37,15 @@ func NewResolutionDetector(githubClient *github.Client) *ResolutionDetector {
 
 // CheckItemResolution checks if a processing item has been resolved
 func (rd *ResolutionDetector) CheckItemResolution(ctx context.Context, item *ProcessingItem, username string) (ResolutionResult, error) {
+	lgr := logger.FromContext(ctx)
 	if item == nil {
 		return ItemNotFound, fmt.Errorf("no item to check")
 	}
 
-	log.Printf("Checking resolution for %s #%d: %s", item.Type, item.Number, item.Title)
+	lgr.Info("Checking resolution for item",
+		zap.String("type", item.Type),
+		zap.Int("number", item.Number),
+		zap.String("title", item.Title))
 
 	// Get fresh pending items from GitHub
 	currentPendingItems, err := rd.githubClient.GetPendingItems(ctx, username)
@@ -75,15 +78,21 @@ func (rd *ResolutionDetector) checkInReviewRequests(item *ProcessingItem, review
 		if pr.Number == item.Number && pr.Repository == item.Repository {
 			// Item still exists, check if it has changed
 			if pr.Title != item.Title || pr.URL != item.URL {
-				log.Printf("Review request #%d in %s has changed: title or URL updated", item.Number, item.Repository)
+				logger.FromContext(context.Background()).Info("Review request has changed: title or URL updated",
+					zap.Int("number", item.Number),
+					zap.String("repository", item.Repository))
 				return ItemChanged
 			}
-			log.Printf("Review request #%d in %s still pending", item.Number, item.Repository)
+			logger.FromContext(context.Background()).Info("Review request still pending",
+				zap.Int("number", item.Number),
+				zap.String("repository", item.Repository))
 			return ItemStillPending
 		}
 	}
 
-	log.Printf("Review request #%d in %s no longer in pending list - likely resolved", item.Number, item.Repository)
+	logger.FromContext(context.Background()).Info("Review request no longer in pending list - likely resolved",
+		zap.Int("number", item.Number),
+		zap.String("repository", item.Repository))
 	return ItemNotFound
 }
 
@@ -93,15 +102,21 @@ func (rd *ResolutionDetector) checkInAssignedPRs(item *ProcessingItem, assignedP
 		if pr.Number == item.Number && pr.Repository == item.Repository {
 			// Item still exists, check if it has changed
 			if pr.Title != item.Title || pr.URL != item.URL {
-				log.Printf("Assigned PR #%d in %s has changed: title or URL updated", item.Number, item.Repository)
+				logger.FromContext(context.Background()).Info("Assigned PR has changed: title or URL updated",
+					zap.Int("number", item.Number),
+					zap.String("repository", item.Repository))
 				return ItemChanged
 			}
-			log.Printf("Assigned PR #%d in %s still pending", item.Number, item.Repository)
+			logger.FromContext(context.Background()).Info("Assigned PR still pending",
+				zap.Int("number", item.Number),
+				zap.String("repository", item.Repository))
 			return ItemStillPending
 		}
 	}
 
-	log.Printf("Assigned PR #%d in %s no longer in pending list - likely resolved", item.Number, item.Repository)
+	logger.FromContext(context.Background()).Info("Assigned PR no longer in pending list - likely resolved",
+		zap.Int("number", item.Number),
+		zap.String("repository", item.Repository))
 	return ItemNotFound
 }
 
@@ -111,15 +126,21 @@ func (rd *ResolutionDetector) checkInAssignedIssues(item *ProcessingItem, assign
 		if issue.Number == item.Number && issue.Repository == item.Repository {
 			// Item still exists, check if it has changed
 			if issue.Title != item.Title || issue.URL != item.URL {
-				log.Printf("Assigned issue #%d in %s has changed: title or URL updated", item.Number, item.Repository)
+				logger.FromContext(context.Background()).Info("Assigned issue has changed: title or URL updated",
+					zap.Int("number", item.Number),
+					zap.String("repository", item.Repository))
 				return ItemChanged
 			}
-			log.Printf("Assigned issue #%d in %s still pending", item.Number, item.Repository)
+			logger.FromContext(context.Background()).Info("Assigned issue still pending",
+				zap.Int("number", item.Number),
+				zap.String("repository", item.Repository))
 			return ItemStillPending
 		}
 	}
 
-	log.Printf("Assigned issue #%d in %s no longer in pending list - likely resolved", item.Number, item.Repository)
+	logger.FromContext(context.Background()).Info("Assigned issue no longer in pending list - likely resolved",
+		zap.Int("number", item.Number),
+		zap.String("repository", item.Repository))
 	return ItemNotFound
 }
 
@@ -129,26 +150,47 @@ func (rd *ResolutionDetector) checkInPRsWithChanges(item *ProcessingItem, prsWit
 		if pr.Number == item.Number && pr.Repository == item.Repository {
 			// Item still exists, check if it has changed
 			if pr.Title != item.Title || pr.URL != item.URL {
-				log.Printf("PR with changes #%d in %s has changed: title or URL updated", item.Number, item.Repository)
+				logger.FromContext(context.Background()).Info("PR with changes has changed: title or URL updated",
+					zap.Int("number", item.Number),
+					zap.String("repository", item.Repository))
 				return ItemChanged
 			}
-			log.Printf("PR with changes #%d in %s still pending", item.Number, item.Repository)
+			logger.FromContext(context.Background()).Info("PR with changes still pending",
+				zap.Int("number", item.Number),
+				zap.String("repository", item.Repository))
 			return ItemStillPending
 		}
 	}
 
-	log.Printf("PR with changes #%d in %s no longer in pending list - likely resolved", item.Number, item.Repository)
+	logger.FromContext(context.Background()).Info("PR with changes no longer in pending list - likely resolved",
+		zap.Int("number", item.Number),
+		zap.String("repository", item.Repository))
 	return ItemNotFound
 }
 
 // LogResolutionResult logs the resolution result with appropriate message
 func LogResolutionResult(result ResolutionResult, item *ProcessingItem) {
+	// Use a basic logger for this logging function since we don't have context
+	logger, err := logger.NewLogger(logger.InfoLevel)
+	if err != nil {
+		return // Skip logging if we can't create logger
+	}
+
 	switch result {
 	case ItemNotFound:
-		log.Printf("✅ SUCCESS: %s #%d in %s appears to be resolved", item.Type, item.Number, item.Repository)
+		logger.Info("✅ SUCCESS: item appears to be resolved",
+			zap.String("type", item.Type),
+			zap.Int("number", item.Number),
+			zap.String("repository", item.Repository))
 	case ItemStillPending:
-		log.Printf("⚠️  STILL PENDING: %s #%d in %s requires more work", item.Type, item.Number, item.Repository)
+		logger.Warn("⚠️  STILL PENDING: item requires more work",
+			zap.String("type", item.Type),
+			zap.Int("number", item.Number),
+			zap.String("repository", item.Repository))
 	case ItemChanged:
-		log.Printf("🔄 CHANGED: %s #%d in %s has been modified (partial progress)", item.Type, item.Number, item.Repository)
+		logger.Info("🔄 CHANGED: item has been modified (partial progress)",
+			zap.String("type", item.Type),
+			zap.Int("number", item.Number),
+			zap.String("repository", item.Repository))
 	}
 }

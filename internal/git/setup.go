@@ -3,7 +3,6 @@ package git
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +10,8 @@ import (
 
 	"autoteam/internal/config"
 	"autoteam/internal/entrypoint"
+	"autoteam/internal/logger"
+	"go.uber.org/zap"
 )
 
 // Setup handles Git configuration and credential management for multiple repositories
@@ -47,7 +48,8 @@ func (s *Setup) normalizeRepositoryName(repository string) string {
 
 // Configure sets up Git configuration and credentials for multi-repository operations
 func (s *Setup) Configure(ctx context.Context) error {
-	log.Println("Setting up Git configuration and credentials...")
+	lgr := logger.FromContext(ctx)
+	lgr.Info("Setting up Git configuration and credentials")
 
 	// Ensure git is available
 	if err := s.checkGitAvailable(ctx); err != nil {
@@ -69,8 +71,8 @@ func (s *Setup) Configure(ctx context.Context) error {
 		return fmt.Errorf("failed to setup credentials file: %w", err)
 	}
 
-	log.Println("Git configuration completed successfully")
-	log.Println("Repositories will be cloned on-demand when needed")
+	lgr.Info("Git configuration completed successfully")
+	lgr.Info("Repositories will be cloned on-demand when needed")
 	return nil
 }
 
@@ -85,6 +87,7 @@ func (s *Setup) checkGitAvailable(ctx context.Context) error {
 
 // configureGitUser sets up the global Git user configuration
 func (s *Setup) configureGitUser(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
 	// Determine user name - use provided user or fall back to first repository owner
 	userName := s.gitConfig.User
 	if userName == "" && len(s.repositories.Include) > 0 {
@@ -97,7 +100,7 @@ func (s *Setup) configureGitUser(ctx context.Context) error {
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to set git user.name: %w", err)
 		}
-		log.Printf("Set git user.name to: %s", userName)
+		lgr.Info("Set git user.name", zap.String("user_name", userName))
 	}
 
 	// Determine email - use provided email or generate from user name
@@ -112,7 +115,7 @@ func (s *Setup) configureGitUser(ctx context.Context) error {
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to set git user.email: %w", err)
 		}
-		log.Printf("Set git user.email to: %s", userEmail)
+		lgr.Info("Set git user.email", zap.String("user_email", userEmail))
 	}
 
 	return nil
@@ -120,16 +123,21 @@ func (s *Setup) configureGitUser(ctx context.Context) error {
 
 // configureCredentialHelper sets up the Git credential helper
 func (s *Setup) configureCredentialHelper(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
 	cmd := exec.CommandContext(ctx, "git", "config", "--global", "credential.helper", "store")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to set credential helper: %w", err)
 	}
-	log.Println("Configured git credential helper to use store")
+	lgr.Info("Configured git credential helper to use store")
 	return nil
 }
 
 // setupCredentialsFile creates the Git credentials file with the GitHub token
 func (s *Setup) setupCredentialsFile() error {
+	lgr, err := logger.NewLogger(logger.InfoLevel)
+	if err != nil {
+		return fmt.Errorf("failed to create logger: %w", err)
+	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("failed to get home directory: %w", err)
@@ -147,13 +155,14 @@ func (s *Setup) setupCredentialsFile() error {
 		return fmt.Errorf("failed to write credentials file: %w", err)
 	}
 
-	log.Printf("Created git credentials file at: %s", credentialsPath)
-	log.Println("Will support all repositories configured for this agent")
+	lgr.Info("Created git credentials file", zap.String("path", credentialsPath))
+	lgr.Info("Will support all repositories configured for this agent")
 	return nil
 }
 
 // SetupRepository clones or updates a specific repository on-demand
 func (s *Setup) SetupRepository(ctx context.Context, repository string) error {
+	lgr := logger.FromContext(ctx)
 	if !s.repositories.ShouldIncludeRepository(repository) {
 		return fmt.Errorf("repository %s is not included in the configured patterns", repository)
 	}
@@ -167,11 +176,11 @@ func (s *Setup) SetupRepository(ctx context.Context, repository string) error {
 
 	// Check if repository is already cloned
 	if s.isRepositoryCloned(repository) {
-		log.Printf("Repository %s already cloned, updating...", repository)
+		lgr.Info("Repository already cloned, updating", zap.String("repository", repository))
 		return s.updateRepository(ctx, repository)
 	}
 
-	log.Printf("Cloning repository %s...", repository)
+	lgr.Info("Cloning repository", zap.String("repository", repository))
 	return s.cloneRepository(ctx, repository)
 }
 
@@ -188,6 +197,7 @@ func (s *Setup) isRepositoryCloned(repository string) bool {
 
 // cloneRepository clones a specific repository using HTTPS
 func (s *Setup) cloneRepository(ctx context.Context, repository string) error {
+	lgr := logger.FromContext(ctx)
 	workingDir := s.getRepositoryWorkingDirectory(repository)
 	repoURL := fmt.Sprintf("https://github.com/%s.git", repository)
 
@@ -200,12 +210,13 @@ func (s *Setup) cloneRepository(ctx context.Context, repository string) error {
 	}
 
 	s.clonedRepos[repository] = true
-	log.Printf("Successfully cloned repository: %s to %s", repository, workingDir)
+	lgr.Info("Successfully cloned repository", zap.String("repository", repository), zap.String("working_dir", workingDir))
 	return nil
 }
 
 // updateRepository updates an existing repository
 func (s *Setup) updateRepository(ctx context.Context, repository string) error {
+	lgr := logger.FromContext(ctx)
 	workingDir := s.getRepositoryWorkingDirectory(repository)
 
 	// Change to repository directory
@@ -216,10 +227,10 @@ func (s *Setup) updateRepository(ctx context.Context, repository string) error {
 	// Fetch latest changes
 	cmd := exec.CommandContext(ctx, "git", "fetch", "origin")
 	if err := cmd.Run(); err != nil {
-		log.Printf("Warning: failed to fetch from origin for %s: %v", repository, err)
+		lgr.Warn("Failed to fetch from origin", zap.String("repository", repository), zap.Error(err))
 	}
 
-	log.Printf("Repository %s updated", repository)
+	lgr.Info("Repository updated", zap.String("repository", repository))
 	return nil
 }
 
@@ -253,6 +264,7 @@ func (s *Setup) GetWorkingDirectory() string {
 
 // SwitchToMainBranch switches to the main branch and resets to origin for a specific repository
 func (s *Setup) SwitchToMainBranch(ctx context.Context, repository, mainBranch string) error {
+	lgr := logger.FromContext(ctx)
 	workingDir := s.getRepositoryWorkingDirectory(repository)
 
 	// Change to working directory
@@ -263,7 +275,7 @@ func (s *Setup) SwitchToMainBranch(ctx context.Context, repository, mainBranch s
 	// Fetch latest changes
 	cmd := exec.CommandContext(ctx, "git", "fetch")
 	if err := cmd.Run(); err != nil {
-		log.Printf("Warning: failed to fetch for %s: %v", repository, err)
+		lgr.Warn("Failed to fetch", zap.String("repository", repository), zap.Error(err))
 	}
 
 	// Checkout main branch
@@ -279,6 +291,6 @@ func (s *Setup) SwitchToMainBranch(ctx context.Context, repository, mainBranch s
 		return fmt.Errorf("failed to reset to %s in %s: %w", originBranch, repository, err)
 	}
 
-	log.Printf("Switched to %s branch and reset to origin for repository %s", mainBranch, repository)
+	lgr.Info("Switched to main branch and reset to origin", zap.String("branch", mainBranch), zap.String("repository", repository))
 	return nil
 }

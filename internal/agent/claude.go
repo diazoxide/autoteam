@@ -3,13 +3,14 @@ package agent
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
 	"autoteam/internal/entrypoint"
+	"autoteam/internal/logger"
+	"go.uber.org/zap"
 )
 
 // ClaudeAgent implements the Agent interface for Claude Code
@@ -38,14 +39,15 @@ func (c *ClaudeAgent) Type() string {
 
 // Run executes Claude with the given prompt and options
 func (c *ClaudeAgent) Run(ctx context.Context, prompt string, options RunOptions) error {
+	lgr := logger.FromContext(ctx)
 	if options.DryRun {
-		log.Printf("DRY RUN: Would execute Claude with prompt (length: %d chars)", len(prompt))
+		lgr.Info("DRY RUN: Would execute Claude with prompt", zap.Int("prompt_length", len(prompt)))
 		return nil
 	}
 
 	// Update Claude before running
 	if err := c.update(ctx); err != nil {
-		log.Printf("Warning: Failed to update Claude: %v", err)
+		lgr.Warn("Failed to update Claude", zap.Error(err))
 	}
 
 	// Build the command arguments
@@ -58,7 +60,7 @@ func (c *ClaudeAgent) Run(ctx context.Context, prompt string, options RunOptions
 	}
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		log.Printf("Claude execution attempt %d of %d", attempt, maxRetries)
+		lgr.Info("Claude execution attempt", zap.Int("attempt", attempt), zap.Int("max_retries", maxRetries))
 
 		// Add continue flag when requested or for retry attempts
 		currentArgs := args
@@ -78,7 +80,7 @@ func (c *ClaudeAgent) Run(ctx context.Context, prompt string, options RunOptions
 
 		if err := cmd.Run(); err != nil {
 			lastErr = fmt.Errorf("claude execution failed (attempt %d): %w", attempt, err)
-			log.Printf("Attempt %d failed: %v", attempt, err)
+			lgr.Warn("Attempt failed", zap.Int("attempt", attempt), zap.Error(err))
 
 			// Don't retry on context cancellation
 			if ctx.Err() != nil {
@@ -88,7 +90,7 @@ func (c *ClaudeAgent) Run(ctx context.Context, prompt string, options RunOptions
 			// Wait before retry (exponential backoff)
 			if attempt < maxRetries {
 				backoff := time.Duration(attempt) * time.Second
-				log.Printf("Retrying in %v...", backoff)
+				lgr.Info("Retrying", zap.Duration("backoff", backoff))
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
@@ -97,7 +99,7 @@ func (c *ClaudeAgent) Run(ctx context.Context, prompt string, options RunOptions
 				}
 			}
 		} else {
-			log.Printf("Claude execution succeeded on attempt %d", attempt)
+			lgr.Info("Claude execution succeeded", zap.Int("attempt", attempt))
 			return nil
 		}
 	}
@@ -113,7 +115,8 @@ func (c *ClaudeAgent) IsAvailable(ctx context.Context) bool {
 
 // Install installs Claude Code via npm
 func (c *ClaudeAgent) Install(ctx context.Context) error {
-	log.Println("Installing Claude Code...")
+	lgr := logger.FromContext(ctx)
+	lgr.Info("Installing Claude Code")
 
 	// Check if npm is available
 	if err := exec.CommandContext(ctx, "npm", "--version").Run(); err != nil {
@@ -129,7 +132,7 @@ func (c *ClaudeAgent) Install(ctx context.Context) error {
 		return fmt.Errorf("failed to install Claude Code: %w", err)
 	}
 
-	log.Println("Claude Code installed successfully")
+	lgr.Info("Claude Code installed successfully")
 	return nil
 }
 

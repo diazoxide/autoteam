@@ -43,7 +43,10 @@ func NewItemPrioritizer(stateManager *StateManager) *ItemPrioritizer {
 func (p *ItemPrioritizer) SelectNextItem(pendingItems *github.PendingItems) *PrioritizedItem {
 	// If an item is currently being processed, don't select anything new
 	if p.stateManager.IsItemInProgress() {
-		log.Println("Item already in progress, skipping selection")
+		// Create a basic logger for this function since we don't have context
+		if lgr, err := logger.NewLogger(logger.InfoLevel); err == nil {
+			lgr.Info("Item already in progress, skipping selection")
+		}
 		return nil
 	}
 
@@ -51,7 +54,10 @@ func (p *ItemPrioritizer) SelectNextItem(pendingItems *github.PendingItems) *Pri
 	allItems := p.collectAndPrioritizeItems(pendingItems)
 
 	if len(allItems) == 0 {
-		log.Println("No pending items to prioritize")
+		// Create a basic logger for this function since we don't have context
+		if lgr, err := logger.NewLogger(logger.InfoLevel); err == nil {
+			lgr.Info("No pending items to prioritize")
+		}
 		return nil
 	}
 
@@ -65,16 +71,31 @@ func (p *ItemPrioritizer) SelectNextItem(pendingItems *github.PendingItems) *Pri
 		itemKey := GetItemKey(item.Type, item.Repository, item.Number)
 
 		if p.stateManager.IsItemInCooldown(itemKey) {
-			log.Printf("Skipping item %s #%d - in cooldown period", item.Type, item.Number)
+			// Create a basic logger for this function since we don't have context
+			if lgr, err := logger.NewLogger(logger.InfoLevel); err == nil {
+				lgr.Info("Skipping item - in cooldown period",
+					zap.String("type", item.Type),
+					zap.Int("number", item.Number))
+			}
 			continue
 		}
 
-		log.Printf("Selected item: %s #%d (%s) - Score: %d (%s)",
-			item.Type, item.Number, item.Title, item.Score, item.Reason)
+		// Create a basic logger for this function since we don't have context
+		if lgr, err := logger.NewLogger(logger.InfoLevel); err == nil {
+			lgr.Info("Selected item",
+				zap.String("type", item.Type),
+				zap.Int("number", item.Number),
+				zap.String("title", item.Title),
+				zap.Int("score", item.Score),
+				zap.String("reason", item.Reason))
+		}
 		return item
 	}
 
-	log.Println("All items are in cooldown, no item selected")
+	// Create a basic logger for this function since we don't have context
+	if lgr, err := logger.NewLogger(logger.InfoLevel); err == nil {
+		lgr.Info("All items are in cooldown, no item selected")
+	}
 	return nil
 }
 

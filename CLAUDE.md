@@ -13,11 +13,19 @@
 - All tests should pass before creating commits
 
 ## Recent Implementation Notes
+- Successfully implemented comprehensive structured logging using zap across entire codebase
+- Added configurable log levels (debug, info, warn, error) with --log-level flag for all commands
+- Converted 180+ log calls from standard library to structured zap logging with contextual fields
+- Context-based logger pattern implemented for proper logger propagation throughout application
+- All tests pass with structured logging implementation - no functionality changes
 - Successfully implemented dotenv support for both `autoteam` and `entrypoint` commands using godotenv
 - Added Docker Compose stack naming using team_name from config via `-p` flag
 - Implemented urfave/cli Before hook pattern for global config loading and context passing
 - All tests pass - context-based architecture working correctly
 - Docker Compose commands now use configured team_name instead of default "autoteam"
+- Converted all log.Printf and log.Println calls in internal/git/setup.go to structured zap logging
+- Logger migration pattern: use logger.FromContext(ctx) for functions with context, logger.NewLogger(logger.InfoLevel) for functions without context
+- Structured logging with zap fields for better observability and debugging
 
 ## Multi-Repository Architecture
 - Complete multi-repository support with pattern matching and regex

@@ -3,12 +3,13 @@ package deps
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 
 	"autoteam/internal/agent"
 	"autoteam/internal/entrypoint"
+	"autoteam/internal/logger"
+	"go.uber.org/zap"
 )
 
 // Installer handles dependency installation
@@ -25,12 +26,14 @@ func NewInstaller(cfg entrypoint.DependenciesConfig) *Installer {
 
 // Install installs required dependencies
 func (i *Installer) Install(ctx context.Context, selectedAgent agent.Agent) error {
+	lgr := logger.FromContext(ctx)
+
 	if !i.config.InstallDeps {
-		log.Println("Dependency installation disabled, skipping...")
+		lgr.Info("Dependency installation disabled, skipping")
 		return nil
 	}
 
-	log.Println("Installing dependencies...")
+	lgr.Info("Installing dependencies")
 
 	// Install system dependencies
 	if err := i.installSystemDependencies(ctx); err != nil {
@@ -44,21 +47,22 @@ func (i *Installer) Install(ctx context.Context, selectedAgent agent.Agent) erro
 
 	// Install the AI agent if not available
 	if !selectedAgent.IsAvailable(ctx) {
-		log.Printf("Installing %s agent...", selectedAgent.Type())
+		lgr.Info("Installing agent", zap.String("agent_type", selectedAgent.Type()))
 		if err := selectedAgent.Install(ctx); err != nil {
 			return fmt.Errorf("failed to install %s agent: %w", selectedAgent.Type(), err)
 		}
 	} else {
-		log.Printf("%s agent is already available", selectedAgent.Type())
+		lgr.Info("Agent is already available", zap.String("agent_type", selectedAgent.Type()))
 	}
 
-	log.Println("All dependencies installed successfully")
+	lgr.Info("All dependencies installed successfully")
 	return nil
 }
 
 // installSystemDependencies installs required system packages
 func (i *Installer) installSystemDependencies(ctx context.Context) error {
-	log.Println("Installing system dependencies...")
+	lgr := logger.FromContext(ctx)
+	lgr.Info("Installing system dependencies")
 
 	// Detect package manager and install dependencies
 	if i.hasCommand(ctx, "apt") {
@@ -69,7 +73,7 @@ func (i *Installer) installSystemDependencies(ctx context.Context) error {
 		return i.installWithYum(ctx)
 	}
 
-	log.Println("No supported package manager found, skipping system dependency installation")
+	lgr.Warn("No supported package manager found, skipping system dependency installation")
 	return nil
 }
 
@@ -81,14 +85,15 @@ func (i *Installer) hasCommand(ctx context.Context, command string) bool {
 
 // installWithApt installs dependencies using apt (Debian/Ubuntu)
 func (i *Installer) installWithApt(ctx context.Context) error {
-	log.Println("Using apt package manager...")
+	lgr := logger.FromContext(ctx)
+	lgr.Info("Using apt package manager")
 
 	// Update package list
 	cmd := exec.CommandContext(ctx, "apt", "update")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Printf("Warning: failed to update apt package list: %v", err)
+		lgr.Warn("Failed to update apt package list", zap.Error(err))
 	}
 
 	// Install required packages
@@ -103,20 +108,21 @@ func (i *Installer) installWithApt(ctx context.Context) error {
 		return fmt.Errorf("failed to install packages with apt: %w", err)
 	}
 
-	log.Println("Successfully installed system dependencies with apt")
+	lgr.Info("Successfully installed system dependencies with apt")
 	return nil
 }
 
 // installWithApk installs dependencies using apk (Alpine)
 func (i *Installer) installWithApk(ctx context.Context) error {
-	log.Println("Using apk package manager...")
+	lgr := logger.FromContext(ctx)
+	lgr.Info("Using apk package manager")
 
 	// Update package index
 	cmd := exec.CommandContext(ctx, "apk", "update")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Printf("Warning: failed to update apk package index: %v", err)
+		lgr.Warn("Failed to update apk package index", zap.Error(err))
 	}
 
 	// Install required packages
@@ -131,13 +137,14 @@ func (i *Installer) installWithApk(ctx context.Context) error {
 		return fmt.Errorf("failed to install packages with apk: %w", err)
 	}
 
-	log.Println("Successfully installed system dependencies with apk")
+	lgr.Info("Successfully installed system dependencies with apk")
 	return nil
 }
 
 // installWithYum installs dependencies using yum (RHEL/CentOS)
 func (i *Installer) installWithYum(ctx context.Context) error {
-	log.Println("Using yum package manager...")
+	lgr := logger.FromContext(ctx)
+	lgr.Info("Using yum package manager")
 
 	// Install required packages
 	packages := []string{"curl", "git", "nodejs", "npm"}
@@ -151,38 +158,40 @@ func (i *Installer) installWithYum(ctx context.Context) error {
 		return fmt.Errorf("failed to install packages with yum: %w", err)
 	}
 
-	log.Println("Successfully installed system dependencies with yum")
+	lgr.Info("Successfully installed system dependencies with yum")
 	return nil
 }
 
 // installGitHubCLI installs the GitHub CLI (gh) using the official installation script
 func (i *Installer) installGitHubCLI(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
+
 	// Check if gh is already available
 	if i.hasCommand(ctx, "gh") {
-		log.Println("GitHub CLI (gh) is already available")
+		lgr.Info("GitHub CLI (gh) is already available")
 		return nil
 	}
 
-	log.Println("Installing GitHub CLI (gh)...")
+	lgr.Info("Installing GitHub CLI (gh)")
 
 	// Try to install via package manager first
 	if i.hasCommand(ctx, "apt") {
 		if err := i.installGitHubCLIWithApt(ctx); err == nil {
 			return nil
 		} else {
-			log.Printf("Failed to install gh with apt, trying alternative method: %v", err)
+			lgr.Warn("Failed to install gh with apt, trying alternative method", zap.Error(err))
 		}
 	} else if i.hasCommand(ctx, "apk") {
 		if err := i.installGitHubCLIWithApk(ctx); err == nil {
 			return nil
 		} else {
-			log.Printf("Failed to install gh with apk, trying alternative method: %v", err)
+			lgr.Warn("Failed to install gh with apk, trying alternative method", zap.Error(err))
 		}
 	} else if i.hasCommand(ctx, "yum") || i.hasCommand(ctx, "dnf") {
 		if err := i.installGitHubCLIWithYum(ctx); err == nil {
 			return nil
 		} else {
-			log.Printf("Failed to install gh with yum/dnf, trying alternative method: %v", err)
+			lgr.Warn("Failed to install gh with yum/dnf, trying alternative method", zap.Error(err))
 		}
 	}
 
@@ -192,6 +201,8 @@ func (i *Installer) installGitHubCLI(ctx context.Context) error {
 
 // installGitHubCLIWithApt installs GitHub CLI using apt
 func (i *Installer) installGitHubCLIWithApt(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
+
 	// Add GitHub CLI repository
 	commands := [][]string{
 		{"curl", "-fsSL", "https://cli.github.com/packages/githubcli-archive-keyring.gpg", "-o", "/usr/share/keyrings/githubcli-archive-keyring.gpg"},
@@ -209,12 +220,14 @@ func (i *Installer) installGitHubCLIWithApt(ctx context.Context) error {
 		}
 	}
 
-	log.Println("Successfully installed GitHub CLI with apt")
+	lgr.Info("Successfully installed GitHub CLI with apt")
 	return nil
 }
 
 // installGitHubCLIWithApk installs GitHub CLI using apk
 func (i *Installer) installGitHubCLIWithApk(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
+
 	// GitHub CLI is available in Alpine edge/community repository
 	cmd := exec.CommandContext(ctx, "apk", "add", "--no-cache", "github-cli")
 	cmd.Stdout = os.Stdout
@@ -224,12 +237,14 @@ func (i *Installer) installGitHubCLIWithApk(ctx context.Context) error {
 		return fmt.Errorf("failed to install gh with apk: %w", err)
 	}
 
-	log.Println("Successfully installed GitHub CLI with apk")
+	lgr.Info("Successfully installed GitHub CLI with apk")
 	return nil
 }
 
 // installGitHubCLIWithYum installs GitHub CLI using yum/dnf
 func (i *Installer) installGitHubCLIWithYum(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
+
 	// Add GitHub CLI repository for RHEL/CentOS
 	commands := [][]string{
 		{"dnf", "config-manager", "--add-repo", "https://cli.github.com/packages/rpm/gh-cli.repo"},
@@ -253,13 +268,14 @@ func (i *Installer) installGitHubCLIWithYum(ctx context.Context) error {
 		}
 	}
 
-	log.Println("Successfully installed GitHub CLI with yum/dnf")
+	lgr.Info("Successfully installed GitHub CLI with yum/dnf")
 	return nil
 }
 
 // installGitHubCLIWithScript installs GitHub CLI using the official installation script
 func (i *Installer) installGitHubCLIWithScript(ctx context.Context) error {
-	log.Println("Installing GitHub CLI using official installation script...")
+	lgr := logger.FromContext(ctx)
+	lgr.Info("Installing GitHub CLI using official installation script")
 
 	// Download and run the official installation script
 	cmd := exec.CommandContext(ctx, "bash", "-c", "curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && apt update && apt install -y gh")
@@ -268,16 +284,18 @@ func (i *Installer) installGitHubCLIWithScript(ctx context.Context) error {
 
 	if err := cmd.Run(); err != nil {
 		// Try a simpler approach with direct binary download
-		log.Println("Official script failed, trying direct binary download...")
+		lgr.Warn("Official script failed, trying direct binary download", zap.Error(err))
 		return i.installGitHubCLIBinary(ctx)
 	}
 
-	log.Println("Successfully installed GitHub CLI with official script")
+	lgr.Info("Successfully installed GitHub CLI with official script")
 	return nil
 }
 
 // installGitHubCLIBinary downloads and installs GitHub CLI binary directly
 func (i *Installer) installGitHubCLIBinary(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
+
 	// Determine architecture
 	archCmd := exec.CommandContext(ctx, "uname", "-m")
 	archOutput, err := archCmd.Output()
@@ -315,13 +333,14 @@ func (i *Installer) installGitHubCLIBinary(ctx context.Context) error {
 		}
 	}
 
-	log.Println("Successfully installed GitHub CLI binary")
+	lgr.Info("Successfully installed GitHub CLI binary")
 	return nil
 }
 
 // CheckDependencies checks if all required dependencies are available
 func (i *Installer) CheckDependencies(ctx context.Context, selectedAgent agent.Agent) error {
-	log.Println("Checking dependencies...")
+	lgr := logger.FromContext(ctx)
+	lgr.Info("Checking dependencies")
 
 	// Check git
 	if !i.hasCommand(ctx, "git") {
@@ -348,6 +367,6 @@ func (i *Installer) CheckDependencies(ctx context.Context, selectedAgent agent.A
 		return fmt.Errorf("%s agent is not available", selectedAgent.Type())
 	}
 
-	log.Println("All dependencies are available")
+	lgr.Info("All dependencies are available")
 	return nil
 }

@@ -11,7 +11,6 @@ import (
 	"autoteam/internal/git"
 	"autoteam/internal/github"
 	"autoteam/internal/logger"
-
 	"go.uber.org/zap"
 )
 
@@ -71,7 +70,8 @@ func New(githubClient *github.Client, selectedAgent agent.Agent, monitorConfig C
 
 // Start starts the monitoring loop
 func (m *Monitor) Start(ctx context.Context) error {
-	log.Printf("Starting monitor with check interval: %v", m.config.CheckInterval)
+	lgr := logger.FromContext(ctx)
+	lgr.Info("Starting monitor", zap.Duration("check_interval", m.config.CheckInterval))
 
 	// Get authenticated user info
 	user, err := m.githubClient.GetAuthenticatedUser(ctx)
@@ -80,41 +80,43 @@ func (m *Monitor) Start(ctx context.Context) error {
 	}
 
 	username := user.GetLogin()
-	log.Printf("Authenticated as GitHub user: %s", username)
+	lgr.Info("Authenticated as GitHub user", zap.String("username", username))
 
 	// TODO: Multi-repository support - get default branch per repository
 	// For now, use "main" as default branch for multi-repo compatibility
 	defaultBranch := "main"
-	log.Printf("Using default branch: %s (multi-repo support pending)", defaultBranch)
+	lgr.Info("Using default branch", zap.String("branch", defaultBranch))
 
 	// Log all matched repositories before starting monitoring
-	log.Println("Initializing repository discovery...")
+	lgr.Info("Initializing repository discovery")
 	filteredRepos, err := m.githubClient.GetFilteredRepositories(ctx, username)
 	if err != nil {
-		log.Printf("Warning: failed to get filtered repositories during initialization: %v", err)
+		lgr.Warn("Failed to get filtered repositories during initialization", zap.Error(err))
 		// Show patterns as fallback
 		if m.globalConfig.Repositories != nil {
-			log.Printf("Repository patterns configured: include=%v, exclude=%v",
-				m.globalConfig.Repositories.Include, m.globalConfig.Repositories.Exclude)
+			lgr.Debug("Repository patterns configured",
+				zap.Strings("include", m.globalConfig.Repositories.Include),
+				zap.Strings("exclude", m.globalConfig.Repositories.Exclude))
 		}
 	} else {
 		if len(filteredRepos) == 0 {
-			log.Println("No repositories found matching the configured patterns")
+			lgr.Warn("No repositories found matching the configured patterns")
 			if m.globalConfig.Repositories != nil {
-				log.Printf("Configured patterns: include=%v, exclude=%v",
-					m.globalConfig.Repositories.Include, m.globalConfig.Repositories.Exclude)
+				lgr.Debug("Configured patterns",
+					zap.Strings("include", m.globalConfig.Repositories.Include),
+					zap.Strings("exclude", m.globalConfig.Repositories.Exclude))
 			}
 		} else {
-			log.Printf("Found %d repositories matching configured patterns:", len(filteredRepos))
+			lgr.Info("Found repositories matching configured patterns", zap.Int("count", len(filteredRepos)))
 			for i, repo := range filteredRepos {
-				log.Printf("  %d. %s (%s)", i+1, repo.FullName, repo.URL)
+				lgr.Debug("Repository discovered", zap.Int("index", i+1), zap.String("name", repo.FullName), zap.String("url", repo.URL))
 			}
 		}
 	}
 
 	// Run initial check
 	if err := m.checkAndProcess(ctx, username, defaultBranch); err != nil {
-		log.Printf("Initial check failed: %v", err)
+		lgr.Warn("Initial check failed", zap.Error(err))
 	}
 
 	// Start periodic monitoring
@@ -124,7 +126,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Monitor shutting down due to context cancellation")
+			lgr.Info("Monitor shutting down due to context cancellation")
 			return ctx.Err()
 
 		case <-ticker.C:
@@ -132,7 +134,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 			var repoLog string
 			filteredRepos, err := m.githubClient.GetFilteredRepositories(ctx, username)
 			if err != nil {
-				log.Printf("Warning: failed to get filtered repositories for logging: %v", err)
+				lgr.Warn("Failed to get filtered repositories for logging", zap.Error(err))
 				// Fallback to showing patterns
 				if m.globalConfig.Repositories != nil {
 					includedPatterns := strings.Join(m.globalConfig.Repositories.Include, ", ")
@@ -149,10 +151,10 @@ func (m *Monitor) Start(ctx context.Context) error {
 					repoLog = " (no matching repositories found)"
 				}
 			}
-			log.Printf("%s: Checking for pending items...%s", time.Now().Format(time.RFC3339), repoLog)
+			lgr.Info("Checking for pending items", zap.String("timestamp", time.Now().Format(time.RFC3339)), zap.String("repositories", repoLog))
 
 			if err := m.checkAndProcess(ctx, username, defaultBranch); err != nil {
-				log.Printf("Check failed: %v", err)
+				lgr.Warn("Check failed", zap.Error(err))
 			}
 		}
 	}
@@ -160,30 +162,34 @@ func (m *Monitor) Start(ctx context.Context) error {
 
 // checkAndProcess implements the single item processing workflow
 func (m *Monitor) checkAndProcess(ctx context.Context, username, defaultBranch string) error {
+	lgr := logger.FromContext(ctx)
 	// Clean up old failure records
 	if err := m.stateManager.CleanupOldFailures(); err != nil {
-		log.Printf("Warning: failed to cleanup old failures: %v", err)
+		lgr.Warn("Failed to cleanup old failures", zap.Error(err))
 	}
 
 	// Check if we have an item currently being processed
 	currentItem := m.stateManager.GetCurrentItem()
 	if currentItem != nil {
-		log.Printf("Continuing with item: %s #%d (%s) - Attempt %d",
-			currentItem.Type, currentItem.Number, currentItem.Title, currentItem.AttemptCount)
+		lgr.Info("Continuing with item",
+			zap.String("type", currentItem.Type),
+			zap.Int("number", currentItem.Number),
+			zap.String("title", currentItem.Title),
+			zap.Int("attempt", currentItem.AttemptCount))
 
 		// Check if current item was resolved since last attempt
 		result, err := m.resolutionDetector.CheckItemResolution(ctx, currentItem, username)
 		if err != nil {
-			log.Printf("Warning: failed to check item resolution: %v", err)
+			lgr.Warn("Failed to check item resolution", zap.Error(err))
 		} else {
 			LogResolutionResult(result, currentItem)
 
 			if result == ItemNotFound {
 				// Item was resolved, clear it and continue to next item
 				if err := m.stateManager.ClearCurrentItem(); err != nil {
-					log.Printf("Warning: failed to clear resolved item: %v", err)
+					lgr.Warn("Failed to clear resolved item", zap.Error(err))
 				}
-				log.Println("✅ Item resolved successfully! Selecting next item...")
+				lgr.Info("Item resolved successfully! Selecting next item")
 				return m.selectAndProcessNextItem(ctx, username, defaultBranch)
 			}
 		}
@@ -198,6 +204,7 @@ func (m *Monitor) checkAndProcess(ctx context.Context, username, defaultBranch s
 
 // selectAndProcessNextItem selects the highest priority item and processes it
 func (m *Monitor) selectAndProcessNextItem(ctx context.Context, username, defaultBranch string) error {
+	lgr := logger.FromContext(ctx)
 	// Get all pending items from GitHub
 	pendingItems, err := m.githubClient.GetPendingItems(ctx, username)
 	if err != nil {
@@ -205,16 +212,16 @@ func (m *Monitor) selectAndProcessNextItem(ctx context.Context, username, defaul
 	}
 
 	if pendingItems.IsEmpty() {
-		log.Println("No pending items found")
+		lgr.Info("No pending items found")
 		return nil
 	}
 
-	log.Printf("Found %d total pending items", pendingItems.Count())
+	lgr.Info("Found total pending items", zap.Int("count", pendingItems.Count()))
 
 	// Select the highest priority item
 	selectedItem := m.itemPrioritizer.SelectNextItem(pendingItems)
 	if selectedItem == nil {
-		log.Println("No suitable item to process (all may be in cooldown)")
+		lgr.Info("No suitable item to process (all may be in cooldown)")
 		return nil
 	}
 
@@ -252,7 +259,12 @@ func (m *Monitor) selectAndProcessNextItem(ctx context.Context, username, defaul
 
 // processItem processes a single item
 func (m *Monitor) processItem(ctx context.Context, item *ProcessingItem, globalDefaultBranch string, continueMode bool) error {
-	log.Printf("Processing %s #%d: %s (attempt %d)", item.Type, item.Number, item.Title, item.AttemptCount)
+	lgr := logger.FromContext(ctx)
+	lgr.Info("Processing item",
+		zap.String("type", item.Type),
+		zap.Int("number", item.Number),
+		zap.String("title", item.Title),
+		zap.Int("attempt", item.AttemptCount))
 
 	// Ensure repository is cloned before processing
 	if err := m.gitSetup.SetupRepository(ctx, item.Repository); err != nil {
@@ -268,25 +280,30 @@ func (m *Monitor) processItem(ctx context.Context, item *ProcessingItem, globalD
 
 	defaultBranch, err := m.githubClient.GetDefaultBranch(ctx, owner, repo)
 	if err != nil {
-		log.Printf("Warning: failed to get default branch for %s, using %s: %v", item.Repository, globalDefaultBranch, err)
+		lgr.Warn("Failed to get default branch, using fallback",
+			zap.String("repository", item.Repository),
+			zap.String("fallback_branch", globalDefaultBranch),
+			zap.Error(err))
 		defaultBranch = globalDefaultBranch
 	}
 
 	// Git state management: Only reset for new items, preserve state for continuations
 	if !continueMode {
 		// New item: Fresh git state (fetch + reset to main)
-		log.Printf("New item: Switching to %s branch and resetting to clean state for repository %s...", defaultBranch, item.Repository)
+		lgr.Info("New item: switching to branch and resetting to clean state",
+			zap.String("branch", defaultBranch),
+			zap.String("repository", item.Repository))
 		if err := m.gitSetup.SwitchToMainBranch(ctx, item.Repository, defaultBranch); err != nil {
 			return fmt.Errorf("failed to switch to main branch for repository %s: %w", item.Repository, err)
 		}
 	} else {
 		// Continuation: Keep existing git state, don't reset
-		log.Printf("Continuing item: Preserving current git state (no reset)")
+		lgr.Info("Continuing item: preserving current git state (no reset)")
 	}
 
 	// Build the prompt for this specific item
 	prompt := m.buildItemPrompt(item, continueMode)
-	log.Printf("Built prompt for item (length: %d characters)", len(prompt))
+	lgr.Debug("Built prompt for item", zap.Int("length", len(prompt)))
 
 	// Execute the AI agent
 	runOptions := agent.RunOptions{
@@ -300,32 +317,34 @@ func (m *Monitor) processItem(ctx context.Context, item *ProcessingItem, globalD
 
 	// Increment attempt count
 	if err := m.stateManager.IncrementAttempt(); err != nil {
-		log.Printf("Warning: failed to increment attempt count: %v", err)
+		lgr.Warn("Failed to increment attempt count", zap.Error(err))
 	}
 
 	if err := m.agent.Run(ctx, prompt, runOptions); err != nil {
-		log.Printf("Agent execution failed: %v", err)
+		lgr.Error("Agent execution failed", zap.Error(err))
 
 		// Record failure if max attempts reached
 		maxAttempts := m.getMaxAttempts()
 		if item.AttemptCount >= maxAttempts {
 			itemKey := GetItemKeyFromProcessingItem(item)
 			if recordErr := m.stateManager.RecordFailure(itemKey); recordErr != nil {
-				log.Printf("Warning: failed to record failure: %v", recordErr)
+				lgr.Warn("Failed to record failure", zap.Error(recordErr))
 			}
 
 			// Clear current item after max attempts
 			if clearErr := m.stateManager.ClearCurrentItem(); clearErr != nil {
-				log.Printf("Warning: failed to clear failed item: %v", clearErr)
+				lgr.Warn("Failed to clear failed item", zap.Error(clearErr))
 			}
 
-			log.Printf("Max attempts reached for %s #%d, moving to cooldown", item.Type, item.Number)
+			lgr.Warn("Max attempts reached, moving to cooldown",
+				zap.String("type", item.Type),
+				zap.Int("number", item.Number))
 		}
 
 		return fmt.Errorf("agent execution failed: %w", err)
 	}
 
-	log.Printf("Agent execution completed successfully at %s", time.Now().Format(time.RFC3339))
+	lgr.Info("Agent execution completed successfully", zap.String("timestamp", time.Now().Format(time.RFC3339)))
 	return nil
 }
 
