@@ -3,12 +3,13 @@ package github
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"autoteam/internal/config"
+	"autoteam/internal/logger"
 
 	"github.com/google/go-github/v57/github"
+	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
 
@@ -94,7 +95,8 @@ func parseRepository(repository string) (owner, repo string, err error) {
 
 // GetFilteredRepositories returns all repositories that match the filter criteria
 func (c *Client) GetFilteredRepositories(ctx context.Context, username string) ([]RepositoryInfo, error) {
-	log.Printf("Getting filtered repositories for user: %s", username)
+	log := logger.FromContext(ctx)
+	log.Info("Getting filtered repositories for user", zap.String("username", username))
 
 	opts := &github.RepositoryListByUserOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
@@ -107,14 +109,14 @@ func (c *Client) GetFilteredRepositories(ctx context.Context, username string) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to list repositories for user %s: %w", username, err)
 	}
-	log.Printf("Found %d repositories owned by user %s", len(repos), username)
+	log.Info("Found repositories owned by user", zap.Int("count", len(repos)), zap.String("username", username))
 
 	for _, repo := range repos {
 		repoName := repo.GetFullName()
-		log.Printf("Checking owned repository: %s", repoName)
+		log.Debug("Checking owned repository", zap.String("repository", repoName))
 		if c.filter.ShouldIncludeRepository(repoName) {
 			allRepos = append(allRepos, FromGitHubRepository(repo))
-			log.Printf("Added repository to filtered list: %s", repoName)
+			log.Debug("Added repository to filtered list", zap.String("repository", repoName))
 		}
 	}
 
@@ -128,13 +130,13 @@ func (c *Client) GetFilteredRepositories(ctx context.Context, username string) (
 
 	accessibleRepos, _, err := c.client.Repositories.ListByAuthenticatedUser(ctx, searchOpts)
 	if err != nil {
-		log.Printf("Warning: failed to get accessible repositories: %v", err)
+		log.Warn("Failed to get accessible repositories", zap.Error(err))
 	} else {
-		log.Printf("Found %d accessible repositories for authenticated user", len(accessibleRepos))
+		log.Info("Found accessible repositories for authenticated user", zap.Int("count", len(accessibleRepos)))
 
 		for _, repo := range accessibleRepos {
 			repoName := repo.GetFullName()
-			log.Printf("Checking accessible repository: %s", repoName)
+			log.Debug("Checking accessible repository", zap.String("repository", repoName))
 
 			// Skip if we already added it from owned repositories
 			alreadyAdded := false
@@ -147,11 +149,11 @@ func (c *Client) GetFilteredRepositories(ctx context.Context, username string) (
 
 			if !alreadyAdded && c.filter.ShouldIncludeRepository(repoName) {
 				allRepos = append(allRepos, FromGitHubRepository(repo))
-				log.Printf("Added accessible repository to filtered list: %s", repoName)
+				log.Debug("Added accessible repository to filtered list", zap.String("repository", repoName))
 			}
 		}
 	}
 
-	log.Printf("Total filtered repositories: %d", len(allRepos))
+	log.Info("Total filtered repositories", zap.Int("total", len(allRepos)))
 	return allRepos, nil
 }

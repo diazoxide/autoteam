@@ -3,7 +3,9 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"log"
+	"autoteam/internal/logger"
+
+	"go.uber.org/zap"
 
 	"autoteam/internal/github"
 )

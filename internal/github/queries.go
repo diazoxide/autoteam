@@ -70,69 +70,69 @@ func (c *Client) getReviewRequests(ctx context.Context, username string) ([]Pull
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for review requests: %w", err)
 	}
-	log.Printf("GitHub search returned %d results for review requests", len(result.Issues))
+	log.Info("GitHub search returned results for review requests", zap.Int("count", len(result.Issues)))
 
 	var prs []PullRequestInfo
 	for i, issue := range result.Issues {
-		log.Printf("Processing review request result %d/%d: PR #%d", i+1, len(result.Issues), issue.GetNumber())
+		log.Debug("Processing review request result", zap.Int("index", i+1), zap.Int("total", len(result.Issues)), zap.Int("pr_number", issue.GetNumber()))
 
 		if issue.PullRequestLinks == nil {
-			log.Printf("Skipping issue #%d: not a pull request (no PR links)", issue.GetNumber())
+			log.Debug("Skipping issue: not a pull request", zap.Int("issue_number", issue.GetNumber()))
 			continue
 		}
 
 		var repoName string
 		if issue.Repository == nil {
-			log.Printf("Issue #%d: no repository object from GitHub API", issue.GetNumber())
+			log.Debug("Issue has no repository object from GitHub API", zap.Int("issue_number", issue.GetNumber()))
 			// Try to extract repository info from the HTML URL as workaround
 			if htmlURL := issue.GetHTMLURL(); htmlURL != "" {
-				log.Printf("Attempting to extract repository from URL: %s", htmlURL)
+				log.Debug("Attempting to extract repository from URL", zap.String("url", htmlURL))
 				// GitHub URLs are typically: https://github.com/owner/repo/pull/123
 				if strings.Contains(htmlURL, "github.com") {
 					parts := strings.Split(htmlURL, "/")
 					if len(parts) >= 5 && parts[2] == "github.com" {
 						repoName = parts[3] + "/" + parts[4]
-						log.Printf("Extracted repository from URL: %s", repoName)
+						log.Debug("Extracted repository from URL", zap.String("repository", repoName))
 					} else {
-						log.Printf("Could not parse repository from URL structure")
+						log.Debug("Could not parse repository from URL structure")
 						continue
 					}
 				} else {
-					log.Printf("URL is not a GitHub URL")
+					log.Debug("URL is not a GitHub URL")
 					continue
 				}
 			} else {
-				log.Printf("No URL available to extract repository from")
+				log.Debug("No URL available to extract repository from")
 				continue
 			}
 		} else {
 			repoName = issue.Repository.GetFullName()
 		}
-		log.Printf("Checking repository: %s for PR #%d", repoName, issue.GetNumber())
+		log.Debug("Checking repository for PR", zap.String("repository", repoName), zap.Int("pr_number", issue.GetNumber()))
 
 		// Apply repository filter
 		if !c.filter.ShouldIncludeRepository(repoName) {
-			log.Printf("Repository %s filtered out by repository filter", repoName)
+			log.Debug("Repository filtered out by repository filter", zap.String("repository", repoName))
 			continue
 		}
-		log.Printf("Repository %s passed filter", repoName)
+		log.Debug("Repository passed filter", zap.String("repository", repoName))
 
 		// Parse repository owner/name
 		owner, repo, err := parseRepository(repoName)
 		if err != nil {
-			log.Printf("Warning: failed to parse repository %s: %v", repoName, err)
+			log.Warn("Failed to parse repository", zap.String("repository", repoName), zap.Error(err))
 			continue
 		}
 
 		// Get full PR details
-		log.Printf("Getting PR details for #%d in %s", issue.GetNumber(), repoName)
+		log.Debug("Getting PR details", zap.Int("pr_number", issue.GetNumber()), zap.String("repository", repoName))
 		pr, _, err := c.client.PullRequests.Get(ctx, owner, repo, issue.GetNumber())
 		if err != nil {
-			log.Printf("Warning: failed to get PR #%d in %s: %v", issue.GetNumber(), repoName, err)
+			log.Warn("Failed to get PR details", zap.Int("pr_number", issue.GetNumber()), zap.String("repository", repoName), zap.Error(err))
 			continue
 		}
 
-		log.Printf("Successfully retrieved PR #%d details from %s", issue.GetNumber(), repoName)
+		log.Debug("Successfully retrieved PR details", zap.Int("pr_number", issue.GetNumber()), zap.String("repository", repoName))
 		prInfo := FromGitHubPullRequest(pr)
 		prInfo.Repository = repoName
 		prs = append(prs, prInfo)
@@ -143,6 +143,7 @@ func (c *Client) getReviewRequests(ctx context.Context, username string) ([]Pull
 
 // getAssignedPRs gets PRs assigned to the user across all filtered repositories
 func (c *Client) getAssignedPRs(ctx context.Context, username string) ([]PullRequestInfo, error) {
+	log := logger.FromContext(ctx)
 	// Search globally for PRs assigned to the user
 	query := fmt.Sprintf("is:pr is:open assignee:%s", username)
 
@@ -157,65 +158,65 @@ func (c *Client) getAssignedPRs(ctx context.Context, username string) ([]PullReq
 
 	var prs []PullRequestInfo
 	for i, issue := range result.Issues {
-		log.Printf("Processing assigned PR result %d/%d: PR #%d", i+1, len(result.Issues), issue.GetNumber())
+		log.Debug("Processing assigned PR result", zap.Int("index", i+1), zap.Int("total", len(result.Issues)), zap.Int("pr_number", issue.GetNumber()))
 
 		if issue.PullRequestLinks == nil {
-			log.Printf("Skipping issue #%d: not a pull request (no PR links)", issue.GetNumber())
+			log.Debug("Skipping issue: not a pull request", zap.Int("issue_number", issue.GetNumber()))
 			continue
 		}
 
 		var repoName string
 		if issue.Repository == nil {
-			log.Printf("Issue #%d: no repository object from GitHub API", issue.GetNumber())
+			log.Debug("Issue has no repository object from GitHub API", zap.Int("issue_number", issue.GetNumber()))
 			// Try to extract repository info from the HTML URL as workaround
 			if htmlURL := issue.GetHTMLURL(); htmlURL != "" {
-				log.Printf("Attempting to extract repository from URL: %s", htmlURL)
+				log.Debug("Attempting to extract repository from URL", zap.String("url", htmlURL))
 				// GitHub URLs are typically: https://github.com/owner/repo/pull/123
 				if strings.Contains(htmlURL, "github.com") {
 					parts := strings.Split(htmlURL, "/")
 					if len(parts) >= 5 && parts[2] == "github.com" {
 						repoName = parts[3] + "/" + parts[4]
-						log.Printf("Extracted repository from URL: %s", repoName)
+						log.Debug("Extracted repository from URL", zap.String("repository", repoName))
 					} else {
-						log.Printf("Could not parse repository from URL structure")
+						log.Debug("Could not parse repository from URL structure")
 						continue
 					}
 				} else {
-					log.Printf("URL is not a GitHub URL")
+					log.Debug("URL is not a GitHub URL")
 					continue
 				}
 			} else {
-				log.Printf("No URL available to extract repository from")
+				log.Debug("No URL available to extract repository from")
 				continue
 			}
 		} else {
 			repoName = issue.Repository.GetFullName()
 		}
-		log.Printf("Checking repository: %s for PR #%d", repoName, issue.GetNumber())
+		log.Debug("Checking repository for PR", zap.String("repository", repoName), zap.Int("pr_number", issue.GetNumber()))
 
 		// Apply repository filter
 		if !c.filter.ShouldIncludeRepository(repoName) {
-			log.Printf("Repository %s filtered out by repository filter", repoName)
+			log.Debug("Repository filtered out by repository filter", zap.String("repository", repoName))
 			continue
 		}
-		log.Printf("Repository %s passed filter", repoName)
+		log.Debug("Repository passed filter", zap.String("repository", repoName))
 
 		// Parse repository owner/name
 		owner, repo, err := parseRepository(repoName)
 		if err != nil {
-			log.Printf("Warning: failed to parse repository %s: %v", repoName, err)
+			log.Warn("Failed to parse repository", zap.String("repository", repoName), zap.Error(err))
 			continue
 		}
 
 		// Get full PR details
-		log.Printf("Getting PR details for #%d in %s", issue.GetNumber(), repoName)
+		log.Debug("Getting PR details", zap.Int("pr_number", issue.GetNumber()), zap.String("repository", repoName))
 		pr, _, err := c.client.PullRequests.Get(ctx, owner, repo, issue.GetNumber())
 		if err != nil {
-			log.Printf("Warning: failed to get PR #%d in %s: %v", issue.GetNumber(), repoName, err)
+			log.Warn("Failed to get PR details", zap.Int("pr_number", issue.GetNumber()), zap.String("repository", repoName), zap.Error(err))
 			continue
 		}
 
-		log.Printf("Successfully retrieved assigned PR #%d details from %s", issue.GetNumber(), repoName)
+		log.Debug("Successfully retrieved assigned PR details", zap.Int("pr_number", issue.GetNumber()), zap.String("repository", repoName))
 		prInfo := FromGitHubPullRequest(pr)
 		prInfo.Repository = repoName
 		prs = append(prs, prInfo)
@@ -226,9 +227,10 @@ func (c *Client) getAssignedPRs(ctx context.Context, username string) ([]PullReq
 
 // getAssignedIssues gets issues assigned to the user (excluding those with linked PRs) across all filtered repositories
 func (c *Client) getAssignedIssues(ctx context.Context, username string) ([]IssueInfo, error) {
+	log := logger.FromContext(ctx)
 	// Search globally for issues assigned to the user
 	query := fmt.Sprintf("is:issue is:open assignee:%s -linked:pr", username)
-	log.Printf("Searching for assigned issues with query: %s", query)
+	log.Info("Searching for assigned issues", zap.String("query", query))
 
 	opts := &github.SearchOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
@@ -238,55 +240,55 @@ func (c *Client) getAssignedIssues(ctx context.Context, username string) ([]Issu
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for assigned issues: %w", err)
 	}
-	log.Printf("GitHub search returned %d results for assigned issues", len(result.Issues))
+	log.Info("GitHub search returned results for assigned issues", zap.Int("count", len(result.Issues)))
 
 	var issues []IssueInfo
 	for i, issue := range result.Issues {
-		log.Printf("Processing assigned issue result %d/%d: Issue #%d", i+1, len(result.Issues), issue.GetNumber())
+		log.Debug("Processing assigned issue result", zap.Int("index", i+1), zap.Int("total", len(result.Issues)), zap.Int("issue_number", issue.GetNumber()))
 
 		// Skip if it's actually a PR
 		if issue.PullRequestLinks != nil {
-			log.Printf("Skipping issue #%d: it's actually a pull request", issue.GetNumber())
+			log.Debug("Skipping issue: actually a pull request", zap.Int("issue_number", issue.GetNumber()))
 			continue
 		}
 
 		var repoName string
 		if issue.Repository == nil {
-			log.Printf("Issue #%d: no repository object from GitHub API", issue.GetNumber())
+			log.Debug("Issue has no repository object from GitHub API", zap.Int("issue_number", issue.GetNumber()))
 			// Try to extract repository info from the HTML URL as workaround
 			if htmlURL := issue.GetHTMLURL(); htmlURL != "" {
-				log.Printf("Attempting to extract repository from URL: %s", htmlURL)
+				log.Debug("Attempting to extract repository from URL", zap.String("url", htmlURL))
 				// GitHub URLs are typically: https://github.com/owner/repo/issues/123
 				if strings.Contains(htmlURL, "github.com") {
 					parts := strings.Split(htmlURL, "/")
 					if len(parts) >= 5 && parts[2] == "github.com" {
 						repoName = parts[3] + "/" + parts[4]
-						log.Printf("Extracted repository from URL: %s", repoName)
+						log.Debug("Extracted repository from URL", zap.String("repository", repoName))
 					} else {
-						log.Printf("Could not parse repository from URL structure")
+						log.Debug("Could not parse repository from URL structure")
 						continue
 					}
 				} else {
-					log.Printf("URL is not a GitHub URL")
+					log.Debug("URL is not a GitHub URL")
 					continue
 				}
 			} else {
-				log.Printf("No URL available to extract repository from")
+				log.Debug("No URL available to extract repository from")
 				continue
 			}
 		} else {
 			repoName = issue.Repository.GetFullName()
 		}
-		log.Printf("Checking repository: %s for issue #%d", repoName, issue.GetNumber())
+		log.Debug("Checking repository for issue", zap.String("repository", repoName), zap.Int("issue_number", issue.GetNumber()))
 
 		// Apply repository filter
 		if !c.filter.ShouldIncludeRepository(repoName) {
-			log.Printf("Repository %s filtered out by repository filter", repoName)
+			log.Debug("Repository filtered out by repository filter", zap.String("repository", repoName))
 			continue
 		}
-		log.Printf("Repository %s passed filter", repoName)
+		log.Debug("Repository passed filter", zap.String("repository", repoName))
 
-		log.Printf("Adding issue #%d from %s to assigned issues list", issue.GetNumber(), repoName)
+		log.Debug("Adding issue to assigned issues list", zap.Int("issue_number", issue.GetNumber()), zap.String("repository", repoName))
 		issueInfo := FromGitHubIssue(issue)
 		issueInfo.Repository = repoName
 		issues = append(issues, issueInfo)
@@ -297,6 +299,7 @@ func (c *Client) getAssignedIssues(ctx context.Context, username string) ([]Issu
 
 // getPRsWithChangesRequested gets PRs authored by the user that have changes requested across all filtered repositories
 func (c *Client) getPRsWithChangesRequested(ctx context.Context, username string) ([]PullRequestInfo, error) {
+	log := logger.FromContext(ctx)
 	// Search globally for PRs authored by the user
 	query := fmt.Sprintf("is:pr is:open author:%s", username)
 
@@ -311,75 +314,75 @@ func (c *Client) getPRsWithChangesRequested(ctx context.Context, username string
 
 	var prsWithChanges []PullRequestInfo
 	for i, issue := range result.Issues {
-		log.Printf("Processing PR with changes requested result %d/%d: PR #%d", i+1, len(result.Issues), issue.GetNumber())
+		log.Debug("Processing PR with changes requested result", zap.Int("index", i+1), zap.Int("total", len(result.Issues)), zap.Int("pr_number", issue.GetNumber()))
 
 		if issue.PullRequestLinks == nil {
-			log.Printf("Skipping issue #%d: not a pull request (no PR links)", issue.GetNumber())
+			log.Debug("Skipping issue: not a pull request", zap.Int("issue_number", issue.GetNumber()))
 			continue
 		}
 
 		var repoName string
 		if issue.Repository == nil {
-			log.Printf("Issue #%d: no repository object from GitHub API", issue.GetNumber())
+			log.Debug("Issue has no repository object from GitHub API", zap.Int("issue_number", issue.GetNumber()))
 			// Try to extract repository info from the HTML URL as workaround
 			if htmlURL := issue.GetHTMLURL(); htmlURL != "" {
-				log.Printf("Attempting to extract repository from URL: %s", htmlURL)
+				log.Debug("Attempting to extract repository from URL", zap.String("url", htmlURL))
 				// GitHub URLs are typically: https://github.com/owner/repo/pull/123
 				if strings.Contains(htmlURL, "github.com") {
 					parts := strings.Split(htmlURL, "/")
 					if len(parts) >= 5 && parts[2] == "github.com" {
 						repoName = parts[3] + "/" + parts[4]
-						log.Printf("Extracted repository from URL: %s", repoName)
+						log.Debug("Extracted repository from URL", zap.String("repository", repoName))
 					} else {
-						log.Printf("Could not parse repository from URL structure")
+						log.Debug("Could not parse repository from URL structure")
 						continue
 					}
 				} else {
-					log.Printf("URL is not a GitHub URL")
+					log.Debug("URL is not a GitHub URL")
 					continue
 				}
 			} else {
-				log.Printf("No URL available to extract repository from")
+				log.Debug("No URL available to extract repository from")
 				continue
 			}
 		} else {
 			repoName = issue.Repository.GetFullName()
 		}
-		log.Printf("Checking repository: %s for PR #%d", repoName, issue.GetNumber())
+		log.Debug("Checking repository for PR", zap.String("repository", repoName), zap.Int("pr_number", issue.GetNumber()))
 
 		// Apply repository filter
 		if !c.filter.ShouldIncludeRepository(repoName) {
-			log.Printf("Repository %s filtered out by repository filter", repoName)
+			log.Debug("Repository filtered out by repository filter", zap.String("repository", repoName))
 			continue
 		}
-		log.Printf("Repository %s passed filter", repoName)
+		log.Debug("Repository passed filter", zap.String("repository", repoName))
 
 		// Parse repository owner/name
 		owner, repo, err := parseRepository(repoName)
 		if err != nil {
-			log.Printf("Warning: failed to parse repository %s: %v", repoName, err)
+			log.Warn("Failed to parse repository", zap.String("repository", repoName), zap.Error(err))
 			continue
 		}
 
 		// Get full PR details
-		log.Printf("Getting PR details for #%d in %s", issue.GetNumber(), repoName)
+		log.Debug("Getting PR details", zap.Int("pr_number", issue.GetNumber()), zap.String("repository", repoName))
 		pr, _, err := c.client.PullRequests.Get(ctx, owner, repo, issue.GetNumber())
 		if err != nil {
-			log.Printf("Warning: failed to get PR #%d in %s: %v", issue.GetNumber(), repoName, err)
+			log.Warn("Failed to get PR details", zap.Int("pr_number", issue.GetNumber()), zap.String("repository", repoName), zap.Error(err))
 			continue
 		}
 
 		// Check if this PR has changes requested
-		log.Printf("Checking if PR #%d has changes requested", issue.GetNumber())
+		log.Debug("Checking if PR has changes requested", zap.Int("pr_number", issue.GetNumber()))
 		hasChangesRequested, reviews, err := c.checkChangesRequested(ctx, owner, repo, issue.GetNumber(), pr)
 		if err != nil {
-			log.Printf("Warning: failed to check reviews for PR #%d in %s: %v", issue.GetNumber(), repoName, err)
+			log.Warn("Failed to check reviews for PR", zap.Int("pr_number", issue.GetNumber()), zap.String("repository", repoName), zap.Error(err))
 			continue
 		}
 
-		log.Printf("PR #%d has changes requested: %v", issue.GetNumber(), hasChangesRequested)
+		log.Debug("PR changes requested status", zap.Int("pr_number", issue.GetNumber()), zap.Bool("has_changes_requested", hasChangesRequested))
 		if hasChangesRequested {
-			log.Printf("Adding PR #%d to changes requested list", issue.GetNumber())
+			log.Debug("Adding PR to changes requested list", zap.Int("pr_number", issue.GetNumber()))
 			prInfo := FromGitHubPullRequest(pr)
 			prInfo.Repository = repoName
 			prInfo.HasChangesRequested = true
@@ -394,13 +397,14 @@ func (c *Client) getPRsWithChangesRequested(ctx context.Context, username string
 // checkChangesRequested checks if a PR has changes requested in the latest reviews
 // and excludes PRs where developer has requested re-review (waiting for reviewer response)
 func (c *Client) checkChangesRequested(ctx context.Context, owner, repo string, prNumber int, pr *github.PullRequest) (bool, []ReviewInfo, error) {
+	log := logger.FromContext(ctx)
 	opts := &github.ListOptions{PerPage: 100}
 	reviews, _, err := c.client.PullRequests.ListReviews(ctx, owner, repo, prNumber, opts)
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to list reviews: %w", err)
 	}
 
-	log.Printf("Found %d total reviews for PR #%d", len(reviews), prNumber)
+	log.Debug("Found total reviews for PR", zap.Int("review_count", len(reviews)), zap.Int("pr_number", prNumber))
 
 	// Group reviews by reviewer and get the latest review from each
 	latestReviews := make(map[string]*github.PullRequestReview)
@@ -409,7 +413,7 @@ func (c *Client) checkChangesRequested(ctx context.Context, owner, repo string, 
 			continue
 		}
 		reviewer := review.User.GetLogin()
-		log.Printf("Review from %s: state=%s, submitted=%v", reviewer, review.GetState(), review.GetSubmittedAt())
+		log.Debug("Review details", zap.String("reviewer", reviewer), zap.String("state", review.GetState()), zap.Time("submitted_at", review.GetSubmittedAt().Time))
 
 		// Keep only the latest review from each reviewer
 		if existing, exists := latestReviews[reviewer]; !exists || review.GetSubmittedAt().After(existing.GetSubmittedAt().Time) {
@@ -417,7 +421,7 @@ func (c *Client) checkChangesRequested(ctx context.Context, owner, repo string, 
 		}
 	}
 
-	log.Printf("Latest reviews from %d reviewers", len(latestReviews))
+	log.Debug("Latest reviews summary", zap.Int("reviewer_count", len(latestReviews)))
 
 	// Check if any of the latest reviews request changes
 	var hasChanges bool
@@ -426,14 +430,14 @@ func (c *Client) checkChangesRequested(ctx context.Context, owner, repo string, 
 		reviewInfo := FromGitHubReview(review)
 		reviewInfos = append(reviewInfos, reviewInfo)
 
-		log.Printf("Latest review from %s: state=%s", reviewer, review.GetState())
+		log.Debug("Latest review from reviewer", zap.String("reviewer", reviewer), zap.String("state", review.GetState()))
 		if strings.EqualFold(review.GetState(), "changes_requested") {
-			log.Printf("Found changes requested from %s", reviewer)
+			log.Debug("Found changes requested from reviewer", zap.String("reviewer", reviewer))
 			hasChanges = true
 		}
 	}
 
-	log.Printf("PR #%d final changes requested status: %v", prNumber, hasChanges)
+	log.Debug("PR final changes requested status", zap.Int("pr_number", prNumber), zap.Bool("has_changes", hasChanges))
 
 	// If PR has changes requested, check if developer has re-requested review
 	if hasChanges && pr.RequestedReviewers != nil && len(pr.RequestedReviewers) > 0 {
@@ -443,8 +447,8 @@ func (c *Client) checkChangesRequested(ctx context.Context, owner, repo string, 
 				reviewerNames = append(reviewerNames, reviewer.GetLogin())
 			}
 		}
-		log.Printf("PR #%d has %d pending re-review requests from: %v", prNumber, len(reviewerNames), reviewerNames)
-		log.Printf("PR #%d excluded from pending items (waiting for reviewer response)", prNumber)
+		log.Debug("PR has pending re-review requests", zap.Int("pr_number", prNumber), zap.Int("request_count", len(reviewerNames)), zap.Strings("reviewers", reviewerNames))
+		log.Debug("PR excluded from pending items (waiting for reviewer response)", zap.Int("pr_number", prNumber))
 		return false, reviewInfos, nil // Exclude from pending - waiting for reviewers
 	}
 

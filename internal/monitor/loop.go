@@ -3,7 +3,6 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -11,6 +10,9 @@ import (
 	"autoteam/internal/entrypoint"
 	"autoteam/internal/git"
 	"autoteam/internal/github"
+	"autoteam/internal/logger"
+
+	"go.uber.org/zap"
 )
 
 // Config contains configuration for the monitor

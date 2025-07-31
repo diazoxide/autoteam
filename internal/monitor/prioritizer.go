@@ -1,7 +1,9 @@
 package monitor
 
 import (
-	"log"
+	"autoteam/internal/logger"
+
+	"go.uber.org/zap"
 	"sort"
 	"strings"
 	"time"

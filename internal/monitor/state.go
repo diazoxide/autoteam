@@ -3,7 +3,9 @@ package monitor
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"autoteam/internal/logger"
+
+	"go.uber.org/zap"
 	"os"
 	"path/filepath"
 	"strings"
