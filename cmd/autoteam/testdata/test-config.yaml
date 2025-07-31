@@ -13,8 +13,9 @@ agents:
     github_user: "test-arch-user"
 
 settings:
-  docker_image: "node:test"
-  docker_user: "testuser"
+  service:
+    image: "node:test"
+    user: "testuser"
   check_interval: 30
   team_name: "integration-test"
   install_deps: true

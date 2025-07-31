@@ -11,9 +11,7 @@ import (
 
 // Default configuration constants
 const (
-	DefaultDockerImage = "node:18.17.1"
-	DefaultDockerUser  = "developer"
-	DefaultTeamName    = "autoteam"
+	DefaultTeamName = "autoteam"
 )
 
 type Config struct {
@@ -36,29 +34,21 @@ type Agent struct {
 }
 
 type AgentSettings struct {
-	DockerImage   *string           `yaml:"docker_image,omitempty"`
-	DockerUser    *string           `yaml:"docker_user,omitempty"`
-	CheckInterval *int              `yaml:"check_interval,omitempty"`
-	TeamName      *string           `yaml:"team_name,omitempty"`
-	InstallDeps   *bool             `yaml:"install_deps,omitempty"`
-	CommonPrompt  *string           `yaml:"common_prompt,omitempty"`
-	MaxAttempts   *int              `yaml:"max_attempts,omitempty"`
-	Volumes       []string          `yaml:"volumes,omitempty"`
-	Entrypoint    *string           `yaml:"entrypoint,omitempty"`
-	Environment   map[string]string `yaml:"environment,omitempty"`
+	CheckInterval *int                    `yaml:"check_interval,omitempty"`
+	TeamName      *string                 `yaml:"team_name,omitempty"`
+	InstallDeps   *bool                   `yaml:"install_deps,omitempty"`
+	CommonPrompt  *string                 `yaml:"common_prompt,omitempty"`
+	MaxAttempts   *int                    `yaml:"max_attempts,omitempty"`
+	Service       map[string]interface{}  `yaml:"service,omitempty"`
 }
 
 type Settings struct {
-	DockerImage   string            `yaml:"docker_image"`
-	DockerUser    string            `yaml:"docker_user"`
-	CheckInterval int               `yaml:"check_interval"`
-	TeamName      string            `yaml:"team_name"`
-	InstallDeps   bool              `yaml:"install_deps"`
-	CommonPrompt  string            `yaml:"common_prompt,omitempty"`
-	MaxAttempts   int               `yaml:"max_attempts"`
-	Volumes       []string          `yaml:"volumes,omitempty"`
-	Entrypoint    string            `yaml:"entrypoint,omitempty"`
-	Environment   map[string]string `yaml:"environment,omitempty"`
+	CheckInterval int                    `yaml:"check_interval"`
+	TeamName      string                 `yaml:"team_name"`
+	InstallDeps   bool                   `yaml:"install_deps"`
+	CommonPrompt  string                 `yaml:"common_prompt,omitempty"`
+	MaxAttempts   int                    `yaml:"max_attempts"`
+	Service       map[string]interface{} `yaml:"service,omitempty"`
 }
 
 func LoadConfig(filename string) (*Config, error) {
@@ -181,12 +171,6 @@ func validateConfig(config *Config) error {
 }
 
 func setDefaults(config *Config) {
-	if config.Settings.DockerImage == "" {
-		config.Settings.DockerImage = DefaultDockerImage
-	}
-	if config.Settings.DockerUser == "" {
-		config.Settings.DockerUser = DefaultDockerUser
-	}
 	if config.Settings.CheckInterval == 0 {
 		config.Settings.CheckInterval = 60
 	}
@@ -195,6 +179,13 @@ func setDefaults(config *Config) {
 	}
 	if config.Settings.MaxAttempts == 0 {
 		config.Settings.MaxAttempts = 3
+	}
+	// Set default service configuration if not provided
+	if config.Settings.Service == nil {
+		config.Settings.Service = map[string]interface{}{
+			"image": "node:18.17.1",
+			"user":  "developer",
+		}
 	}
 }
 
@@ -223,27 +214,31 @@ func CreateSampleConfig(filename string) error {
 				GitHubToken: "ghp_your_github_token_here",
 				GitHubUser:  "your-github-username",
 				Settings: &AgentSettings{
-					DockerImage:   stringPtr("python:3.11"),
 					CheckInterval: intPtr(30),
-					Volumes: []string{
-						"./custom-configs:/app/configs:ro",
-						"/var/run/docker.sock:/var/run/docker.sock",
-					},
-					Environment: map[string]string{
-						"PYTHON_PATH": "/app/custom",
-						"DEBUG_MODE":  "true",
+					Service: map[string]interface{}{
+						"image": "python:3.11",
+						"volumes": []string{
+							"./custom-configs:/app/configs:ro",
+							"/var/run/docker.sock:/var/run/docker.sock",
+						},
+						"environment": map[string]string{
+							"PYTHON_PATH": "/app/custom",
+							"DEBUG_MODE":  "true",
+						},
 					},
 				},
 			},
 		},
 		Settings: Settings{
-			DockerImage:   DefaultDockerImage,
-			DockerUser:    DefaultDockerUser,
 			CheckInterval: 60,
 			TeamName:      DefaultTeamName,
 			InstallDeps:   true,
 			CommonPrompt:  "Always follow coding best practices and write comprehensive tests.",
 			MaxAttempts:   3,
+			Service: map[string]interface{}{
+				"image": "node:18.17.1",
+				"user":  "developer",
+			},
 		},
 	}
 
@@ -259,6 +254,87 @@ func CreateSampleConfig(filename string) error {
 	return nil
 }
 
+// mergeServiceConfigs merges global and agent service configurations
+// Agent service properties override global ones, with special handling for maps and arrays
+func mergeServiceConfigs(global, agent map[string]interface{}) map[string]interface{} {
+	if global == nil && agent == nil {
+		return nil
+	}
+	if global == nil {
+		return copyServiceConfig(agent)
+	}
+	if agent == nil {
+		return copyServiceConfig(global)
+	}
+
+	// Start with a copy of global config
+	result := copyServiceConfig(global)
+
+	// Override/merge with agent config
+	for key, agentValue := range agent {
+		globalValue, exists := result[key]
+		
+		// If key doesn't exist in global, just add it
+		if !exists {
+			result[key] = agentValue
+			continue
+		}
+
+		// Special handling for environment variables (maps) - merge them
+		if key == "environment" {
+			if globalEnv, ok := globalValue.(map[string]string); ok {
+				if agentEnv, ok := agentValue.(map[string]string); ok {
+					merged := make(map[string]string)
+					// Copy global environment first
+					for k, v := range globalEnv {
+						merged[k] = v
+					}
+					// Override with agent environment
+					for k, v := range agentEnv {
+						merged[k] = v
+					}
+					result[key] = merged
+					continue
+				}
+			}
+			// If we can't merge as maps, fall back to replacement
+		}
+
+		// For all other properties (including arrays like volumes, ports), agent replaces global
+		result[key] = agentValue
+	}
+
+	return result
+}
+
+// copyServiceConfig creates a deep copy of a service configuration map
+func copyServiceConfig(source map[string]interface{}) map[string]interface{} {
+	if source == nil {
+		return nil
+	}
+	
+	result := make(map[string]interface{})
+	for key, value := range source {
+		// Special handling for map types (like environment)
+		if envMap, ok := value.(map[string]string); ok {
+			newEnvMap := make(map[string]string)
+			for k, v := range envMap {
+				newEnvMap[k] = v
+			}
+			result[key] = newEnvMap
+		} else if strSlice, ok := value.([]string); ok {
+			// Copy string slices (like volumes)
+			newSlice := make([]string, len(strSlice))
+			copy(newSlice, strSlice)
+			result[key] = newSlice
+		} else {
+			// For other types, direct assignment (should be safe for scalars)
+			result[key] = value
+		}
+	}
+	return result
+}
+
 // GetEffectiveSettings returns the effective settings for an agent,
 // merging global settings with agent-specific overrides
 func (a *Agent) GetEffectiveSettings(globalSettings Settings) Settings {
@@ -269,12 +345,6 @@ func (a *Agent) GetEffectiveSettings(globalSettings Settings) Settings {
 	}
 
 	// Override with agent-specific settings where provided
-	if a.Settings.DockerImage != nil {
-		effective.DockerImage = *a.Settings.DockerImage
-	}
-	if a.Settings.DockerUser != nil {
-		effective.DockerUser = *a.Settings.DockerUser
-	}
 	if a.Settings.CheckInterval != nil {
 		effective.CheckInterval = *a.Settings.CheckInterval
 	}
@@ -291,24 +361,9 @@ func (a *Agent) GetEffectiveSettings(globalSettings Settings) Settings {
 		effective.MaxAttempts = *a.Settings.MaxAttempts
 	}
 
-	// Handle new fields
-	if len(a.Settings.Volumes) > 0 {
-		effective.Volumes = a.Settings.Volumes
-	}
-	if a.Settings.Entrypoint != nil {
-		effective.Entrypoint = *a.Settings.Entrypoint
-	}
-	if len(a.Settings.Environment) > 0 {
-		// Merge environment variables (agent-specific overrides global)
-		effective.Environment = make(map[string]string)
-		// Copy global environment first
-		for k, v := range globalSettings.Environment {
-			effective.Environment[k] = v
-		}
-		// Override with agent-specific environment
-		for k, v := range a.Settings.Environment {
-			effective.Environment[k] = v
-		}
+	// Merge service configurations
+	if len(a.Settings.Service) > 0 {
+		effective.Service = mergeServiceConfigs(globalSettings.Service, a.Settings.Service)
 	}
 
 	return effective

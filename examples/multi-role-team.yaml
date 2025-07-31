@@ -10,25 +10,46 @@ agents:
     prompt: |
       You are a senior developer responsible for feature implementation.
     github_token: "ghp_your_developer_token_here"
+    github_user: "your-github-username"
     
   - name: "architect"
     prompt: |
       You are a system architect focused on design and scalability.
     github_token: "ghp_your_architect_token_here"
+    github_user: "your-github-username"
+    settings:
+      service:
+        image: "golang:1.21"
+        volumes:
+          - "./arch-configs:/app/configs:ro"
+        environment:
+          ARCH_MODE: "strict"
     
   - name: "reviewer"
     prompt: |
       You are a code reviewer ensuring quality and best practices.
     github_token: "ghp_your_reviewer_token_here"
+    github_user: "your-github-username"
 
   - name: "tester"
     prompt: |
       You are a QA engineer responsible for testing and bug validation.
     github_token: "ghp_your_tester_token_here"
+    github_user: "your-github-username"
+    settings:
+      service:
+        image: "python:3.11"
+        volumes:
+          - "./test-data:/app/test-data"
+        environment:
+          TEST_ENV: "staging"
 
 settings:
-  docker_image: "node:18.17.1"
-  docker_user: "developer"
+  service:
+    image: "node:18.17.1"
+    user: "developer"
+    volumes:
+      - "./shared-configs:/app/configs"
   team_name: "enterprise-team"
   check_interval: 45
   install_deps: true

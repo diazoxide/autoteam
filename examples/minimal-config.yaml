@@ -9,3 +9,4 @@ agents:
   - name: "bot"
     prompt: "You are an AI assistant that helps with general development tasks."
     github_token: "ghp_your_token_here"
+    github_user: "your-github-username"

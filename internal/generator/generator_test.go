@@ -2,12 +2,12 @@ package generator
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"autoteam/internal/config"
 	"autoteam/internal/testutil"
+	"gopkg.in/yaml.v3"
 )
 
 func TestGenerator_GenerateCompose(t *testing.T) {
@@ -25,32 +25,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 		t.Fatalf("failed to change to temp directory: %v", err)
 	}
 
-	// Copy templates to temp directory
-	templatesDir := filepath.Join(tempDir, "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatalf("failed to create templates directory: %v", err)
-	}
-
-	// Create template files
-	composeTemplate := `services:
-{{- range .Agents }}
-  {{ .Name }}:
-    image: {{ $.Settings.DockerImage }}
-    environment:
-      AGENT_NAME: {{ .Name }}
-      GITHUB_REPO: {{ (index $.Repositories.Include 0) }}
-      GH_TOKEN: {{ .GitHubToken }}
-{{- end }}`
-
-	entrypointTemplate := `#!/bin/bash
-echo "Repository: $GITHUB_REPO"
-echo "Agent: $AGENT_NAME"
-echo "Check interval: ${CHECK_INTERVAL:-60}"`
-
-	testutil.CreateTempFile(t, templatesDir, "compose.yaml.tmpl", composeTemplate)
-	testutil.CreateTempFile(t, templatesDir, "entrypoint.sh.tmpl", entrypointTemplate)
-
-	// Create test config inline
+	// Create test config with new service structure
 	cfg := &config.Config{
 		Repositories: config.Repositories{
 			Include: []string{"owner/test-repo"},
@@ -67,11 +42,20 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 				Prompt:      "You are an architect agent",
 				GitHubToken: "ARCH1_TOKEN",
 				GitHubUser:  "arch-user",
+				Settings: &config.AgentSettings{
+					Service: map[string]interface{}{
+						"image": "python:3.11",
+						"volumes": []string{"./custom-vol:/app/custom"},
+					},
+				},
 			},
 		},
 		Settings: config.Settings{
-			DockerImage:   "node:18",
-			DockerUser:    "testuser",
+			Service: map[string]interface{}{
+				"image": "node:18",
+				"user":  "testuser",
+				"volumes": []string{"./shared:/app/shared"},
+			},
 			CheckInterval: 30,
 			TeamName:      "test-team",
 			InstallDeps:   false,
@@ -87,21 +71,70 @@ echo "Check interval: ${CHECK_INTERVAL:-60}"`
 	// Verify compose.yaml was generated in .autoteam directory
 	composeContent := testutil.ReadFile(t, ".autoteam/compose.yaml")
 
-	// Check that both agents are in the compose file
-	if !strings.Contains(composeContent, "dev1:") {
-		t.Errorf("compose.yaml should contain dev1 service")
-	}
-	if !strings.Contains(composeContent, "arch1:") {
-		t.Errorf("compose.yaml should contain arch1 service")
-	}
-	if !strings.Contains(composeContent, "node:18") {
-		t.Errorf("compose.yaml should contain docker image")
-	}
-	if !strings.Contains(composeContent, "owner/test-repo") {
-		t.Errorf("compose.yaml should contain repository URL")
+	// Parse the YAML to verify structure
+	var compose ComposeConfig
+	if err := yaml.Unmarshal([]byte(composeContent), &compose); err != nil {
+		t.Fatalf("Failed to parse generated compose.yaml: %v", err)
 	}
 
-	// Verify .autoteam/entrypoints directory was created (entrypoint.sh is no longer generated)
+	// Verify both services exist
+	if _, exists := compose.Services["dev1"]; !exists {
+		t.Errorf("compose.yaml should contain dev1 service")
+	}
+	if _, exists := compose.Services["arch1"]; !exists {
+		t.Errorf("compose.yaml should contain arch1 service")
+	}
+
+	// Check dev1 service uses global settings
+	dev1Service := compose.Services["dev1"].(map[string]interface{})
+	if dev1Service["image"] != "node:18" {
+		t.Errorf("dev1 service should use global image, got %v", dev1Service["image"])
+	}
+	if dev1Service["user"] != "testuser" {
+		t.Errorf("dev1 service should use global user, got %v", dev1Service["user"])
+	}
+
+	// Check arch1 service has overridden image but inherits global user
+	arch1Service := compose.Services["arch1"].(map[string]interface{})
+	if arch1Service["image"] != "python:3.11" {
+		t.Errorf("arch1 service should use overridden image, got %v", arch1Service["image"])
+	}
+	if arch1Service["user"] != "testuser" {
+		t.Errorf("arch1 service should inherit global user, got %v", arch1Service["user"])
+	}
+
+	// Verify environment variables are set correctly  
+	// The YAML unmarshaling converts environment to map[string]interface{}
+	dev1EnvInterface := dev1Service["environment"].(map[string]interface{})
+	if dev1EnvInterface["AGENT_NAME"] != "dev1" {
+		t.Errorf("dev1 environment should contain AGENT_NAME=dev1, got %v", dev1EnvInterface["AGENT_NAME"])
+	}
+	if dev1EnvInterface["GH_TOKEN"] != "DEV1_TOKEN" {
+		t.Errorf("dev1 environment should contain GH_TOKEN=DEV1_TOKEN, got %v", dev1EnvInterface["GH_TOKEN"])
+	}
+
+	// Verify volumes are properly merged
+	// The YAML unmarshaling converts volumes to []interface{}
+	dev1VolumesInterface := dev1Service["volumes"].([]interface{})
+	hasSharedVolume := false
+	hasCodebaseVolume := false
+	for _, vol := range dev1VolumesInterface {
+		volStr := vol.(string)
+		if strings.Contains(volStr, "./shared:/app/shared") {
+			hasSharedVolume = true
+		}
+		if strings.Contains(volStr, "dev1/codebase") {
+			hasCodebaseVolume = true
+		}
+	}
+	if !hasSharedVolume {
+		t.Errorf("dev1 should have shared volume from global settings")
+	}
+	if !hasCodebaseVolume {
+		t.Errorf("dev1 should have codebase volume")
+	}
+
+	// Verify .autoteam/entrypoints directory was created
 	if !testutil.DirExists(".autoteam/entrypoints") {
 		t.Errorf(".autoteam/entrypoints directory should be created")
 	}
@@ -158,7 +191,7 @@ func TestGenerator_CreateAgentDirectories(t *testing.T) {
 	}
 }
 
-func TestGenerator_GenerateFile(t *testing.T) {
+func TestGenerator_GenerateComposeYAML(t *testing.T) {
 	tempDir := testutil.CreateTempDir(t)
 
 	// Change to temp directory
@@ -172,75 +205,56 @@ func TestGenerator_GenerateFile(t *testing.T) {
 		t.Fatalf("failed to change to temp directory: %v", err)
 	}
 
-	// Create templates directory and template file
-	templatesDir := filepath.Join(tempDir, "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatalf("failed to create templates directory: %v", err)
-	}
-
-	templateContent := `Repository: {{ (index .Repositories.Include 0) }}
-Team: {{ .Settings.TeamName }}
-{{- range .Agents }}
-Agent: {{ .Name }} - {{ .Prompt }}
-{{- end }}`
-
-	testutil.CreateTempFile(t, templatesDir, "test.tmpl", templateContent)
-
 	cfg := &config.Config{
 		Repositories: config.Repositories{Include: []string{"owner/repo"}},
-		Settings:     config.Settings{TeamName: "test-team"},
+		Settings: config.Settings{
+			Service: map[string]interface{}{
+				"image": "node:18",
+				"user":  "developer",
+			},
+			TeamName: "test-team",
+		},
 		Agents: []config.Agent{
-			{Name: "dev1", Prompt: "Developer", GitHubToken: "DEV_TOKEN", GitHubUser: "dev-user"},
-			{Name: "arch1", Prompt: "Architect", GitHubToken: "ARCH_TOKEN", GitHubUser: "arch-user"},
+			{
+				Name:        "dev1",
+				Prompt:      "Developer agent",
+				GitHubToken: "DEV_TOKEN",
+				GitHubUser:  "dev-user",
+			},
 		},
 	}
 
 	gen := New()
-	if err := gen.generateFile("test.tmpl", "output.txt", cfg); err != nil {
-		t.Fatalf("generateFile() error = %v", err)
+	
+	// Ensure .autoteam directory exists
+	if err := os.MkdirAll(".autoteam", 0755); err != nil {
+		t.Fatalf("failed to create .autoteam directory: %v", err)
 	}
 
-	// Verify output file was created
-	if !testutil.FileExists("output.txt") {
-		t.Fatalf("output file should be created")
+	if err := gen.generateComposeYAML(cfg); err != nil {
+		t.Fatalf("generateComposeYAML() error = %v", err)
 	}
 
-	content := testutil.ReadFile(t, "output.txt")
-
-	// Verify template was executed correctly
-	expectedContent := `Repository: owner/repo
-Team: test-team
-Agent: dev1 - Developer
-Agent: arch1 - Architect`
-
-	if strings.TrimSpace(content) != expectedContent {
-		t.Errorf("output content mismatch\ngot:\n%s\nwant:\n%s", content, expectedContent)
-	}
-}
-
-func TestGenerator_GenerateFile_TemplateError(t *testing.T) {
-	tempDir := testutil.CreateTempDir(t)
-
-	// Change to temp directory
-	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get current directory: %v", err)
-	}
-	defer os.Chdir(originalDir)
-
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("failed to change to temp directory: %v", err)
+	// Verify compose.yaml was created
+	if !testutil.FileExists(".autoteam/compose.yaml") {
+		t.Fatalf("compose.yaml should be created")
 	}
 
-	cfg := &config.Config{}
-	gen := New()
+	content := testutil.ReadFile(t, ".autoteam/compose.yaml")
 
-	// Test non-existent template
-	err = gen.generateFile("nonexistent.tmpl", "output.txt", cfg)
-	if err == nil {
-		t.Errorf("generateFile() should fail with non-existent template")
+	// Parse and verify the generated YAML
+	var compose ComposeConfig
+	if err := yaml.Unmarshal([]byte(content), &compose); err != nil {
+		t.Fatalf("Failed to parse generated compose.yaml: %v", err)
 	}
-	if !strings.Contains(err.Error(), "failed to read embedded template") {
-		t.Errorf("error should mention template reading, got: %v", err)
+
+	// Verify service structure
+	if _, exists := compose.Services["dev1"]; !exists {
+		t.Errorf("compose.yaml should contain dev1 service")
+	}
+
+	dev1Service := compose.Services["dev1"].(map[string]interface{})
+	if dev1Service["image"] != "node:18" {
+		t.Errorf("dev1 service should have correct image, got %v", dev1Service["image"])
 	}
 }

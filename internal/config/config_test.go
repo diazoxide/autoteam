@@ -36,8 +36,10 @@ func TestLoadConfig_Valid(t *testing.T) {
 					},
 				},
 				Settings: Settings{
-					DockerImage:   "node:18.17.1",
-					DockerUser:    "developer",
+					Service: map[string]interface{}{
+						"image": "node:18.17.1",
+						"user":  "developer",
+					},
 					CheckInterval: 60,
 					TeamName:      "test-team",
 					InstallDeps:   true,
@@ -61,11 +63,13 @@ func TestLoadConfig_Valid(t *testing.T) {
 					},
 				},
 				Settings: Settings{
-					DockerImage:   "node:18.17.1", // default
-					DockerUser:    "developer",    // default
-					CheckInterval: 60,             // default
-					TeamName:      "autoteam",     // default
-					InstallDeps:   false,          // default
+					Service: map[string]interface{}{
+						"image": "node:18.17.1", // default
+						"user":  "developer",    // default
+					},
+					CheckInterval: 60,        // default
+					TeamName:      "autoteam", // default
+					InstallDeps:   false,     // default
 				},
 			},
 		},
@@ -102,11 +106,11 @@ func TestLoadConfig_Valid(t *testing.T) {
 				}
 			}
 
-			if got.Settings.DockerImage != tt.want.Settings.DockerImage {
-				t.Errorf("Settings.DockerImage = %v, want %v", got.Settings.DockerImage, tt.want.Settings.DockerImage)
+			if got.Settings.Service["image"] != tt.want.Settings.Service["image"] {
+				t.Errorf("Settings.Service[image] = %v, want %v", got.Settings.Service["image"], tt.want.Settings.Service["image"])
 			}
-			if got.Settings.DockerUser != tt.want.Settings.DockerUser {
-				t.Errorf("Settings.DockerUser = %v, want %v", got.Settings.DockerUser, tt.want.Settings.DockerUser)
+			if got.Settings.Service["user"] != tt.want.Settings.Service["user"] {
+				t.Errorf("Settings.Service[user] = %v, want %v", got.Settings.Service["user"], tt.want.Settings.Service["user"])
 			}
 			if got.Settings.CheckInterval != tt.want.Settings.CheckInterval {
 				t.Errorf("Settings.CheckInterval = %v, want %v", got.Settings.CheckInterval, tt.want.Settings.CheckInterval)
@@ -289,11 +293,11 @@ func TestSetDefaults(t *testing.T) {
 	config := &Config{}
 	setDefaults(config)
 
-	if config.Settings.DockerImage != "node:18.17.1" {
-		t.Errorf("DockerImage = %v, want node:18.17.1", config.Settings.DockerImage)
+	if config.Settings.Service["image"] != "node:18.17.1" {
+		t.Errorf("Service[image] = %v, want node:18.17.1", config.Settings.Service["image"])
 	}
-	if config.Settings.DockerUser != "developer" {
-		t.Errorf("DockerUser = %v, want developer", config.Settings.DockerUser)
+	if config.Settings.Service["user"] != "developer" {
+		t.Errorf("Service[user] = %v, want developer", config.Settings.Service["user"])
 	}
 	if config.Settings.CheckInterval != 60 {
 		t.Errorf("CheckInterval = %v, want 60", config.Settings.CheckInterval)
@@ -301,13 +305,18 @@ func TestSetDefaults(t *testing.T) {
 	if config.Settings.TeamName != "autoteam" {
 		t.Errorf("TeamName = %v, want autoteam", config.Settings.TeamName)
 	}
-	// MainBranch is no longer a global config setting - it's handled per repository
+	// MaxAttempts should also be set
+	if config.Settings.MaxAttempts != 3 {
+		t.Errorf("MaxAttempts = %v, want 3", config.Settings.MaxAttempts)
+	}
 
 	// Test that existing values are not overridden
 	config2 := &Config{
 		Settings: Settings{
-			DockerImage:   "custom:latest",
-			DockerUser:    "custom-user",
+			Service: map[string]interface{}{
+				"image": "custom:latest",
+				"user":  "custom-user",
+			},
 			CheckInterval: 120,
 			TeamName:      "custom-team",
 		},
@@ -318,11 +327,11 @@ func TestSetDefaults(t *testing.T) {
 
 	setDefaults(config2)
 
-	if config2.Settings.DockerImage != "custom:latest" {
-		t.Errorf("DockerImage should not be overridden, got %v", config2.Settings.DockerImage)
+	if config2.Settings.Service["image"] != "custom:latest" {
+		t.Errorf("Service[image] should not be overridden, got %v", config2.Settings.Service["image"])
 	}
-	if config2.Settings.DockerUser != "custom-user" {
-		t.Errorf("DockerUser should not be overridden, got %v", config2.Settings.DockerUser)
+	if config2.Settings.Service["user"] != "custom-user" {
+		t.Errorf("Service[user] should not be overridden, got %v", config2.Settings.Service["user"])
 	}
 	if config2.Settings.CheckInterval != 120 {
 		t.Errorf("CheckInterval should not be overridden, got %v", config2.Settings.CheckInterval)
@@ -330,5 +339,4 @@ func TestSetDefaults(t *testing.T) {
 	if config2.Settings.TeamName != "custom-team" {
 		t.Errorf("TeamName should not be overridden, got %v", config2.Settings.TeamName)
 	}
-	// MainBranch is no longer a global config setting
 }

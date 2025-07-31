@@ -10,10 +10,18 @@ agents:
     prompt: |
       You are a Python developer specializing in data science projects.
     github_token: "ghp_your_python_dev_token_here"
+    github_user: "your-github-username"
 
 settings:
-  docker_image: "python:3.11-slim"
-  docker_user: "pythondev"
+  service:
+    image: "python:3.11-slim"
+    user: "pythondev"
+    volumes:
+      - "./data:/app/data"
+      - "./notebooks:/app/notebooks"
+    environment:
+      PYTHONPATH: "/app/custom"
+      DATA_PATH: "/app/data"
   team_name: "data-team"
   check_interval: 120
   install_deps: true

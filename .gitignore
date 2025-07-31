@@ -1,16 +1,13 @@
 .idea
 *.iml
+.DS_Store
 
 # Generated files and directories
 .autoteam/
-compose.yaml
-entrypoint.sh
 
 # Build artifacts
 build/
-entrypoint
 
 # Environment files
 .env
 
-/go/

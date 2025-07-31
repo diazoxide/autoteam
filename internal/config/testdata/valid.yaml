@@ -13,8 +13,9 @@ agents:
     github_user: "arch-user"
 
 settings:
-  docker_image: "node:18.17.1"
-  docker_user: "developer"
+  service:
+    image: "node:18.17.1"
+    user: "developer"
   check_interval: 60
   team_name: "test-team"
   install_deps: true

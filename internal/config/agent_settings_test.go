@@ -1,13 +1,16 @@
 package config
 
 import (
+	"fmt"
 	"testing"
 )
 
 func TestAgentGetEffectiveSettings(t *testing.T) {
 	globalSettings := Settings{
-		DockerImage:   "node:18",
-		DockerUser:    "developer",
+		Service: map[string]interface{}{
+			"image": "node:18",
+			"user":  "developer",
+		},
 		CheckInterval: 60,
 		TeamName:      "global-team",
 		InstallDeps:   true,
@@ -37,13 +40,17 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 				GitHubToken: "TOKEN2",
 				GitHubUser:  "test-user",
 				Settings: &AgentSettings{
-					DockerImage:   stringPtr("python:3.11"),
+					Service: map[string]interface{}{
+						"image": "python:3.11",
+					},
 					CheckInterval: intPtr(30),
 				},
 			},
 			expectedResult: Settings{
-				DockerImage:   "python:3.11", // overridden
-				DockerUser:    "developer",   // from global
+				Service: map[string]interface{}{
+					"image": "python:3.11", // overridden
+					"user":  "developer",   // from global
+				},
 				CheckInterval: 30,            // overridden
 				TeamName:      "global-team", // from global
 				InstallDeps:   true,          // from global
@@ -57,16 +64,20 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 				GitHubToken: "TOKEN3",
 				GitHubUser:  "test-user",
 				Settings: &AgentSettings{
-					DockerImage:   stringPtr("golang:1.21"),
-					DockerUser:    stringPtr("admin"),
+					Service: map[string]interface{}{
+						"image": "golang:1.21",
+						"user":  "admin",
+					},
 					CheckInterval: intPtr(15),
 					TeamName:      stringPtr("custom-team"),
 					InstallDeps:   boolPtr(false),
 				},
 			},
 			expectedResult: Settings{
-				DockerImage:   "golang:1.21",
-				DockerUser:    "admin",
+				Service: map[string]interface{}{
+					"image": "golang:1.21",
+					"user":  "admin",
+				},
 				CheckInterval: 15,
 				TeamName:      "custom-team",
 				InstallDeps:   false,
@@ -78,11 +89,17 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.agent.GetEffectiveSettings(globalSettings)
 
-			if result.DockerImage != tt.expectedResult.DockerImage {
-				t.Errorf("DockerImage = %v, want %v", result.DockerImage, tt.expectedResult.DockerImage)
-			}
-			if result.DockerUser != tt.expectedResult.DockerUser {
-				t.Errorf("DockerUser = %v, want %v", result.DockerUser, tt.expectedResult.DockerUser)
+			// Check service configuration
+			if len(result.Service) != len(tt.expectedResult.Service) {
+				t.Errorf("Service length = %v, want %v", len(result.Service), len(tt.expectedResult.Service))
+			} else {
+				for key, expectedVal := range tt.expectedResult.Service {
+					if actualVal, ok := result.Service[key]; !ok {
+						t.Errorf("Service missing key %v", key)
+					} else if actualVal != expectedVal {
+						t.Errorf("Service[%v] = %v, want %v", key, actualVal, expectedVal)
+					}
+				}
 			}
 			if result.CheckInterval != tt.expectedResult.CheckInterval {
 				t.Errorf("CheckInterval = %v, want %v", result.CheckInterval, tt.expectedResult.CheckInterval)
@@ -116,14 +133,18 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 				GitHubToken: "ARCH_TOKEN",
 				GitHubUser:  "arch-user",
 				Settings: &AgentSettings{
-					DockerImage:   stringPtr("python:3.11"),
+					Service: map[string]interface{}{
+						"image": "python:3.11",
+					},
 					CheckInterval: intPtr(30),
 				},
 			},
 		},
 		Settings: Settings{
-			DockerImage:   "node:18",
-			DockerUser:    "developer",
+			Service: map[string]interface{}{
+				"image": "node:18",
+				"user":  "developer",
+			},
 			CheckInterval: 60,
 			TeamName:      "test-team",
 			InstallDeps:   true,
@@ -141,8 +162,8 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 	if devAgent.Agent.Name != "dev" {
 		t.Errorf("First agent name = %v, want dev", devAgent.Agent.Name)
 	}
-	if devAgent.EffectiveSettings.DockerImage != "node:18" {
-		t.Errorf("Dev agent DockerImage = %v, want node:18", devAgent.EffectiveSettings.DockerImage)
+	if devAgent.EffectiveSettings.Service["image"] != "node:18" {
+		t.Errorf("Dev agent Service[image] = %v, want node:18", devAgent.EffectiveSettings.Service["image"])
 	}
 	if devAgent.EffectiveSettings.CheckInterval != 60 {
 		t.Errorf("Dev agent CheckInterval = %v, want 60", devAgent.EffectiveSettings.CheckInterval)
@@ -153,31 +174,35 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 	if archAgent.Agent.Name != "arch" {
 		t.Errorf("Second agent name = %v, want arch", archAgent.Agent.Name)
 	}
-	if archAgent.EffectiveSettings.DockerImage != "python:3.11" {
-		t.Errorf("Arch agent DockerImage = %v, want python:3.11", archAgent.EffectiveSettings.DockerImage)
+	if archAgent.EffectiveSettings.Service["image"] != "python:3.11" {
+		t.Errorf("Arch agent Service[image] = %v, want python:3.11", archAgent.EffectiveSettings.Service["image"])
 	}
 	if archAgent.EffectiveSettings.CheckInterval != 30 {
 		t.Errorf("Arch agent CheckInterval = %v, want 30", archAgent.EffectiveSettings.CheckInterval)
 	}
 	// Non-overridden settings should use global values
-	if archAgent.EffectiveSettings.DockerUser != "developer" {
-		t.Errorf("Arch agent DockerUser = %v, want developer", archAgent.EffectiveSettings.DockerUser)
+	if archAgent.EffectiveSettings.Service["user"] != "developer" {
+		t.Errorf("Arch agent Service[user] = %v, want developer", archAgent.EffectiveSettings.Service["user"])
 	}
 	if archAgent.EffectiveSettings.TeamName != "test-team" {
 		t.Errorf("Arch agent TeamName = %v, want test-team", archAgent.EffectiveSettings.TeamName)
 	}
 }
 
-func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
+func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 	globalSettings := Settings{
-		DockerImage:   "node:18",
-		DockerUser:    "developer",
+		Service: map[string]interface{}{
+			"image": "node:18",
+			"user":  "developer",
+			"volumes": []string{"./global-vol:/app/global"},
+			"environment": map[string]string{
+				"GLOBAL_VAR": "global_value",
+				"SHARED_VAR": "global_shared",
+			},
+		},
 		CheckInterval: 60,
 		TeamName:      "global-team",
 		InstallDeps:   true,
-		Volumes:       []string{"./global-vol:/app/global"},
-		Entrypoint:    "",
-		Environment:   map[string]string{"GLOBAL_VAR": "global_value", "SHARED_VAR": "global_shared"},
 	}
 
 	tests := []struct {
@@ -186,28 +211,34 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 		expectedResult Settings
 	}{
 		{
-			name: "custom volumes should override global",
+			name: "custom volumes should replace global",
 			agent: Agent{
 				Name:        "test1",
 				Prompt:      "test prompt",
 				GitHubToken: "TOKEN1",
 				GitHubUser:  "test-user",
 				Settings: &AgentSettings{
-					Volumes: []string{
-						"./custom-vol:/app/custom",
-						"/host/path:/container/path:ro",
+					Service: map[string]interface{}{
+						"volumes": []string{
+							"./custom-vol:/app/custom",
+							"/host/path:/container/path:ro",
+						},
 					},
 				},
 			},
 			expectedResult: Settings{
-				DockerImage:   "node:18",
-				DockerUser:    "developer",
+				Service: map[string]interface{}{
+					"image": "node:18",
+					"user":  "developer",
+					"volumes": []string{"./custom-vol:/app/custom", "/host/path:/container/path:ro"},
+					"environment": map[string]string{
+						"GLOBAL_VAR": "global_value",
+						"SHARED_VAR": "global_shared",
+					},
+				},
 				CheckInterval: 60,
 				TeamName:      "global-team",
 				InstallDeps:   true,
-				Volumes:       []string{"./custom-vol:/app/custom", "/host/path:/container/path:ro"},
-				Entrypoint:    "",
-				Environment:   map[string]string{"GLOBAL_VAR": "global_value", "SHARED_VAR": "global_shared"},
 			},
 		},
 		{
@@ -218,18 +249,25 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 				GitHubToken: "TOKEN2",
 				GitHubUser:  "test-user",
 				Settings: &AgentSettings{
-					Entrypoint: stringPtr("/custom/entrypoint.sh"),
+					Service: map[string]interface{}{
+						"entrypoint": []string{"/custom/entrypoint.sh"},
+					},
 				},
 			},
 			expectedResult: Settings{
-				DockerImage:   "node:18",
-				DockerUser:    "developer",
+				Service: map[string]interface{}{
+					"image": "node:18",
+					"user":  "developer",
+					"volumes": []string{"./global-vol:/app/global"},
+					"entrypoint": []string{"/custom/entrypoint.sh"},
+					"environment": map[string]string{
+						"GLOBAL_VAR": "global_value",
+						"SHARED_VAR": "global_shared",
+					},
+				},
 				CheckInterval: 60,
 				TeamName:      "global-team",
 				InstallDeps:   true,
-				Volumes:       []string{"./global-vol:/app/global"},
-				Entrypoint:    "/custom/entrypoint.sh",
-				Environment:   map[string]string{"GLOBAL_VAR": "global_value", "SHARED_VAR": "global_shared"},
 			},
 		},
 		{
@@ -240,54 +278,61 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 				GitHubToken: "TOKEN3",
 				GitHubUser:  "test-user",
 				Settings: &AgentSettings{
-					Environment: map[string]string{
-						"CUSTOM_VAR": "custom_value",
-						"SHARED_VAR": "agent_override", // Should override global
+					Service: map[string]interface{}{
+						"environment": map[string]string{
+							"CUSTOM_VAR": "custom_value",
+							"SHARED_VAR": "agent_override", // Should override global
+						},
 					},
 				},
 			},
 			expectedResult: Settings{
-				DockerImage:   "node:18",
-				DockerUser:    "developer",
+				Service: map[string]interface{}{
+					"image": "node:18",
+					"user":  "developer",
+					"volumes": []string{"./global-vol:/app/global"},
+					"environment": map[string]string{
+						"GLOBAL_VAR": "global_value",
+						"SHARED_VAR": "agent_override", // Agent wins
+						"CUSTOM_VAR": "custom_value",
+					},
+				},
 				CheckInterval: 60,
 				TeamName:      "global-team",
 				InstallDeps:   true,
-				Volumes:       []string{"./global-vol:/app/global"},
-				Entrypoint:    "",
-				Environment: map[string]string{
-					"GLOBAL_VAR": "global_value",
-					"SHARED_VAR": "agent_override", // Agent wins
-					"CUSTOM_VAR": "custom_value",
-				},
 			},
 		},
 		{
-			name: "all custom fields combined",
+			name: "all custom service fields combined",
 			agent: Agent{
 				Name:        "test4",
 				Prompt:      "test prompt",
 				GitHubToken: "TOKEN4",
 				GitHubUser:  "test-user",
 				Settings: &AgentSettings{
-					DockerImage: stringPtr("python:3.11"),
-					Volumes:     []string{"./python-vol:/app/python"},
-					Entrypoint:  stringPtr("python /app/main.py"),
-					Environment: map[string]string{"PYTHON_ENV": "production"},
+					Service: map[string]interface{}{
+						"image": "python:3.11",
+						"volumes": []string{"./python-vol:/app/python"},
+						"entrypoint": []string{"python", "/app/main.py"},
+						"environment": map[string]string{"PYTHON_ENV": "production"},
+					},
 				},
 			},
 			expectedResult: Settings{
-				DockerImage:   "python:3.11",
-				DockerUser:    "developer",
+				Service: map[string]interface{}{
+					"image": "python:3.11",
+					"user":  "developer",
+					"volumes": []string{"./python-vol:/app/python"},
+					"entrypoint": []string{"python", "/app/main.py"},
+					"environment": map[string]string{
+						"GLOBAL_VAR": "global_value",
+						"SHARED_VAR": "global_shared",
+						"PYTHON_ENV": "production",
+					},
+				},
 				CheckInterval: 60,
 				TeamName:      "global-team",
 				InstallDeps:   true,
-				Volumes:       []string{"./python-vol:/app/python"},
-				Entrypoint:    "python /app/main.py",
-				Environment: map[string]string{
-					"GLOBAL_VAR": "global_value",
-					"SHARED_VAR": "global_shared",
-					"PYTHON_ENV": "production",
-				},
 			},
 		},
 	}
@@ -296,36 +341,53 @@ func TestAgentGetEffectiveSettingsWithCustomFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.agent.GetEffectiveSettings(globalSettings)
 
-			// Check basic fields
-			if result.DockerImage != tt.expectedResult.DockerImage {
-				t.Errorf("DockerImage = %v, want %v", result.DockerImage, tt.expectedResult.DockerImage)
-			}
-			if result.Entrypoint != tt.expectedResult.Entrypoint {
-				t.Errorf("Entrypoint = %v, want %v", result.Entrypoint, tt.expectedResult.Entrypoint)
-			}
-
-			// Check volumes
-			if len(result.Volumes) != len(tt.expectedResult.Volumes) {
-				t.Errorf("Volumes length = %v, want %v", len(result.Volumes), len(tt.expectedResult.Volumes))
+			// Check service configuration
+			if len(result.Service) != len(tt.expectedResult.Service) {
+				t.Errorf("Service length = %v, want %v", len(result.Service), len(tt.expectedResult.Service))
 			} else {
-				for i, vol := range result.Volumes {
-					if vol != tt.expectedResult.Volumes[i] {
-						t.Errorf("Volumes[%d] = %v, want %v", i, vol, tt.expectedResult.Volumes[i])
+				for key, expectedVal := range tt.expectedResult.Service {
+					actualVal, ok := result.Service[key]
+					if !ok {
+						t.Errorf("Service missing key %v", key)
+						continue
+					}
+
+					// Special handling for environment maps
+					if key == "environment" {
+						expectedEnv, expectedOk := expectedVal.(map[string]string)
+						actualEnv, actualOk := actualVal.(map[string]string)
+						if !expectedOk || !actualOk {
+							t.Errorf("Environment values are not map[string]string")
+							continue
+						}
+						if len(actualEnv) != len(expectedEnv) {
+							t.Errorf("Environment length = %v, want %v", len(actualEnv), len(expectedEnv))
+						}
+						for envKey, envExpected := range expectedEnv {
+							if envActual, envOk := actualEnv[envKey]; !envOk {
+								t.Errorf("Environment missing key %v", envKey)
+							} else if envActual != envExpected {
+								t.Errorf("Environment[%v] = %v, want %v", envKey, envActual, envExpected)
+							}
+						}
+					} else {
+						// For other types, use simple comparison
+						if fmt.Sprintf("%v", actualVal) != fmt.Sprintf("%v", expectedVal) {
+							t.Errorf("Service[%v] = %v, want %v", key, actualVal, expectedVal)
+						}
 					}
 				}
 			}
 
-			// Check environment
-			if len(result.Environment) != len(tt.expectedResult.Environment) {
-				t.Errorf("Environment length = %v, want %v", len(result.Environment), len(tt.expectedResult.Environment))
-			} else {
-				for key, expectedVal := range tt.expectedResult.Environment {
-					if actualVal, ok := result.Environment[key]; !ok {
-						t.Errorf("Environment missing key %v", key)
-					} else if actualVal != expectedVal {
-						t.Errorf("Environment[%v] = %v, want %v", key, actualVal, expectedVal)
-					}
-				}
+			// Check other fields
+			if result.CheckInterval != tt.expectedResult.CheckInterval {
+				t.Errorf("CheckInterval = %v, want %v", result.CheckInterval, tt.expectedResult.CheckInterval)
+			}
+			if result.TeamName != tt.expectedResult.TeamName {
+				t.Errorf("TeamName = %v, want %v", result.TeamName, tt.expectedResult.TeamName)
+			}
+			if result.InstallDeps != tt.expectedResult.InstallDeps {
+				t.Errorf("InstallDeps = %v, want %v", result.InstallDeps, tt.expectedResult.InstallDeps)
 			}
 		})
 	}

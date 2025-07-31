@@ -10,11 +10,16 @@ agents:
     prompt: |
       You are a developer agent responsible for implementing features and fixing bugs.
     github_token: "ghp_your_developer_token_here"
+    github_user: "your-github-username"
     
   - name: "reviewer"
     prompt: |
       You are a code reviewer focused on quality and best practices.
     github_token: "ghp_your_reviewer_token_here"
+    github_user: "your-github-username"
 
 settings:
   check_interval: 30
+  service:
+    image: "node:18.17.1"
+    user: "developer"
