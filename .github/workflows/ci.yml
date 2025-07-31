@@ -148,8 +148,8 @@ jobs:
     - name: Build binary
       run: |
         make build
-        # Build entrypoint binaries for all platforms needed for generation
-        make build-entrypoint-all
+        # Build current platform entrypoint binary
+        make build-entrypoint
         # Install entrypoints to system directory for testing
         sudo make install-entrypoints
     
