@@ -3,6 +3,7 @@ package monitor
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,7 +66,9 @@ func NewStateManager() *StateManager {
 	}
 
 	// Load existing state if available
-	sm.load()
+	if err := sm.load(); err != nil {
+		log.Printf("Warning: failed to load existing state: %v", err)
+	}
 
 	return sm
 }

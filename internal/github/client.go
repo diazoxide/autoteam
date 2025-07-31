@@ -96,14 +96,14 @@ func parseRepository(repository string) (owner, repo string, err error) {
 func (c *Client) GetFilteredRepositories(ctx context.Context, username string) ([]RepositoryInfo, error) {
 	log.Printf("Getting filtered repositories for user: %s", username)
 
-	opts := &github.RepositoryListOptions{
+	opts := &github.RepositoryListByUserOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
 	}
 
 	var allRepos []RepositoryInfo
 
 	// Get user's own repositories
-	repos, _, err := c.client.Repositories.List(ctx, username, opts)
+	repos, _, err := c.client.Repositories.ListByUser(ctx, username, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list repositories for user %s: %w", username, err)
 	}

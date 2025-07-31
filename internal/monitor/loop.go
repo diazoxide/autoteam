@@ -308,13 +308,13 @@ func (m *Monitor) processItem(ctx context.Context, item *ProcessingItem, globalD
 		maxAttempts := m.getMaxAttempts()
 		if item.AttemptCount >= maxAttempts {
 			itemKey := GetItemKeyFromProcessingItem(item)
-			if err := m.stateManager.RecordFailure(itemKey); err != nil {
-				log.Printf("Warning: failed to record failure: %v", err)
+			if recordErr := m.stateManager.RecordFailure(itemKey); recordErr != nil {
+				log.Printf("Warning: failed to record failure: %v", recordErr)
 			}
 
 			// Clear current item after max attempts
-			if err := m.stateManager.ClearCurrentItem(); err != nil {
-				log.Printf("Warning: failed to clear failed item: %v", err)
+			if clearErr := m.stateManager.ClearCurrentItem(); clearErr != nil {
+				log.Printf("Warning: failed to clear failed item: %v", clearErr)
 			}
 
 			log.Printf("Max attempts reached for %s #%d, moving to cooldown", item.Type, item.Number)
@@ -327,73 +327,6 @@ func (m *Monitor) processItem(ctx context.Context, item *ProcessingItem, globalD
 	return nil
 }
 
-// formatPendingItems formats pending items into a readable string
-func (m *Monitor) formatPendingItems(items *github.PendingItems) string {
-	var sections []string
-
-	// Review Requests
-	if len(items.ReviewRequests) > 0 {
-		sections = append(sections, "📥 Review Requests:")
-		for _, pr := range items.ReviewRequests {
-			sections = append(sections, fmt.Sprintf("- [#%d](%s) %s", pr.Number, pr.URL, pr.Title))
-		}
-		sections = append(sections, "")
-	}
-
-	// Assigned PRs
-	if len(items.AssignedPRs) > 0 {
-		sections = append(sections, "🧷 Assigned PRs:")
-		for _, pr := range items.AssignedPRs {
-			sections = append(sections, fmt.Sprintf("- [#%d](%s) %s", pr.Number, pr.URL, pr.Title))
-		}
-		sections = append(sections, "")
-	}
-
-	// Assigned Issues
-	if len(items.AssignedIssues) > 0 {
-		sections = append(sections, "🚧 Assigned Issues (no PR):")
-		for _, issue := range items.AssignedIssues {
-			sections = append(sections, fmt.Sprintf("- [#%d](%s) %s", issue.Number, issue.URL, issue.Title))
-		}
-		sections = append(sections, "")
-	}
-
-	// PRs with Changes Requested
-	if len(items.PRsWithChanges) > 0 {
-		sections = append(sections, "🛠 My PRs with Changes Requested:")
-		for _, pr := range items.PRsWithChanges {
-			sections = append(sections, fmt.Sprintf("- [#%d](%s) %s", pr.Number, pr.URL, pr.Title))
-		}
-		sections = append(sections, "")
-	}
-
-	return strings.Join(sections, "\n")
-}
-
-// buildPrompt builds the complete prompt for the AI agent
-func (m *Monitor) buildPrompt(pendingList string) string {
-	var promptParts []string
-
-	// Add pending items
-	promptParts = append(promptParts, pendingList)
-
-	// Add consolidated agent prompt (already includes agent-specific prompt, common prompt, and collaborators list)
-	if m.globalConfig.Agent.Prompt != "" {
-		promptParts = append(promptParts, "", m.globalConfig.Agent.Prompt)
-	}
-
-	// Add important instructions at the end
-	importantPrompt := `IMPORTANT GUIDELINES:
-- Work systematically and thoroughly on each assigned item
-- Provide clear documentation of your work and decisions
-- Collaborate effectively with team members when needed
-- Follow project standards and best practices for your role
-- Communicate progress and blockers transparently`
-	promptParts = append(promptParts, "", importantPrompt)
-
-	return strings.Join(promptParts, "\n")
-}
-
 // buildItemPrompt builds a prompt for a specific item
 func (m *Monitor) buildItemPrompt(item *ProcessingItem, continueMode bool) string {
 	var promptParts []string
@@ -402,7 +335,7 @@ func (m *Monitor) buildItemPrompt(item *ProcessingItem, continueMode bool) strin
 	var itemContext string
 	switch item.Type {
 	case "review_request":
-		itemContext = fmt.Sprintf("📥 Review Request: [#%d](%s) %s\n\nPlease review this pull request and provide feedback. IMPORTANT: Make sure you submit your review and mark it as reviewed (approve, request changes, or comment) - don't just leave comments without submitting the review.",
+		itemContext = fmt.Sprintf("📥 Review Request: [#%d](%s) %s\n\nPlease review this pull request and provide feedback. \n\nIMPORTANT: Make sure you submit your review and mark it as reviewed (approve, request changes, or comment) - don't just leave comments without submitting the review.",
 			item.Number, item.URL, item.Title)
 	case "assigned_pr":
 		itemContext = fmt.Sprintf("🧷 Assigned PR: [#%d](%s) %s\n\nThis pull request is assigned to you. Please work on it.",
@@ -411,7 +344,7 @@ func (m *Monitor) buildItemPrompt(item *ProcessingItem, continueMode bool) strin
 		itemContext = fmt.Sprintf("🚧 Assigned Issue: [#%d](%s) %s\n\nThis issue is assigned to you. Please address it.",
 			item.Number, item.URL, item.Title)
 	case "pr_with_changes":
-		itemContext = fmt.Sprintf("🛠 PR with Changes Requested: [#%d](%s) %s\n\nThis is your pull request that has changes requested. Please address the feedback and then re-request review from the reviewers who requested changes. IMPORTANT: After making your changes, use the GitHub interface to re-request review so the reviewers are notified.",
+		itemContext = fmt.Sprintf("🛠 PR with Changes Requested: [#%d](%s) %s\n\nThis is your pull request that has changes requested. Please address the feedback and then re-request review from the reviewers who requested changes. \n\nIMPORTANT: After making your changes, use the GitHub interface to re-request review so the reviewers are notified.",
 			item.Number, item.URL, item.Title)
 	}
 
