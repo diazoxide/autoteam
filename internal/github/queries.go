@@ -224,6 +224,7 @@ func (c *Client) getAssignedPRs(ctx context.Context, username string) ([]PullReq
 func (c *Client) getAssignedIssues(ctx context.Context, username string) ([]IssueInfo, error) {
 	// Search globally for issues assigned to the user
 	query := fmt.Sprintf("is:issue is:open assignee:%s -linked:pr", username)
+	log.Printf("Searching for assigned issues with query: %s", query)
 
 	opts := &github.SearchOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
@@ -233,22 +234,58 @@ func (c *Client) getAssignedIssues(ctx context.Context, username string) ([]Issu
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for assigned issues: %w", err)
 	}
+	log.Printf("GitHub search returned %d results for assigned issues", len(result.Issues))
 
 	var issues []IssueInfo
-	for _, issue := range result.Issues {
-		// Skip if it's actually a PR
-		if issue.PullRequestLinks == nil && issue.Repository != nil {
-			repoName := issue.Repository.GetFullName()
+	for i, issue := range result.Issues {
+		log.Printf("Processing assigned issue result %d/%d: Issue #%d", i+1, len(result.Issues), issue.GetNumber())
 
-			// Apply repository filter
-			if !c.filter.ShouldIncludeRepository(repoName) {
+		// Skip if it's actually a PR
+		if issue.PullRequestLinks != nil {
+			log.Printf("Skipping issue #%d: it's actually a pull request", issue.GetNumber())
+			continue
+		}
+
+		var repoName string
+		if issue.Repository == nil {
+			log.Printf("Issue #%d: no repository object from GitHub API", issue.GetNumber())
+			// Try to extract repository info from the HTML URL as workaround
+			if htmlURL := issue.GetHTMLURL(); htmlURL != "" {
+				log.Printf("Attempting to extract repository from URL: %s", htmlURL)
+				// GitHub URLs are typically: https://github.com/owner/repo/issues/123
+				if strings.Contains(htmlURL, "github.com") {
+					parts := strings.Split(htmlURL, "/")
+					if len(parts) >= 5 && parts[2] == "github.com" {
+						repoName = parts[3] + "/" + parts[4]
+						log.Printf("Extracted repository from URL: %s", repoName)
+					} else {
+						log.Printf("Could not parse repository from URL structure")
+						continue
+					}
+				} else {
+					log.Printf("URL is not a GitHub URL")
+					continue
+				}
+			} else {
+				log.Printf("No URL available to extract repository from")
 				continue
 			}
-
-			issueInfo := FromGitHubIssue(issue)
-			issueInfo.Repository = repoName
-			issues = append(issues, issueInfo)
+		} else {
+			repoName = issue.Repository.GetFullName()
 		}
+		log.Printf("Checking repository: %s for issue #%d", repoName, issue.GetNumber())
+
+		// Apply repository filter
+		if !c.filter.ShouldIncludeRepository(repoName) {
+			log.Printf("Repository %s filtered out by repository filter", repoName)
+			continue
+		}
+		log.Printf("Repository %s passed filter", repoName)
+
+		log.Printf("Adding issue #%d from %s to assigned issues list", issue.GetNumber(), repoName)
+		issueInfo := FromGitHubIssue(issue)
+		issueInfo.Repository = repoName
+		issues = append(issues, issueInfo)
 	}
 
 	return issues, nil
