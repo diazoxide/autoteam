@@ -101,6 +101,12 @@ func main() {
 				Usage:   "Maximum number of retries for operations",
 				Sources: cli.EnvVars("MAX_RETRIES"),
 			},
+			&cli.IntFlag{
+				Name:    "max-attempts",
+				Value:   3,
+				Usage:   "Maximum number of attempts per item before moving to cooldown",
+				Sources: cli.EnvVars("MAX_ATTEMPTS"),
+			},
 
 			// Dependencies Configuration
 			&cli.BoolFlag{
@@ -206,6 +212,7 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		MaxRetries:    cfg.Monitoring.MaxRetries,
 		DryRun:        cmd.Bool("dry-run"),
 		TeamName:      cfg.Git.TeamName,
+		MaxAttempts:   cmd.Int("max-attempts"),
 	}
 
 	mon := monitor.New(githubClient, selectedAgent, monitorConfig, cfg)

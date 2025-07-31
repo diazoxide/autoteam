@@ -19,6 +19,17 @@
 - All tests pass - context-based architecture working correctly
 - Docker Compose commands now use configured team_name instead of default "autoteam"
 
+## Single Item Processing System
+- Implemented complete single item processing workflow with state management
+- Added processing state persistence in `.autoteam/processing_state.json`
+- Smart prioritization algorithm with age-based scoring and urgency detection
+- Resolution detection compares GitHub API snapshots to verify task completion
+- Fixed Claude agent `--continue` flag logic for proper conversation continuation
+- Git state management: fresh reset for new items, preserved state for continuations
+- Configurable max attempts per item (default: 3) with exponential cooldown on failures
+- Configuration via `max_attempts` in autoteam.yaml or `--max-attempts` flag in entrypoint
+- State survives container restarts and provides full workflow transparency
+
 ## Build and Template Workflow
 - Use `make build` to build the main autoteam binary (required after template changes due to go:embed)
 - Use `make build-entrypoint` to build the entrypoint binary for current platform

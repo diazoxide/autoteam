@@ -60,9 +60,9 @@ func (c *ClaudeAgent) Run(ctx context.Context, prompt string, options RunOptions
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		log.Printf("Claude execution attempt %d of %d", attempt, maxRetries)
 
-		// Add continue flag for retry attempts
+		// Add continue flag when requested or for retry attempts
 		currentArgs := args
-		if attempt > 1 && !options.ContinueMode {
+		if options.ContinueMode || attempt > 1 {
 			currentArgs = append(args, "--continue")
 		}
 

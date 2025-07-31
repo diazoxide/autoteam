@@ -43,6 +43,7 @@ type AgentSettings struct {
 	TeamName      *string           `yaml:"team_name,omitempty"`
 	InstallDeps   *bool             `yaml:"install_deps,omitempty"`
 	CommonPrompt  *string           `yaml:"common_prompt,omitempty"`
+	MaxAttempts   *int              `yaml:"max_attempts,omitempty"`
 	Volumes       []string          `yaml:"volumes,omitempty"`
 	Entrypoint    *string           `yaml:"entrypoint,omitempty"`
 	Environment   map[string]string `yaml:"environment,omitempty"`
@@ -55,6 +56,7 @@ type Settings struct {
 	TeamName      string            `yaml:"team_name"`
 	InstallDeps   bool              `yaml:"install_deps"`
 	CommonPrompt  string            `yaml:"common_prompt,omitempty"`
+	MaxAttempts   int               `yaml:"max_attempts"`
 	Volumes       []string          `yaml:"volumes,omitempty"`
 	Entrypoint    string            `yaml:"entrypoint,omitempty"`
 	Environment   map[string]string `yaml:"environment,omitempty"`
@@ -122,6 +124,9 @@ func setDefaults(config *Config) {
 	if config.Settings.TeamName == "" {
 		config.Settings.TeamName = DefaultTeamName
 	}
+	if config.Settings.MaxAttempts == 0 {
+		config.Settings.MaxAttempts = 3
+	}
 	if config.Repository.MainBranch == "" {
 		config.Repository.MainBranch = DefaultMainBranch
 	}
@@ -166,6 +171,7 @@ func CreateSampleConfig(filename string) error {
 			TeamName:      DefaultTeamName,
 			InstallDeps:   true,
 			CommonPrompt:  "Always follow coding best practices and write comprehensive tests.",
+			MaxAttempts:   3,
 		},
 	}
 
@@ -208,6 +214,9 @@ func (a *Agent) GetEffectiveSettings(globalSettings Settings) Settings {
 	}
 	if a.Settings.CommonPrompt != nil {
 		effective.CommonPrompt = *a.Settings.CommonPrompt
+	}
+	if a.Settings.MaxAttempts != nil {
+		effective.MaxAttempts = *a.Settings.MaxAttempts
 	}
 
 	// Handle new fields
