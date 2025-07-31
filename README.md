@@ -1,15 +1,18 @@
 # AutoTeam
 
-Universal AI Agent Management System for automated GitHub workflows.
+Universal AI Agent Management System for automated GitHub workflows across multiple repositories.
 
 ## Overview
 
-AutoTeam is a configurable system that deploys AI agents to automatically handle GitHub issues, pull requests, and reviews. Instead of manually checking GitHub and working on tasks, this system continuously monitors for new work and automatically provisions containerized development environments with specialized AI agents.
+AutoTeam is a configurable system that deploys AI agents to automatically handle GitHub issues, pull requests, and reviews across multiple repositories. Instead of manually checking GitHub and working on tasks, this system continuously monitors for new work and automatically provisions containerized development environments with specialized AI agents.
 
 ## Features
 
-- **Universal Configuration**: Single YAML file to define repository, agents, and settings
+- **Multi-Repository Support**: Monitor and work across multiple repositories with pattern matching and regex support
+- **Universal Configuration**: Single YAML file to define repositories, agents, and settings
 - **Dynamic Agent Scaling**: Support for any number of specialized agents
+- **Smart Review Detection**: Intelligent workflow handling that distinguishes between developer and reviewer actions
+- **Repository Pattern Matching**: Flexible include/exclude patterns with regex support (`/pattern/` syntax)
 - **Smart Name Normalization**: Automatically handles agent names with spaces and special characters
 - **Template-Based Generation**: Docker Compose and entrypoint scripts generated from templates
 - **Role-Based Agents**: Each agent can have specialized prompts and responsibilities
@@ -55,12 +58,18 @@ This creates a sample `autoteam.yaml` with basic configuration.
 
 ### 3. Configure Your Setup
 
-Edit `autoteam.yaml` to match your repository and requirements:
+Edit `autoteam.yaml` to match your repositories and requirements:
 
 ```yaml
-repository:
-  url: "diazoxide/autoteam"
-  main_branch: "main"
+# Multi-repository configuration
+repositories:
+  include:
+    - "myorg/project-alpha"           # Exact repository match
+    - "/myorg\\/backend-.*/'"         # Regex pattern for multiple repos
+    - "/diazoxide\\/.*/'"             # All repositories from diazoxide user
+  exclude:
+    - "myorg/legacy-project"          # Exclude specific repository
+    - "/.*-archived$/'"               # Exclude archived repositories
 
 agents:
   - name: "developer"
@@ -131,8 +140,24 @@ autoteam down
 
 ### Repository Settings
 
-- `url`: GitHub repository in "owner/repo" format
-- `main_branch`: Main branch name (defaults to "main")
+**Multi-Repository Support:**
+- `repositories.include`: List of repository patterns to monitor
+  - Exact matches: `"owner/repo"`
+  - Regex patterns: `"/owner\\/prefix-.*/"`
+  - User patterns: `"/username\\/.*/"`
+- `repositories.exclude`: List of repository patterns to exclude (optional)
+
+**Repository Pattern Examples:**
+```yaml
+repositories:
+  include:
+    - "myorg/main-project"        # Single repository
+    - "/myorg\\/api-.*/'"         # All repositories starting with "api-"
+    - "/username\\/.*/'"          # All repositories from a specific user
+  exclude:
+    - "myorg/legacy-system"       # Exclude specific repository
+    - "/.*-archive$/'"            # Exclude archived repositories
+```
 
 ### Agent Configuration
 
@@ -154,8 +179,24 @@ autoteam down
 - `team_name`: Project name used in paths
 - `install_deps`: Install dependencies on startup
 - `common_prompt`: Common instructions shared by all agents (optional)
+- `max_attempts`: Maximum retry attempts for failed items (default: 3)
 - `volumes`: Global volume mounts applied to all agents (optional)
 - `environment`: Global environment variables for all agents (optional)
+
+### Smart Review Detection
+
+AutoTeam includes intelligent review workflow detection that:
+
+- **Tracks Review States**: Monitors PR review states (approved, changes requested, commented)
+- **Detects Re-Review Requests**: Automatically excludes PRs where developers have re-requested review
+- **Workflow-Aware**: Distinguishes between "developer action needed" vs "waiting for reviewer response"
+- **Prevents False Positives**: Avoids repeated notifications when waiting for reviewer feedback
+
+**How It Works:**
+1. When a PR has "changes requested" reviews → marked as pending developer action
+2. Developer addresses feedback and re-requests review → automatically excluded from pending
+3. Reviewer responds → PR returns to appropriate workflow state
+4. Agents get clear prompts to complete review cycles properly
 
 ## Examples
 
@@ -210,13 +251,15 @@ Directory structure uses normalized names:
 
 ```
 autoteam.yaml → Generator → .autoteam/compose.yaml + entrypoints/
-                     ↓
-              Docker Compose → Agent Containers
-                     ↓
-              GitHub Monitoring → Claude Code → Automated Tasks
+      ↓                           ↓
+Multi-Repo Config → Docker Compose → Agent Containers
+      ↓                           ↓
+Pattern Matching → GitHub Monitoring → Claude Code → Cross-Repo Tasks
 ```
 
-### Generated Structure
+### Multi-Repository Structure
+
+Each agent maintains separate working directories for each repository:
 
 ```
 ./
@@ -225,10 +268,15 @@ autoteam.yaml → Generator → .autoteam/compose.yaml + entrypoints/
     ├── compose.yaml       # Docker Compose configuration
     ├── agents/            # Agent-specific directories
     │   ├── agent1/
-    │   │   ├── codebase/  # Repository clone
-    │   │   └── claude/    # Claude configuration
+    │   │   ├── codebase/
+    │   │   │   ├── owner1-repo1/    # Repository-specific clone
+    │   │   │   ├── owner1-repo2/    # Multiple repos per agent
+    │   │   │   └── owner2-repo3/
+    │   │   └── claude/              # Claude configuration
     │   └── agent2/
     │       ├── codebase/
+    │       │   ├── owner1-repo1/    # Same repos, separate working dirs
+    │       │   └── owner1-repo2/
     │       └── claude/
     ├── entrypoints/       # Agent entrypoint binaries
     │   ├── autoteam-entrypoint-*
@@ -237,6 +285,13 @@ autoteam.yaml → Generator → .autoteam/compose.yaml + entrypoints/
         ├── .claude
         └── .claude.json
 ```
+
+### Repository Pattern Matching
+
+- **Include Patterns**: Define which repositories to monitor
+- **Exclude Patterns**: Filter out unwanted repositories  
+- **Regex Support**: Use `/pattern/` syntax for complex matching
+- **Dynamic Discovery**: Automatically discovers matching repositories
 
 ## Testing
 
@@ -328,6 +383,9 @@ See `make help` for all available targets.
 3. **Rate Limits**: Monitor GitHub API usage with multiple agents
 4. **Port Conflicts**: Check for container port conflicts
 5. **Permission Issues**: Ensure proper file permissions for generated scripts
+6. **Repository Pattern Matching**: Verify regex patterns are properly escaped
+7. **Review Detection**: Check that agents are submitting reviews properly and re-requesting when needed
+8. **Multi-Repository Access**: Ensure GitHub tokens have access to all configured repositories
 
 ### Debug Mode
 
@@ -337,11 +395,20 @@ autoteam generate
 cat .autoteam/compose.yaml
 ls .autoteam/entrypoints/
 
+# Verify repository pattern matching
+docker-compose -f .autoteam/compose.yaml logs | grep "Found.*repositories"
+
+# Check individual agent working directories
+ls .autoteam/agents/agent-name/codebase/
+
 # Test individual containers
 docker-compose -f .autoteam/compose.yaml up agent-name
 
-# View container logs
-docker-compose -f .autoteam/compose.yaml logs agent-name
+# View container logs with repository context
+docker-compose -f .autoteam/compose.yaml logs agent-name | grep -E "(Repository|Pending|Review)"
+
+# Monitor real-time multi-repository activity
+docker-compose -f .autoteam/compose.yaml logs -f --tail=50
 ```
 
 ## Contributing
