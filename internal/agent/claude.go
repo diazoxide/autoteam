@@ -10,6 +10,7 @@ import (
 
 	"autoteam/internal/entrypoint"
 	"autoteam/internal/logger"
+
 	"go.uber.org/zap"
 )
 

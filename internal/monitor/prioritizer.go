@@ -3,10 +3,11 @@ package monitor
 import (
 	"autoteam/internal/logger"
 
-	"go.uber.org/zap"
 	"sort"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 
 	"autoteam/internal/github"
 )
