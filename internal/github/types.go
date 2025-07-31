@@ -26,6 +26,8 @@ type PullRequestInfo struct {
 	// For PRs with changes requested
 	HasChangesRequested bool         `json:"has_changes_requested,omitempty"`
 	Reviews             []ReviewInfo `json:"reviews,omitempty"`
+	// For tracking re-review requests
+	RequestedReviewers []string `json:"requested_reviewers,omitempty"`
 }
 
 // IssueInfo contains information about an issue
@@ -85,6 +87,15 @@ func FromGitHubPullRequest(pr *github.PullRequest) PullRequestInfo {
 
 	if pr.User != nil {
 		info.Author = pr.User.GetLogin()
+	}
+
+	// Extract requested reviewers
+	if pr.RequestedReviewers != nil {
+		for _, reviewer := range pr.RequestedReviewers {
+			if reviewer.Login != nil {
+				info.RequestedReviewers = append(info.RequestedReviewers, reviewer.GetLogin())
+			}
+		}
 	}
 
 	return info

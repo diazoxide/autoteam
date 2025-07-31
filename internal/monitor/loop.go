@@ -402,7 +402,7 @@ func (m *Monitor) buildItemPrompt(item *ProcessingItem, continueMode bool) strin
 	var itemContext string
 	switch item.Type {
 	case "review_request":
-		itemContext = fmt.Sprintf("📥 Review Request: [#%d](%s) %s\n\nPlease review this pull request and provide feedback.",
+		itemContext = fmt.Sprintf("📥 Review Request: [#%d](%s) %s\n\nPlease review this pull request and provide feedback. IMPORTANT: Make sure you submit your review and mark it as reviewed (approve, request changes, or comment) - don't just leave comments without submitting the review.",
 			item.Number, item.URL, item.Title)
 	case "assigned_pr":
 		itemContext = fmt.Sprintf("🧷 Assigned PR: [#%d](%s) %s\n\nThis pull request is assigned to you. Please work on it.",
@@ -411,7 +411,7 @@ func (m *Monitor) buildItemPrompt(item *ProcessingItem, continueMode bool) strin
 		itemContext = fmt.Sprintf("🚧 Assigned Issue: [#%d](%s) %s\n\nThis issue is assigned to you. Please address it.",
 			item.Number, item.URL, item.Title)
 	case "pr_with_changes":
-		itemContext = fmt.Sprintf("🛠 PR with Changes Requested: [#%d](%s) %s\n\nThis is your pull request that has changes requested. Please address the feedback.",
+		itemContext = fmt.Sprintf("🛠 PR with Changes Requested: [#%d](%s) %s\n\nThis is your pull request that has changes requested. Please address the feedback and then re-request review from the reviewers who requested changes. IMPORTANT: After making your changes, use the GitHub interface to re-request review so the reviewers are notified.",
 			item.Number, item.URL, item.Title)
 	}
 
