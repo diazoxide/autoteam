@@ -165,6 +165,7 @@ repositories:
 - `prompt`: Primary role and responsibilities
 - `github_token`: GitHub personal access token for this agent
 - `github_user`: GitHub username associated with the token (required for security validation)
+- `enabled`: Enable/disable agent without removing configuration (optional, defaults to true)
 - `settings`: Agent-specific overrides for global settings (optional)
   - `docker_image`: Custom Docker image for this agent
   - `docker_user`: Custom user for this agent
@@ -214,6 +215,7 @@ autoteam init      # Create sample autoteam.yaml
 autoteam generate  # Generate compose.yaml from config
 autoteam up        # Generate and start containers
 autoteam down      # Stop containers
+autoteam agents     # List all agents and their states
 ```
 
 All generated files are organized in the `.autoteam/` directory for better project organization.
@@ -246,6 +248,33 @@ Directory structure uses normalized names:
 └── api_agent_1/
     └── codebase/
 ```
+
+### Disabling Agents
+
+You can temporarily disable agents without removing their configuration:
+
+```yaml
+agents:
+  - name: "developer"
+    prompt: "You are a developer agent"
+    github_token: "ghp_token1"
+    github_user: "dev-user"
+    enabled: true  # Agent is active (default)
+  
+  - name: "reviewer"
+    prompt: "You are a code reviewer"
+    github_token: "ghp_token2"
+    github_user: "reviewer-user"
+    enabled: false  # Agent is disabled - won't be deployed
+```
+
+Benefits:
+- Keep agent configurations for future use
+- Temporarily reduce resource usage
+- Test with specific agent combinations
+- Preserve tokens and settings when not actively needed
+
+Use `autoteam agents` to list all agents and their states.
 
 ## Architecture
 

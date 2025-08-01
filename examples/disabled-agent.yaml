@@ -1,0 +1,46 @@
+# Example configuration with a disabled agent
+# This shows how to temporarily disable agents without removing their configuration
+
+repositories:
+  include:
+    - "myorg/main-project"
+    - "myorg/api-service"
+
+agents:
+  # Active developer agent
+  - name: "Developer"
+    prompt: |
+      You are a developer agent responsible for implementing features and fixing bugs.
+      Focus on writing clean, maintainable code with proper tests.
+    github_token: "${DEVELOPER_TOKEN}"
+    github_user: "dev-user"
+    enabled: true  # Explicitly enabled (this is the default)
+
+  # Temporarily disabled reviewer agent
+  - name: "Code Reviewer"
+    prompt: |
+      You are a code reviewer focused on code quality, best practices, and security.
+      Provide constructive feedback to improve code maintainability.
+    github_token: "${REVIEWER_TOKEN}"
+    github_user: "reviewer-user"
+    enabled: false  # This agent won't be deployed
+
+  # Another active agent
+  - name: "DevOps Engineer"
+    prompt: |
+      You are a DevOps engineer responsible for CI/CD, infrastructure, and deployment.
+      Focus on automation and reliability.
+    github_token: "${DEVOPS_TOKEN}"
+    github_user: "devops-user"
+    # 'enabled' not specified, defaults to true
+
+settings:
+  service:
+    image: "node:18.17.1"
+    user: "developer"
+  check_interval: 60
+  team_name: "my-team"
+  install_deps: true
+  common_prompt: |
+    Always follow the project's coding standards and best practices.
+    Write clear commit messages and document your changes.

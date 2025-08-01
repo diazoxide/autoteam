@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"autoteam/internal/config"
 	"autoteam/internal/generator"
@@ -64,6 +65,11 @@ func main() {
 				Name:   "init",
 				Usage:  "Create sample autoteam.yaml",
 				Action: initCommand,
+			},
+			{
+				Name:   "agents",
+				Usage:  "List all agents and their states",
+				Action: agentsCommand,
 			},
 		},
 	}
@@ -128,6 +134,52 @@ func initCommand(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	fmt.Println("Created sample autoteam.yaml")
+	return nil
+}
+
+func agentsCommand(ctx context.Context, cmd *cli.Command) error {
+	log := logger.FromContext(ctx)
+	cfg := getConfigFromContext(ctx)
+	if cfg == nil {
+		log.Error("Config not available in context")
+		return fmt.Errorf("config not available in context")
+	}
+
+	fmt.Println("Agents configuration:")
+	fmt.Println()
+
+	for i, agent := range cfg.Agents {
+		status := "enabled"
+		if !agent.IsEnabled() {
+			status = "disabled"
+		}
+
+		fmt.Printf("%d. %s (%s)\n", i+1, agent.Name, status)
+		fmt.Printf("   GitHub User: %s\n", agent.GitHubUser)
+		if agent.Prompt != "" {
+			// Show first line of prompt
+			lines := strings.Split(agent.Prompt, "\n")
+			if len(lines) > 0 && lines[0] != "" {
+				prompt := lines[0]
+				if len(prompt) > 80 {
+					prompt = prompt[:77] + "..."
+				}
+				fmt.Printf("   Prompt: %s\n", prompt)
+			}
+		}
+		fmt.Println()
+	}
+
+	// Summary
+	enabledCount := 0
+	for _, agent := range cfg.Agents {
+		if agent.IsEnabled() {
+			enabledCount++
+		}
+	}
+	fmt.Printf("Total agents: %d (enabled: %d, disabled: %d)\n",
+		len(cfg.Agents), enabledCount, len(cfg.Agents)-enabledCount)
+
 	return nil
 }
 

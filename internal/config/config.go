@@ -30,6 +30,7 @@ type Agent struct {
 	Prompt      string         `yaml:"prompt"`
 	GitHubToken string         `yaml:"github_token"`
 	GitHubUser  string         `yaml:"github_user"`
+	Enabled     *bool          `yaml:"enabled,omitempty"`
 	Settings    *AgentSettings `yaml:"settings,omitempty"`
 }
 
@@ -152,18 +153,33 @@ func validateConfig(config *Config) error {
 		return fmt.Errorf("at least one agent must be configured")
 	}
 
+	// Count enabled agents
+	enabledCount := 0
+	for _, agent := range config.Agents {
+		if agent.IsEnabled() {
+			enabledCount++
+		}
+	}
+
+	if enabledCount == 0 {
+		return fmt.Errorf("at least one agent must be enabled")
+	}
+
 	for i, agent := range config.Agents {
 		if agent.Name == "" {
 			return fmt.Errorf("agent[%d].name is required", i)
 		}
-		if agent.GitHubToken == "" {
-			return fmt.Errorf("agent[%d].github_token is required", i)
-		}
-		if agent.GitHubUser == "" {
-			return fmt.Errorf("agent[%d].github_user is required", i)
-		}
-		if agent.Prompt == "" {
-			return fmt.Errorf("agent[%d].prompt is required", i)
+		// Only validate required fields for enabled agents
+		if agent.IsEnabled() {
+			if agent.GitHubToken == "" {
+				return fmt.Errorf("agent[%d].github_token is required for enabled agents", i)
+			}
+			if agent.GitHubUser == "" {
+				return fmt.Errorf("agent[%d].github_user is required for enabled agents", i)
+			}
+			if agent.Prompt == "" {
+				return fmt.Errorf("agent[%d].prompt is required for enabled agents", i)
+			}
 		}
 	}
 
@@ -227,6 +243,13 @@ func CreateSampleConfig(filename string) error {
 						},
 					},
 				},
+			},
+			{
+				Name:        "devops1",
+				Prompt:      "You are a DevOps agent responsible for CI/CD and infrastructure.",
+				GitHubToken: "ghp_your_github_token_here",
+				GitHubUser:  "your-github-username",
+				Enabled:     BoolPtr(false), // This agent is disabled
 			},
 		},
 		Settings: Settings{
@@ -381,6 +404,20 @@ func (c *Config) GetAllAgentsWithEffectiveSettings() []AgentWithSettings {
 	return agents
 }
 
+// GetEnabledAgentsWithEffectiveSettings returns only enabled agents with their effective settings
+func (c *Config) GetEnabledAgentsWithEffectiveSettings() []AgentWithSettings {
+	var agents []AgentWithSettings
+	for _, agent := range c.Agents {
+		if agent.IsEnabled() {
+			agents = append(agents, AgentWithSettings{
+				Agent:             agent,
+				EffectiveSettings: agent.GetEffectiveSettings(c.Settings),
+			})
+		}
+	}
+	return agents
+}
+
 type AgentWithSettings struct {
 	Agent             Agent
 	EffectiveSettings Settings
@@ -412,17 +449,24 @@ func (aws *AgentWithSettings) GetConsolidatedPrompt(cfg *Config) string {
 	return strings.Join(promptParts, "\n\n")
 }
 
-// buildCollaboratorsList builds a list of all agents/collaborators from the config
+// buildCollaboratorsList builds a list of all enabled agents/collaborators from the config
 func buildCollaboratorsList(cfg *Config) string {
-	if len(cfg.Agents) <= 1 {
-		// If there's only one agent, no need to show collaborators list
+	var enabledAgents []Agent
+	for _, agent := range cfg.Agents {
+		if agent.IsEnabled() {
+			enabledAgents = append(enabledAgents, agent)
+		}
+	}
+
+	if len(enabledAgents) <= 1 {
+		// If there's only one enabled agent, no need to show collaborators list
 		return ""
 	}
 
 	var collaborators []string
 	collaborators = append(collaborators, "# List of all collaborators:")
 
-	for i, agent := range cfg.Agents {
+	for i, agent := range enabledAgents {
 		if agent.GitHubUser != "" && agent.Name != "" {
 			collaborators = append(collaborators, fmt.Sprintf("%d. %s - %s", i+1, agent.GitHubUser, agent.Name))
 		}
@@ -458,6 +502,14 @@ func normalizeAgentName(name string) string {
 // GetNormalizedName returns the normalized agent name suitable for service names and paths
 func (a *Agent) GetNormalizedName() string {
 	return normalizeAgentName(a.Name)
+}
+
+// IsEnabled returns true if the agent is enabled (default is true)
+func (a *Agent) IsEnabled() bool {
+	if a.Enabled == nil {
+		return true
+	}
+	return *a.Enabled
 }
 
 // Helper functions for creating pointers

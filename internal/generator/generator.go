@@ -56,8 +56,8 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 		Services: make(map[string]interface{}),
 	}
 
-	// Get agents with their effective settings
-	agentsWithSettings := cfg.GetAllAgentsWithEffectiveSettings()
+	// Get only enabled agents with their effective settings
+	agentsWithSettings := cfg.GetEnabledAgentsWithEffectiveSettings()
 
 	for _, agentWithSettings := range agentsWithSettings {
 		agent := agentWithSettings.Agent
@@ -205,6 +205,10 @@ Supported platforms:
 
 func (g *Generator) createAgentDirectories(cfg *config.Config) error {
 	for _, agent := range cfg.Agents {
+		// Skip disabled agents
+		if !agent.IsEnabled() {
+			continue
+		}
 		normalizedName := agent.GetNormalizedName()
 		if err := g.fileOps.CreateAgentDirectoryStructure(normalizedName); err != nil {
 			return fmt.Errorf("failed to create directory structure for agent %s (normalized: %s): %w", agent.Name, normalizedName, err)
