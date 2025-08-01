@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"autoteam/internal/logger"
 
@@ -49,7 +50,37 @@ func (c *Client) GetPendingItems(ctx context.Context, username string) (*Pending
 	items.PRsWithChanges = prsWithChanges
 	log.Info("Found PRs with changes requested", zap.Int("count", len(prsWithChanges)))
 
-	totalItems := len(reviewRequests) + len(assignedPRs) + len(assignedIssues) + len(prsWithChanges)
+	// Get mentions across all filtered repositories
+	mentions, err := c.getMentions(ctx, username)
+	if err != nil {
+		// Log error but continue - mentions are not critical
+		log.Warn("Failed to get mentions", zap.Error(err))
+	} else {
+		items.Mentions = mentions
+		log.Info("Found mentions", zap.Int("count", len(mentions)))
+	}
+
+	// Get unread notifications
+	notifications, err := c.getNotifications(ctx)
+	if err != nil {
+		// Log error but continue - notifications are not critical
+		log.Warn("Failed to get notifications", zap.Error(err))
+	} else {
+		items.Notifications = notifications
+		log.Info("Found notifications", zap.Int("count", len(notifications)))
+	}
+
+	// Get failed workflows for user's PRs
+	failedWorkflows, err := c.getFailedWorkflows(ctx, username)
+	if err != nil {
+		// Log error but continue - workflows are not critical
+		log.Warn("Failed to get failed workflows", zap.Error(err))
+	} else {
+		items.FailedWorkflows = failedWorkflows
+		log.Info("Found failed workflows", zap.Int("count", len(failedWorkflows)))
+	}
+
+	totalItems := items.Count()
 	log.Info("Total pending items found", zap.Int("total", totalItems))
 
 	return items, nil
@@ -453,4 +484,191 @@ func (c *Client) checkChangesRequested(ctx context.Context, owner, repo string, 
 	}
 
 	return hasChanges, reviewInfos, nil
+}
+
+// getMentions gets recent mentions of the user in issues and PRs
+func (c *Client) getMentions(ctx context.Context, username string) ([]MentionInfo, error) {
+	log := logger.FromContext(ctx)
+	// Search for recent mentions in issues and PRs
+	query := fmt.Sprintf("mentions:%s updated:>%s", username, time.Now().AddDate(0, 0, -7).Format("2006-01-02"))
+	log.Info("Searching for mentions", zap.String("query", query))
+
+	opts := &github.SearchOptions{
+		ListOptions: github.ListOptions{PerPage: 100},
+		Sort:        "updated",
+		Order:       "desc",
+	}
+
+	result, _, err := c.client.Search.Issues(ctx, query, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search for mentions: %w", err)
+	}
+
+	var mentions []MentionInfo
+	for _, issue := range result.Issues {
+		var repoName string
+		if issue.Repository != nil {
+			repoName = issue.Repository.GetFullName()
+		} else if htmlURL := issue.GetHTMLURL(); htmlURL != "" && strings.Contains(htmlURL, "github.com") {
+			parts := strings.Split(htmlURL, "/")
+			if len(parts) >= 5 && parts[2] == "github.com" {
+				repoName = parts[3] + "/" + parts[4]
+			}
+		}
+
+		if repoName == "" || !c.filter.ShouldIncludeRepository(repoName) {
+			continue
+		}
+
+		// Parse repository owner/name
+		owner, repo, err := parseRepository(repoName)
+		if err != nil {
+			log.Warn("Failed to parse repository", zap.String("repository", repoName), zap.Error(err))
+			continue
+		}
+
+		// Get recent comments to find the mention
+		sinceTime := time.Now().AddDate(0, 0, -7)
+		opts := &github.IssueListCommentsOptions{
+			Since:       &sinceTime,
+			ListOptions: github.ListOptions{PerPage: 100},
+		}
+
+		comments, _, err := c.client.Issues.ListComments(ctx, owner, repo, issue.GetNumber(), opts)
+		if err != nil {
+			log.Warn("Failed to get comments", zap.Int("issue_number", issue.GetNumber()), zap.Error(err))
+			continue
+		}
+
+		// Find comments that mention the user
+		for _, comment := range comments {
+			if strings.Contains(comment.GetBody(), "@"+username) {
+				itemType := "issue"
+				if issue.PullRequestLinks != nil {
+					itemType = "pull_request"
+				}
+				mention := FromGitHubIssueComment(comment, issue.GetNumber(), issue.GetTitle(), repoName, itemType)
+				mentions = append(mentions, mention)
+			}
+		}
+	}
+
+	return mentions, nil
+}
+
+// getNotifications gets unread notifications from GitHub
+func (c *Client) getNotifications(ctx context.Context) ([]NotificationInfo, error) {
+	log := logger.FromContext(ctx)
+	log.Info("Getting unread notifications")
+
+	opts := &github.NotificationListOptions{
+		All:         false, // Only unread
+		ListOptions: github.ListOptions{PerPage: 100},
+	}
+
+	notifications, _, err := c.client.Activity.ListNotifications(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list notifications: %w", err)
+	}
+
+	var notificationInfos []NotificationInfo
+	for _, notification := range notifications {
+		if notification.Repository == nil {
+			continue
+		}
+
+		repoName := notification.Repository.GetFullName()
+		if !c.filter.ShouldIncludeRepository(repoName) {
+			continue
+		}
+
+		info := FromGitHubNotification(notification)
+		notificationInfos = append(notificationInfos, info)
+	}
+
+	return notificationInfos, nil
+}
+
+// getFailedWorkflows gets failed workflow runs for user's PRs
+func (c *Client) getFailedWorkflows(ctx context.Context, username string) ([]WorkflowInfo, error) {
+	log := logger.FromContext(ctx)
+	log.Info("Getting failed workflows for user's PRs")
+
+	var failedWorkflows []WorkflowInfo
+
+	// Get repositories the user has recently contributed to
+	repos, err := c.getRecentContributionRepos(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recent contribution repos: %w", err)
+	}
+
+	for _, repoName := range repos {
+		if !c.filter.ShouldIncludeRepository(repoName) {
+			continue
+		}
+
+		owner, repo, err := parseRepository(repoName)
+		if err != nil {
+			log.Warn("Failed to parse repository", zap.String("repository", repoName), zap.Error(err))
+			continue
+		}
+
+		// Get recent workflow runs
+		opts := &github.ListWorkflowRunsOptions{
+			Actor:       username,
+			Status:      "completed",
+			ListOptions: github.ListOptions{PerPage: 20},
+		}
+
+		runs, _, err := c.client.Actions.ListRepositoryWorkflowRuns(ctx, owner, repo, opts)
+		if err != nil {
+			log.Warn("Failed to get workflow runs", zap.String("repository", repoName), zap.Error(err))
+			continue
+		}
+
+		for _, run := range runs.WorkflowRuns {
+			// Only include failed runs from the last 24 hours
+			if run.GetConclusion() == "failure" && run.GetCreatedAt().After(time.Now().AddDate(0, 0, -1)) {
+				info := FromGitHubWorkflowRun(run)
+				info.Repository = repoName
+				failedWorkflows = append(failedWorkflows, info)
+			}
+		}
+	}
+
+	return failedWorkflows, nil
+}
+
+// getRecentContributionRepos gets repositories the user has recently contributed to
+func (c *Client) getRecentContributionRepos(ctx context.Context, username string) ([]string, error) {
+	// Search for recent PRs by the user to find active repositories
+	query := fmt.Sprintf("is:pr author:%s updated:>%s", username, time.Now().AddDate(0, 0, -7).Format("2006-01-02"))
+
+	opts := &github.SearchOptions{
+		ListOptions: github.ListOptions{PerPage: 100},
+	}
+
+	result, _, err := c.client.Search.Issues(ctx, query, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search for user's recent PRs: %w", err)
+	}
+
+	repoSet := make(map[string]bool)
+	for _, issue := range result.Issues {
+		if issue.Repository != nil {
+			repoSet[issue.Repository.GetFullName()] = true
+		} else if htmlURL := issue.GetHTMLURL(); htmlURL != "" && strings.Contains(htmlURL, "github.com") {
+			parts := strings.Split(htmlURL, "/")
+			if len(parts) >= 5 && parts[2] == "github.com" {
+				repoSet[parts[3]+"/"+parts[4]] = true
+			}
+		}
+	}
+
+	var repos []string
+	for repo := range repoSet {
+		repos = append(repos, repo)
+	}
+
+	return repos, nil
 }

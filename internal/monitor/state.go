@@ -30,11 +30,12 @@ type ProcessingState struct {
 // ProcessingItem represents an item currently being processed
 type ProcessingItem struct {
 	// Item identification
-	Type       string `json:"type"`       // "review_request", "assigned_pr", "assigned_issue", "pr_with_changes"
-	Number     int    `json:"number"`     // GitHub issue/PR number
-	Repository string `json:"repository"` // Repository in "owner/repo" format
-	URL        string `json:"url"`        // GitHub URL
-	Title      string `json:"title"`      // Issue/PR title
+	Type       string                 `json:"type"`              // "review_request", "assigned_pr", "assigned_issue", "pr_with_changes", "mention", "unread_comment", "notification", "failed_workflow"
+	Number     int                    `json:"number"`            // GitHub issue/PR number (0 for notifications/workflows)
+	Repository string                 `json:"repository"`        // Repository in "owner/repo" format
+	URL        string                 `json:"url"`               // GitHub URL
+	Title      string                 `json:"title"`             // Issue/PR title
+	Details    map[string]interface{} `json:"details,omitempty"` // Additional details for specific event types
 
 	// Processing metadata
 	StartTime    time.Time `json:"start_time"`
@@ -190,6 +191,21 @@ func CreateProcessingItemFromIssue(issue github.IssueInfo, itemType string) *Pro
 		Repository:   issue.Repository,
 		URL:          issue.URL,
 		Title:        issue.Title,
+		StartTime:    time.Now(),
+		AttemptCount: 1,
+		LastAttempt:  time.Now(),
+	}
+}
+
+// CreateProcessingItemFromPrioritized creates a ProcessingItem from a PrioritizedItem
+func CreateProcessingItemFromPrioritized(item *PrioritizedItem) *ProcessingItem {
+	return &ProcessingItem{
+		Type:         item.Type,
+		Number:       item.Number,
+		Repository:   item.Repository,
+		URL:          item.URL,
+		Title:        item.Title,
+		Details:      item.Details,
 		StartTime:    time.Now(),
 		AttemptCount: 1,
 		LastAttempt:  time.Now(),

@@ -8,10 +8,14 @@ import (
 
 // PendingItems represents all pending items that need attention
 type PendingItems struct {
-	ReviewRequests []PullRequestInfo `json:"review_requests"`
-	AssignedPRs    []PullRequestInfo `json:"assigned_prs"`
-	AssignedIssues []IssueInfo       `json:"assigned_issues"`
-	PRsWithChanges []PullRequestInfo `json:"prs_with_changes"`
+	ReviewRequests  []PullRequestInfo  `json:"review_requests"`
+	AssignedPRs     []PullRequestInfo  `json:"assigned_prs"`
+	AssignedIssues  []IssueInfo        `json:"assigned_issues"`
+	PRsWithChanges  []PullRequestInfo  `json:"prs_with_changes"`
+	Mentions        []MentionInfo      `json:"mentions"`
+	UnreadComments  []CommentInfo      `json:"unread_comments"`
+	Notifications   []NotificationInfo `json:"notifications"`
+	FailedWorkflows []WorkflowInfo     `json:"failed_workflows"`
 }
 
 // PullRequestInfo contains information about a pull request
@@ -62,17 +66,72 @@ type ReviewInfo struct {
 	SubmittedAt time.Time `json:"submitted_at"`
 }
 
+// MentionInfo contains information about a mention in an issue or PR
+type MentionInfo struct {
+	Number     int       `json:"number"`
+	Title      string    `json:"title"`
+	URL        string    `json:"url"`
+	Repository string    `json:"repository"`
+	Type       string    `json:"type"` // "issue" or "pull_request"
+	Author     string    `json:"author"`
+	Body       string    `json:"body"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// CommentInfo contains information about a comment on an issue or PR
+type CommentInfo struct {
+	Number     int       `json:"number"`
+	Title      string    `json:"title"`
+	URL        string    `json:"url"`
+	Repository string    `json:"repository"`
+	Type       string    `json:"type"` // "issue" or "pull_request"
+	Author     string    `json:"author"`
+	Body       string    `json:"body"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// NotificationInfo contains information from GitHub notifications API
+type NotificationInfo struct {
+	ID         string    `json:"id"`
+	Reason     string    `json:"reason"`
+	Subject    string    `json:"subject"`
+	URL        string    `json:"url"`
+	Repository string    `json:"repository"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	Unread     bool      `json:"unread"`
+}
+
+// WorkflowInfo contains information about a failed workflow run
+type WorkflowInfo struct {
+	ID           int64     `json:"id"`
+	Name         string    `json:"name"`
+	HeadBranch   string    `json:"head_branch"`
+	HeadSHA      string    `json:"head_sha"`
+	Status       string    `json:"status"`
+	Conclusion   string    `json:"conclusion"`
+	URL          string    `json:"url"`
+	Repository   string    `json:"repository"`
+	PullRequests []int     `json:"pull_requests,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 // IsEmpty returns true if there are no pending items
 func (p *PendingItems) IsEmpty() bool {
 	return len(p.ReviewRequests) == 0 &&
 		len(p.AssignedPRs) == 0 &&
 		len(p.AssignedIssues) == 0 &&
-		len(p.PRsWithChanges) == 0
+		len(p.PRsWithChanges) == 0 &&
+		len(p.Mentions) == 0 &&
+		len(p.UnreadComments) == 0 &&
+		len(p.Notifications) == 0 &&
+		len(p.FailedWorkflows) == 0
 }
 
 // Count returns the total number of pending items
 func (p *PendingItems) Count() int {
-	return len(p.ReviewRequests) + len(p.AssignedPRs) + len(p.AssignedIssues) + len(p.PRsWithChanges)
+	return len(p.ReviewRequests) + len(p.AssignedPRs) + len(p.AssignedIssues) + len(p.PRsWithChanges) +
+		len(p.Mentions) + len(p.UnreadComments) + len(p.Notifications) + len(p.FailedWorkflows)
 }
 
 // FromGitHubPullRequest converts a GitHub pull request to our PullRequestInfo
@@ -157,6 +216,71 @@ func FromGitHubRepository(repo *github.Repository) RepositoryInfo {
 		info.DefaultBranch = *repo.DefaultBranch
 	} else {
 		info.DefaultBranch = "main" // fallback
+	}
+
+	return info
+}
+
+// FromGitHubIssueComment converts a GitHub issue comment to our MentionInfo or CommentInfo
+func FromGitHubIssueComment(comment *github.IssueComment, issueNumber int, issueTitle, repoName, itemType string) MentionInfo {
+	info := MentionInfo{
+		Number:     issueNumber,
+		Title:      issueTitle,
+		URL:        comment.GetHTMLURL(),
+		Repository: repoName,
+		Type:       itemType,
+		Body:       comment.GetBody(),
+		CreatedAt:  comment.GetCreatedAt().Time,
+	}
+
+	if comment.User != nil {
+		info.Author = comment.User.GetLogin()
+	}
+
+	return info
+}
+
+// FromGitHubNotification converts a GitHub notification to our NotificationInfo
+func FromGitHubNotification(notification *github.Notification) NotificationInfo {
+	info := NotificationInfo{
+		ID:        notification.GetID(),
+		Reason:    notification.GetReason(),
+		Subject:   notification.Subject.GetTitle(),
+		URL:       notification.Subject.GetURL(),
+		UpdatedAt: notification.GetUpdatedAt().Time,
+		Unread:    notification.GetUnread(),
+	}
+
+	if notification.Repository != nil {
+		info.Repository = notification.Repository.GetFullName()
+	}
+
+	return info
+}
+
+// FromGitHubWorkflowRun converts a GitHub workflow run to our WorkflowInfo
+func FromGitHubWorkflowRun(run *github.WorkflowRun) WorkflowInfo {
+	info := WorkflowInfo{
+		ID:         run.GetID(),
+		Name:       run.GetName(),
+		HeadBranch: run.GetHeadBranch(),
+		HeadSHA:    run.GetHeadSHA(),
+		Status:     run.GetStatus(),
+		Conclusion: run.GetConclusion(),
+		URL:        run.GetHTMLURL(),
+		CreatedAt:  run.GetCreatedAt().Time,
+		UpdatedAt:  run.GetUpdatedAt().Time,
+	}
+
+	if run.Repository != nil {
+		info.Repository = run.Repository.GetFullName()
+	}
+
+	// Extract associated PR numbers
+	for _, pr := range run.PullRequests {
+		if pr != nil {
+			info.PullRequests = append(info.PullRequests, pr.GetNumber())
+		}
 	}
 
 	return info

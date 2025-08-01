@@ -227,27 +227,7 @@ func (m *Monitor) selectAndProcessNextItem(ctx context.Context, username, defaul
 	}
 
 	// Create processing item and set as current
-	var processingItem *ProcessingItem
-	switch selectedItem.Type {
-	case "review_request", "assigned_pr", "pr_with_changes":
-		processingItem = CreateProcessingItemFromPR(github.PullRequestInfo{
-			Number:     selectedItem.Number,
-			Repository: selectedItem.Repository,
-			Title:      selectedItem.Title,
-			URL:        selectedItem.URL,
-			Author:     selectedItem.Author,
-		}, selectedItem.Type)
-	case "assigned_issue":
-		processingItem = CreateProcessingItemFromIssue(github.IssueInfo{
-			Number:     selectedItem.Number,
-			Repository: selectedItem.Repository,
-			Title:      selectedItem.Title,
-			URL:        selectedItem.URL,
-			Author:     selectedItem.Author,
-		}, selectedItem.Type)
-	default:
-		return fmt.Errorf("unknown item type: %s", selectedItem.Type)
-	}
+	processingItem := CreateProcessingItemFromPrioritized(selectedItem)
 
 	// Set as current item
 	if err := m.stateManager.SetCurrentItem(processingItem); err != nil {
@@ -368,6 +348,22 @@ func (m *Monitor) buildItemPrompt(item *ProcessingItem, continueMode bool) strin
 	case "pr_with_changes":
 		itemContext = fmt.Sprintf("🛠 PR with Changes Requested: [#%d](%s) %s\n\nThis is your pull request that has changes requested. Please address the feedback and then re-request review from the reviewers who requested changes. \n\nIMPORTANT: After making your changes, use the GitHub interface to re-request review so the reviewers are notified.",
 			item.Number, item.URL, item.Title)
+	case "mention":
+		itemContext = fmt.Sprintf("💬 Mention: [#%d](%s) %s\n\nYou were mentioned in this %s. Please respond to the mention or take appropriate action.",
+			item.Number, item.URL, item.Title, item.Details["type"])
+	case "unread_comment":
+		itemContext = fmt.Sprintf("💭 Unread Comment: [#%d](%s) %s\n\nThere's a new comment on this %s that needs your attention.",
+			item.Number, item.URL, item.Title, item.Details["type"])
+	case "notification":
+		itemContext = fmt.Sprintf("🔔 Notification: %s\n\nYou have an unread notification. Reason: %s",
+			item.Title, item.Details["reason"])
+	case "failed_workflow":
+		prNumbers := ""
+		if prs, ok := item.Details["pull_requests"].(string); ok && prs != "" {
+			prNumbers = fmt.Sprintf(" (Associated PRs: %s)", prs)
+		}
+		itemContext = fmt.Sprintf("❌ Failed Workflow: %s%s\n\nThe workflow '%s' has failed. Please investigate and fix the issues.",
+			item.Title, prNumbers, item.Details["workflow_name"])
 	}
 
 	promptParts = append(promptParts, itemContext)

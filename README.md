@@ -11,7 +11,8 @@ AutoTeam is a configurable system that deploys AI agents to automatically handle
 - **Multi-Repository Support**: Monitor and work across multiple repositories with pattern matching and regex support
 - **Universal Configuration**: Single YAML file to define repositories, agents, and settings
 - **Dynamic Agent Scaling**: Support for any number of specialized agents
-- **Smart Review Detection**: Intelligent workflow handling that distinguishes between developer and reviewer actions
+- **Comprehensive Event Tracking**: Monitors review requests, mentions, comments, notifications, failed workflows, and more
+- **Smart Priority System**: Intelligent prioritization based on event type, age, urgency keywords, and failure history
 - **Repository Pattern Matching**: Flexible include/exclude patterns with regex support (`/pattern/` syntax)
 - **Smart Name Normalization**: Automatically handles agent names with spaces and special characters
 - **Template-Based Generation**: Docker Compose and entrypoint scripts generated from templates
@@ -183,6 +184,20 @@ repositories:
 - `max_attempts`: Maximum retry attempts for failed items (default: 3)
 - `volumes`: Global volume mounts applied to all agents (optional)
 - `environment`: Global environment variables for all agents (optional)
+
+### GitHub Event Tracking
+
+AutoTeam monitors and responds to various GitHub events:
+
+- **Review Requests**: PRs where agent is requested as reviewer
+- **Mentions**: @mentions in issues and PR comments
+- **Assigned Items**: Issues and PRs assigned to agents
+- **Failed Workflows**: CI/CD failures on agent's PRs
+- **Changes Requested**: PRs requiring updates from reviews
+- **Comments**: New comments on participating issues/PRs
+- **Notifications**: Unread GitHub notifications
+
+Events are prioritized intelligently based on type, age, urgency keywords, and failure history. See [docs/github-events.md](docs/github-events.md) for detailed information.
 
 ### Smart Review Detection
 

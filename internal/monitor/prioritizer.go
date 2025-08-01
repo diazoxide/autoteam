@@ -3,6 +3,7 @@ package monitor
 import (
 	"autoteam/internal/logger"
 
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -22,6 +23,7 @@ type PrioritizedItem struct {
 	URL        string
 	Author     string
 	UpdatedAt  time.Time
+	Details    map[string]interface{} // Additional details for specific event types
 
 	// Prioritization
 	Score  int
@@ -161,6 +163,94 @@ func (p *ItemPrioritizer) collectAndPrioritizeItems(pendingItems *github.Pending
 			UpdatedAt:  issue.UpdatedAt,
 		}
 		item.Score, item.Reason = p.calculatePriority(item, 400) // Base score: 400
+		allItems = append(allItems, item)
+	}
+
+	// Process mentions (high priority - requires immediate response)
+	for _, mention := range pendingItems.Mentions {
+		item := &PrioritizedItem{
+			Type:       "mention",
+			Number:     mention.Number,
+			Repository: mention.Repository,
+			Title:      mention.Title,
+			URL:        mention.URL,
+			Author:     mention.Author,
+			UpdatedAt:  mention.CreatedAt,
+			Details: map[string]interface{}{
+				"type": mention.Type,
+				"body": mention.Body,
+			},
+		}
+		item.Score, item.Reason = p.calculatePriority(item, 900) // Base score: 900
+		allItems = append(allItems, item)
+	}
+
+	// Process unread comments (medium priority)
+	for _, comment := range pendingItems.UnreadComments {
+		item := &PrioritizedItem{
+			Type:       "unread_comment",
+			Number:     comment.Number,
+			Repository: comment.Repository,
+			Title:      comment.Title,
+			URL:        comment.URL,
+			Author:     comment.Author,
+			UpdatedAt:  comment.CreatedAt,
+			Details: map[string]interface{}{
+				"type": comment.Type,
+				"body": comment.Body,
+			},
+		}
+		item.Score, item.Reason = p.calculatePriority(item, 500) // Base score: 500
+		allItems = append(allItems, item)
+	}
+
+	// Process notifications (medium priority)
+	for _, notif := range pendingItems.Notifications {
+		item := &PrioritizedItem{
+			Type:       "notification",
+			Number:     0, // Notifications don't have issue/PR numbers
+			Repository: notif.Repository,
+			Title:      notif.Subject,
+			URL:        notif.URL,
+			Author:     "", // Notifications don't have authors
+			UpdatedAt:  notif.UpdatedAt,
+			Details: map[string]interface{}{
+				"id":     notif.ID,
+				"reason": notif.Reason,
+			},
+		}
+		item.Score, item.Reason = p.calculatePriority(item, 300) // Base score: 300
+		allItems = append(allItems, item)
+	}
+
+	// Process failed workflows (high priority - blocks deployment)
+	for _, workflow := range pendingItems.FailedWorkflows {
+		prNumbers := ""
+		if len(workflow.PullRequests) > 0 {
+			prStrings := make([]string, len(workflow.PullRequests))
+			for i, pr := range workflow.PullRequests {
+				prStrings[i] = fmt.Sprintf("#%d", pr)
+			}
+			prNumbers = strings.Join(prStrings, ", ")
+		}
+
+		item := &PrioritizedItem{
+			Type:       "failed_workflow",
+			Number:     0, // Workflows don't have issue/PR numbers directly
+			Repository: workflow.Repository,
+			Title:      fmt.Sprintf("Workflow '%s' failed", workflow.Name),
+			URL:        workflow.URL,
+			Author:     "", // Workflows don't have authors
+			UpdatedAt:  workflow.UpdatedAt,
+			Details: map[string]interface{}{
+				"workflow_id":   workflow.ID,
+				"workflow_name": workflow.Name,
+				"head_branch":   workflow.HeadBranch,
+				"head_sha":      workflow.HeadSHA,
+				"pull_requests": prNumbers,
+			},
+		}
+		item.Score, item.Reason = p.calculatePriority(item, 700) // Base score: 700
 		allItems = append(allItems, item)
 	}
 
