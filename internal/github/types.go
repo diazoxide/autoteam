@@ -1,6 +1,8 @@
 package github
 
 import (
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/google/go-github/v57/github"
@@ -31,19 +33,21 @@ type PullRequestInfo struct {
 	HasChangesRequested bool         `json:"has_changes_requested,omitempty"`
 	Reviews             []ReviewInfo `json:"reviews,omitempty"`
 	// For tracking re-review requests
-	RequestedReviewers []string `json:"requested_reviewers,omitempty"`
+	RequestedReviewers []string               `json:"requested_reviewers,omitempty"`
+	Details            map[string]interface{} `json:"details,omitempty"`
 }
 
 // IssueInfo contains information about an issue
 type IssueInfo struct {
-	Number     int       `json:"number"`
-	Title      string    `json:"title"`
-	URL        string    `json:"url"`
-	Author     string    `json:"author"`
-	Repository string    `json:"repository"` // owner/repo format
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-	Labels     []string  `json:"labels"`
+	Number     int                    `json:"number"`
+	Title      string                 `json:"title"`
+	URL        string                 `json:"url"`
+	Author     string                 `json:"author"`
+	Repository string                 `json:"repository"` // owner/repo format
+	CreatedAt  time.Time              `json:"created_at"`
+	UpdatedAt  time.Time              `json:"updated_at"`
+	Labels     []string               `json:"labels"`
+	Details    map[string]interface{} `json:"details,omitempty"`
 }
 
 // RepositoryInfo contains information about a repository
@@ -68,26 +72,28 @@ type ReviewInfo struct {
 
 // MentionInfo contains information about a mention in an issue or PR
 type MentionInfo struct {
-	Number     int       `json:"number"`
-	Title      string    `json:"title"`
-	URL        string    `json:"url"`
-	Repository string    `json:"repository"`
-	Type       string    `json:"type"` // "issue" or "pull_request"
-	Author     string    `json:"author"`
-	Body       string    `json:"body"`
-	CreatedAt  time.Time `json:"created_at"`
+	Number     int                    `json:"number"`
+	Title      string                 `json:"title"`
+	URL        string                 `json:"url"`
+	Repository string                 `json:"repository"`
+	Type       string                 `json:"type"` // "issue" or "pull_request"
+	Author     string                 `json:"author"`
+	Body       string                 `json:"body"`
+	CreatedAt  time.Time              `json:"created_at"`
+	Details    map[string]interface{} `json:"details,omitempty"`
 }
 
 // CommentInfo contains information about a comment on an issue or PR
 type CommentInfo struct {
-	Number     int       `json:"number"`
-	Title      string    `json:"title"`
-	URL        string    `json:"url"`
-	Repository string    `json:"repository"`
-	Type       string    `json:"type"` // "issue" or "pull_request"
-	Author     string    `json:"author"`
-	Body       string    `json:"body"`
-	CreatedAt  time.Time `json:"created_at"`
+	Number     int                    `json:"number"`
+	Title      string                 `json:"title"`
+	URL        string                 `json:"url"`
+	Repository string                 `json:"repository"`
+	Type       string                 `json:"type"` // "issue" or "pull_request"
+	Author     string                 `json:"author"`
+	Body       string                 `json:"body"`
+	CreatedAt  time.Time              `json:"created_at"`
+	Details    map[string]interface{} `json:"details,omitempty"`
 }
 
 // NotificationInfo contains information from GitHub notifications API
@@ -99,6 +105,11 @@ type NotificationInfo struct {
 	Repository string    `json:"repository"`
 	UpdatedAt  time.Time `json:"updated_at"`
 	Unread     bool      `json:"unread"`
+	// Enhanced fields for correlation
+	ThreadID       string `json:"thread_id,omitempty"`       // GitHub thread ID for marking as read
+	CorrelatedType string `json:"correlated_type,omitempty"` // Mapped to pending item type
+	Number         int    `json:"number,omitempty"`          // Extracted PR/issue number
+	SubjectType    string `json:"subject_type,omitempty"`    // "PullRequest", "Issue", etc.
 }
 
 // WorkflowInfo contains information about a failed workflow run
@@ -255,6 +266,21 @@ func FromGitHubNotification(notification *github.Notification) NotificationInfo 
 		info.Repository = notification.Repository.GetFullName()
 	}
 
+	// Extract thread ID for marking as read
+	if notification.GetURL() != "" {
+		// GitHub notification URLs contain the thread ID
+		info.ThreadID = notification.GetID()
+	}
+
+	// Extract subject type and correlate to pending item types
+	if notification.Subject != nil {
+		info.SubjectType = notification.Subject.GetType()
+		info.CorrelatedType = mapNotificationReasonToItemType(notification.GetReason(), info.SubjectType)
+
+		// Extract number from subject URL
+		info.Number = extractNumberFromURL(notification.Subject.GetURL())
+	}
+
 	return info
 }
 
@@ -284,4 +310,58 @@ func FromGitHubWorkflowRun(run *github.WorkflowRun) WorkflowInfo {
 	}
 
 	return info
+}
+
+// mapNotificationReasonToItemType maps GitHub notification reasons to our pending item types
+func mapNotificationReasonToItemType(reason, subjectType string) string {
+	switch reason {
+	case "review_requested":
+		return "review_request"
+	case "assign":
+		if subjectType == "PullRequest" {
+			return "assigned_pr"
+		}
+		return "assigned_issue"
+	case "mention":
+		return "mention"
+	case "team_mention":
+		return "mention"
+	case "ci_activity":
+		return "failed_workflow"
+	case "comment":
+		return "unread_comment"
+	case "review_request_removed":
+		return "" // Skip removed review requests
+	case "subscribed", "state_change":
+		return "notification" // Generic notifications
+	default:
+		return "notification"
+	}
+}
+
+// extractNumberFromURL extracts issue/PR number from GitHub API URLs
+func extractNumberFromURL(url string) int {
+	if url == "" {
+		return 0
+	}
+
+	// GitHub API URLs typically end with the number: /repos/owner/repo/pulls/123 or /repos/owner/repo/issues/123
+	re := regexp.MustCompile(`/(pulls|issues)/(\d+)$`)
+	matches := re.FindStringSubmatch(url)
+	if len(matches) >= 3 {
+		if number, err := strconv.Atoi(matches[2]); err == nil {
+			return number
+		}
+	}
+
+	// Fallback: try to extract any number from the end of the URL
+	re = regexp.MustCompile(`/(\d+)$`)
+	matches = re.FindStringSubmatch(url)
+	if len(matches) >= 2 {
+		if number, err := strconv.Atoi(matches[1]); err == nil {
+			return number
+		}
+	}
+
+	return 0
 }

@@ -13,75 +13,56 @@ import (
 )
 
 // GetPendingItems retrieves all pending items that need attention across filtered repositories
+// Uses notification-first strategy to minimize API calls
 func (c *Client) GetPendingItems(ctx context.Context, username string) (*PendingItems, error) {
 	log := logger.FromContext(ctx)
-	log.Info("Getting pending items for user", zap.String("username", username))
+	log.Info("Getting pending items for user using notification-first strategy", zap.String("username", username))
 	items := &PendingItems{}
 
-	// Get review requests across all filtered repositories
-	reviewRequests, err := c.getReviewRequests(ctx, username)
+	// Phase 1: Get enhanced notifications first (primary source)
+	notifications, err := c.getEnhancedNotifications(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get review requests: %w", err)
+		log.Warn("Failed to get notifications, falling back to REST API", zap.Error(err))
+		return c.getFallbackPendingItems(ctx, username)
 	}
-	items.ReviewRequests = reviewRequests
-	log.Info("Found review requests", zap.Int("count", len(reviewRequests)))
+	log.Info("Found notifications", zap.Int("count", len(notifications)))
 
-	// Get assigned PRs across all filtered repositories
-	assignedPRs, err := c.getAssignedPRs(ctx, username)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get assigned PRs: %w", err)
+	// Phase 2: Correlate notifications to pending items
+	notificationMap := make(map[string][]NotificationInfo)
+	for _, notification := range notifications {
+		if notification.CorrelatedType != "" {
+			notificationMap[notification.CorrelatedType] = append(notificationMap[notification.CorrelatedType], notification)
+		}
 	}
-	items.AssignedPRs = assignedPRs
-	log.Info("Found assigned PRs", zap.Int("count", len(assignedPRs)))
 
-	// Get assigned issues (excluding those with linked PRs) across all filtered repositories
-	assignedIssues, err := c.getAssignedIssues(ctx, username)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get assigned issues: %w", err)
+	// Phase 3: Build items from notification correlations
+	items.ReviewRequests = c.buildReviewRequestsFromNotifications(ctx, notificationMap["review_request"], username)
+	items.AssignedPRs = c.buildAssignedPRsFromNotifications(ctx, notificationMap["assigned_pr"], username)
+	items.AssignedIssues = c.buildAssignedIssuesFromNotifications(ctx, notificationMap["assigned_issue"], username)
+	items.Mentions = c.buildMentionsFromNotifications(ctx, notificationMap["mention"], username)
+	items.UnreadComments = c.buildUnreadCommentsFromNotifications(ctx, notificationMap["unread_comment"], username)
+	items.FailedWorkflows = c.buildFailedWorkflowsFromNotifications(ctx, notificationMap["failed_workflow"], username)
+
+	// Keep generic notifications that don't correlate to specific item types
+	for _, notification := range notificationMap["notification"] {
+		items.Notifications = append(items.Notifications, notification)
 	}
-	items.AssignedIssues = assignedIssues
-	log.Info("Found assigned issues", zap.Int("count", len(assignedIssues)))
 
-	// Get PRs with changes requested across all filtered repositories
+	// Phase 4: Supplement with critical items not in notifications (minimal REST calls)
+	c.supplementWithCriticalItems(ctx, items, username)
+
+	// Phase 5: Get PRs with changes requested (still needs REST API)
 	prsWithChanges, err := c.getPRsWithChangesRequested(ctx, username)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get PRs with changes requested: %w", err)
-	}
-	items.PRsWithChanges = prsWithChanges
-	log.Info("Found PRs with changes requested", zap.Int("count", len(prsWithChanges)))
-
-	// Get mentions across all filtered repositories
-	mentions, err := c.getMentions(ctx, username)
-	if err != nil {
-		// Log error but continue - mentions are not critical
-		log.Warn("Failed to get mentions", zap.Error(err))
+		log.Warn("Failed to get PRs with changes requested", zap.Error(err))
 	} else {
-		items.Mentions = mentions
-		log.Info("Found mentions", zap.Int("count", len(mentions)))
-	}
-
-	// Get unread notifications
-	notifications, err := c.getNotifications(ctx)
-	if err != nil {
-		// Log error but continue - notifications are not critical
-		log.Warn("Failed to get notifications", zap.Error(err))
-	} else {
-		items.Notifications = notifications
-		log.Info("Found notifications", zap.Int("count", len(notifications)))
-	}
-
-	// Get failed workflows for user's PRs
-	failedWorkflows, err := c.getFailedWorkflows(ctx, username)
-	if err != nil {
-		// Log error but continue - workflows are not critical
-		log.Warn("Failed to get failed workflows", zap.Error(err))
-	} else {
-		items.FailedWorkflows = failedWorkflows
-		log.Info("Found failed workflows", zap.Int("count", len(failedWorkflows)))
+		items.PRsWithChanges = prsWithChanges
 	}
 
 	totalItems := items.Count()
-	log.Info("Total pending items found", zap.Int("total", totalItems))
+	log.Info("Total pending items found using notification-first strategy",
+		zap.Int("total", totalItems),
+		zap.Int("from_notifications", len(notifications)))
 
 	return items, nil
 }
@@ -556,7 +537,47 @@ func (c *Client) getMentions(ctx context.Context, username string) ([]MentionInf
 	return mentions, nil
 }
 
-// getNotifications gets unread notifications from GitHub
+// GetSingleNotification gets the first unread notification from GitHub for simplified processing
+func (c *Client) GetSingleNotification(ctx context.Context) (*NotificationInfo, error) {
+	log := logger.FromContext(ctx)
+	log.Debug("Getting single unread notification")
+
+	opts := &github.NotificationListOptions{
+		All:         false,                          // Only unread
+		ListOptions: github.ListOptions{PerPage: 1}, // Only get 1 notification
+	}
+
+	notifications, _, err := c.client.Activity.ListNotifications(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list notifications: %w", err)
+	}
+
+	// Process first notification that matches repository filter
+	for _, notification := range notifications {
+		if notification.Repository == nil {
+			continue
+		}
+
+		repoName := notification.Repository.GetFullName()
+		if !c.filter.ShouldIncludeRepository(repoName) {
+			continue
+		}
+
+		info := FromGitHubNotification(notification)
+		log.Info("Found single notification to process",
+			zap.String("reason", info.Reason),
+			zap.String("subject", info.Subject),
+			zap.String("repository", info.Repository),
+			zap.String("thread_id", info.ThreadID))
+		return &info, nil
+	}
+
+	// No unread notifications found
+	log.Debug("No unread notifications found")
+	return nil, nil
+}
+
+// getNotifications gets unread notifications from GitHub (deprecated - use GetSingleNotification for new workflow)
 func (c *Client) getNotifications(ctx context.Context) ([]NotificationInfo, error) {
 	log := logger.FromContext(ctx)
 	log.Info("Getting unread notifications")
@@ -671,4 +692,316 @@ func (c *Client) getRecentContributionRepos(ctx context.Context, username string
 	}
 
 	return repos, nil
+}
+
+// getEnhancedNotifications gets notifications with enhanced correlation data
+func (c *Client) getEnhancedNotifications(ctx context.Context) ([]NotificationInfo, error) {
+	log := logger.FromContext(ctx)
+	log.Info("Getting enhanced notifications with correlation data")
+
+	opts := &github.NotificationListOptions{
+		All:         false, // Only unread
+		ListOptions: github.ListOptions{PerPage: 100},
+	}
+
+	notifications, _, err := c.client.Activity.ListNotifications(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list notifications: %w", err)
+	}
+
+	var notificationInfos []NotificationInfo
+	for _, notification := range notifications {
+		if notification.Repository == nil {
+			continue
+		}
+
+		repoName := notification.Repository.GetFullName()
+		if !c.filter.ShouldIncludeRepository(repoName) {
+			continue
+		}
+
+		// Use enhanced FromGitHubNotification with correlation
+		info := FromGitHubNotification(notification)
+		notificationInfos = append(notificationInfos, info)
+	}
+
+	log.Info("Enhanced notifications processed",
+		zap.Int("total", len(notificationInfos)),
+		zap.Int("raw_count", len(notifications)))
+
+	return notificationInfos, nil
+}
+
+// getFallbackPendingItems uses the original REST-heavy approach as fallback
+func (c *Client) getFallbackPendingItems(ctx context.Context, username string) (*PendingItems, error) {
+	log := logger.FromContext(ctx)
+	log.Info("Using fallback REST API strategy")
+	items := &PendingItems{}
+
+	// Original implementation as fallback
+	reviewRequests, err := c.getReviewRequests(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get review requests: %w", err)
+	}
+	items.ReviewRequests = reviewRequests
+
+	assignedPRs, err := c.getAssignedPRs(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get assigned PRs: %w", err)
+	}
+	items.AssignedPRs = assignedPRs
+
+	assignedIssues, err := c.getAssignedIssues(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get assigned issues: %w", err)
+	}
+	items.AssignedIssues = assignedIssues
+
+	prsWithChanges, err := c.getPRsWithChangesRequested(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get PRs with changes requested: %w", err)
+	}
+	items.PRsWithChanges = prsWithChanges
+
+	mentions, err := c.getMentions(ctx, username)
+	if err != nil {
+		log.Warn("Failed to get mentions", zap.Error(err))
+	} else {
+		items.Mentions = mentions
+	}
+
+	notifications, err := c.getNotifications(ctx)
+	if err != nil {
+		log.Warn("Failed to get notifications", zap.Error(err))
+	} else {
+		items.Notifications = notifications
+	}
+
+	failedWorkflows, err := c.getFailedWorkflows(ctx, username)
+	if err != nil {
+		log.Warn("Failed to get failed workflows", zap.Error(err))
+	} else {
+		items.FailedWorkflows = failedWorkflows
+	}
+
+	return items, nil
+}
+
+// buildReviewRequestsFromNotifications builds review requests from notifications
+func (c *Client) buildReviewRequestsFromNotifications(ctx context.Context, notifications []NotificationInfo, username string) []PullRequestInfo {
+	log := logger.FromContext(ctx)
+	var reviewRequests []PullRequestInfo
+
+	for _, notification := range notifications {
+		if notification.Number == 0 || notification.Repository == "" {
+			continue
+		}
+
+		owner, repo, err := parseRepository(notification.Repository)
+		if err != nil {
+			log.Warn("Failed to parse repository from notification", zap.String("repository", notification.Repository), zap.Error(err))
+			continue
+		}
+
+		// Get PR details
+		pr, _, err := c.client.PullRequests.Get(ctx, owner, repo, notification.Number)
+		if err != nil {
+			log.Warn("Failed to get PR details from notification", zap.Int("pr_number", notification.Number), zap.String("repository", notification.Repository), zap.Error(err))
+			continue
+		}
+
+		prInfo := FromGitHubPullRequest(pr)
+		prInfo.Repository = notification.Repository
+		// Store notification ID in details for later correlation
+		prInfo.Details = map[string]interface{}{
+			"notification_thread_id": notification.ThreadID,
+		}
+		reviewRequests = append(reviewRequests, prInfo)
+	}
+
+	log.Info("Built review requests from notifications", zap.Int("count", len(reviewRequests)))
+	return reviewRequests
+}
+
+// buildAssignedPRsFromNotifications builds assigned PRs from notifications
+func (c *Client) buildAssignedPRsFromNotifications(ctx context.Context, notifications []NotificationInfo, username string) []PullRequestInfo {
+	log := logger.FromContext(ctx)
+	var assignedPRs []PullRequestInfo
+
+	for _, notification := range notifications {
+		if notification.Number == 0 || notification.Repository == "" {
+			continue
+		}
+
+		owner, repo, err := parseRepository(notification.Repository)
+		if err != nil {
+			log.Warn("Failed to parse repository from notification", zap.String("repository", notification.Repository), zap.Error(err))
+			continue
+		}
+
+		// Get PR details
+		pr, _, err := c.client.PullRequests.Get(ctx, owner, repo, notification.Number)
+		if err != nil {
+			log.Warn("Failed to get PR details from notification", zap.Int("pr_number", notification.Number), zap.String("repository", notification.Repository), zap.Error(err))
+			continue
+		}
+
+		prInfo := FromGitHubPullRequest(pr)
+		prInfo.Repository = notification.Repository
+		// Store notification ID in details for later correlation
+		prInfo.Details = map[string]interface{}{
+			"notification_thread_id": notification.ThreadID,
+		}
+		assignedPRs = append(assignedPRs, prInfo)
+	}
+
+	log.Info("Built assigned PRs from notifications", zap.Int("count", len(assignedPRs)))
+	return assignedPRs
+}
+
+// buildAssignedIssuesFromNotifications builds assigned issues from notifications
+func (c *Client) buildAssignedIssuesFromNotifications(ctx context.Context, notifications []NotificationInfo, username string) []IssueInfo {
+	log := logger.FromContext(ctx)
+	var assignedIssues []IssueInfo
+
+	for _, notification := range notifications {
+		if notification.Number == 0 || notification.Repository == "" {
+			continue
+		}
+
+		owner, repo, err := parseRepository(notification.Repository)
+		if err != nil {
+			log.Warn("Failed to parse repository from notification", zap.String("repository", notification.Repository), zap.Error(err))
+			continue
+		}
+
+		// Get issue details
+		issue, _, err := c.client.Issues.Get(ctx, owner, repo, notification.Number)
+		if err != nil {
+			log.Warn("Failed to get issue details from notification", zap.Int("issue_number", notification.Number), zap.String("repository", notification.Repository), zap.Error(err))
+			continue
+		}
+
+		// Skip if it's actually a PR
+		if issue.PullRequestLinks != nil {
+			continue
+		}
+
+		issueInfo := FromGitHubIssue(issue)
+		issueInfo.Repository = notification.Repository
+		// Store notification ID in details for later correlation
+		issueInfo.Details = map[string]interface{}{
+			"notification_thread_id": notification.ThreadID,
+		}
+		assignedIssues = append(assignedIssues, issueInfo)
+	}
+
+	log.Info("Built assigned issues from notifications", zap.Int("count", len(assignedIssues)))
+	return assignedIssues
+}
+
+// buildMentionsFromNotifications builds mentions from notifications
+func (c *Client) buildMentionsFromNotifications(ctx context.Context, notifications []NotificationInfo, username string) []MentionInfo {
+	log := logger.FromContext(ctx)
+	var mentions []MentionInfo
+
+	for _, notification := range notifications {
+		if notification.Number == 0 || notification.Repository == "" {
+			continue
+		}
+
+		// Create mention info from notification
+		mention := MentionInfo{
+			Number:     notification.Number,
+			Title:      notification.Subject,
+			URL:        notification.URL,
+			Repository: notification.Repository,
+			Type:       strings.ToLower(notification.SubjectType),
+			CreatedAt:  notification.UpdatedAt,
+			Body:       fmt.Sprintf("Mentioned in notification: %s", notification.Subject),
+			Details: map[string]interface{}{
+				"notification_thread_id": notification.ThreadID,
+			},
+		}
+
+		mentions = append(mentions, mention)
+	}
+
+	log.Info("Built mentions from notifications", zap.Int("count", len(mentions)))
+	return mentions
+}
+
+// buildUnreadCommentsFromNotifications builds unread comments from notifications
+func (c *Client) buildUnreadCommentsFromNotifications(ctx context.Context, notifications []NotificationInfo, username string) []CommentInfo {
+	log := logger.FromContext(ctx)
+	var comments []CommentInfo
+
+	for _, notification := range notifications {
+		if notification.Number == 0 || notification.Repository == "" {
+			continue
+		}
+
+		// Create comment info from notification
+		comment := CommentInfo{
+			Number:     notification.Number,
+			Title:      notification.Subject,
+			URL:        notification.URL,
+			Repository: notification.Repository,
+			Type:       strings.ToLower(notification.SubjectType),
+			CreatedAt:  notification.UpdatedAt,
+			Body:       fmt.Sprintf("Unread comment from notification: %s", notification.Subject),
+			Details: map[string]interface{}{
+				"notification_thread_id": notification.ThreadID,
+			},
+		}
+
+		comments = append(comments, comment)
+	}
+
+	log.Info("Built unread comments from notifications", zap.Int("count", len(comments)))
+	return comments
+}
+
+// buildFailedWorkflowsFromNotifications builds failed workflows from notifications
+func (c *Client) buildFailedWorkflowsFromNotifications(ctx context.Context, notifications []NotificationInfo, username string) []WorkflowInfo {
+	log := logger.FromContext(ctx)
+	var workflows []WorkflowInfo
+
+	for _, notification := range notifications {
+		if notification.Repository == "" {
+			continue
+		}
+
+		// Create workflow info from notification
+		workflow := WorkflowInfo{
+			Name:       notification.Subject,
+			URL:        notification.URL,
+			Repository: notification.Repository,
+			Status:     "completed",
+			Conclusion: "failure",
+			CreatedAt:  notification.UpdatedAt,
+			UpdatedAt:  notification.UpdatedAt,
+		}
+
+		// Try to extract PR numbers if available
+		if notification.Number > 0 {
+			workflow.PullRequests = []int{notification.Number}
+		}
+
+		workflows = append(workflows, workflow)
+	}
+
+	log.Info("Built failed workflows from notifications", zap.Int("count", len(workflows)))
+	return workflows
+}
+
+// supplementWithCriticalItems adds critical items that might not be in notifications
+func (c *Client) supplementWithCriticalItems(ctx context.Context, items *PendingItems, username string) {
+	log := logger.FromContext(ctx)
+	log.Info("Supplementing with critical items not found in notifications")
+
+	// This is intentionally minimal - only add truly critical items that notifications might miss
+	// For now, we'll skip this to minimize API calls, but it could be extended if needed
+
+	log.Info("Skipping supplemental items to minimize API calls")
 }

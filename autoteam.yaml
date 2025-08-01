@@ -58,6 +58,7 @@ agents:
       Your goal is to make AutoTeam more powerful, reliable, and user-friendly with every contribution!
 
   - name: System Architect
+    enabled: true
     github_user: ${SYSTEM_ARCHITECT_GITHUB_USER}
     github_token: ${SYSTEM_ARCHITECT_GITHUB_TOKEN}
     prompt: |

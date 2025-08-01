@@ -261,20 +261,17 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("failed to setup git: %w", err)
 	}
 
-	// Initialize and start monitor
+	// Initialize and start monitor with simplified config
 	monitorConfig := monitor.Config{
 		CheckInterval: cfg.Monitoring.CheckInterval,
-		MaxRetries:    cfg.Monitoring.MaxRetries,
 		DryRun:        cmd.Bool("dry-run"),
 		TeamName:      cfg.Git.TeamName,
-		MaxAttempts:   cmd.Int("max-attempts"),
 	}
 
 	mon := monitor.New(githubClient, selectedAgent, monitorConfig, cfg)
 
-	log.Info("Starting monitoring loop",
+	log.Info("Starting simplified notification monitoring loop",
 		zap.Duration("check_interval", cfg.Monitoring.CheckInterval),
-		zap.Int("max_retries", cfg.Monitoring.MaxRetries),
 		zap.Bool("dry_run", cmd.Bool("dry-run")),
 	)
 	return mon.Start(ctx)

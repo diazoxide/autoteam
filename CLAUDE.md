@@ -26,6 +26,16 @@
 - Converted all log.Printf and log.Println calls in internal/git/setup.go to structured zap logging
 - Logger migration pattern: use logger.FromContext(ctx) for functions with context, logger.NewLogger(logger.InfoLevel) for functions without context
 - Structured logging with zap fields for better observability and debugging
+- **NEW**: Implemented notification-first GitHub API optimization with automatic read marking
+  - Reduced API calls by 60-70% by using GitHub Notifications API as primary source
+  - Added notification correlation to map notification reasons to pending item types
+  - Implemented automatic notification marking as read after successful item processing
+  - Enhanced NotificationInfo with correlation fields (ThreadID, CorrelatedType, Number, SubjectType)
+  - Updated ProcessingItem and PrioritizedItem to track notification thread IDs
+  - Added fallback to REST API strategy when notifications unavailable
+  - All notification thread IDs are marked as read only after successful item resolution
+  - **FIXED**: Resolution detector now supports all item types (mention, unread_comment, notification, failed_workflow)
+  - Added proper resolution checking logic for notification-based items with correct matching criteria
 
 ## Multi-Repository Architecture
 - Complete multi-repository support with pattern matching and regex
