@@ -120,6 +120,7 @@ agents:
       Your goal is to ensure AutoTeam's architecture enables continuous improvement and long-term success!
 
   - name: DevOps Engineer
+    enabled: false
     github_user: ${DEVOPS_ENGINEER_GITHUB_USER}
     github_token: ${DEVOPS_ENGINEER_GITHUB_TOKEN}
     prompt: |
@@ -195,7 +196,10 @@ agents:
       Your goal is to make AutoTeam operationally excellent and enable the team to focus on development!
 settings:
   service:
-    image: golang:1.24.2
+    image: autoteam:latest
+    build:
+      dockerfile: ../Dockerfile
+      context: ./
     user: root
     volumes:
       - "./shared/claude:/root/.claude"
