@@ -188,8 +188,8 @@ func TestCreateSampleConfig(t *testing.T) {
 		t.Errorf("Sample config Repositories.Include[0] = %v, want myorg/project-alpha", cfg.Repositories.Include)
 	}
 
-	if len(cfg.Agents) != 2 {
-		t.Errorf("Sample config len(Agents) = %v, want 2", len(cfg.Agents))
+	if len(cfg.Agents) != 3 {
+		t.Errorf("Sample config len(Agents) = %v, want 3", len(cfg.Agents))
 	}
 
 	if cfg.Agents[0].Name != "dev1" {
@@ -198,6 +198,15 @@ func TestCreateSampleConfig(t *testing.T) {
 
 	if cfg.Agents[1].Name != "arch1" {
 		t.Errorf("Sample config Agents[1].Name = %v, want arch1", cfg.Agents[1].Name)
+	}
+
+	if cfg.Agents[2].Name != "devops1" {
+		t.Errorf("Sample config Agents[2].Name = %v, want devops1", cfg.Agents[2].Name)
+	}
+
+	// Check that the third agent is disabled
+	if cfg.Agents[2].IsEnabled() {
+		t.Errorf("Sample config Agents[2] should be disabled")
 	}
 }
 
@@ -252,7 +261,7 @@ func TestValidateConfig(t *testing.T) {
 					{Name: "dev1", GitHubToken: "TOKEN", GitHubUser: "dev-user"},
 				},
 			},
-			wantErr: "agent[0].prompt is required",
+			wantErr: "agent[0].prompt is required for enabled agents",
 		},
 		{
 			name: "agent missing github token env",
@@ -262,7 +271,7 @@ func TestValidateConfig(t *testing.T) {
 					{Name: "dev1", Prompt: "prompt", GitHubUser: "dev-user"},
 				},
 			},
-			wantErr: "agent[0].github_token is required",
+			wantErr: "agent[0].github_token is required for enabled agents",
 		},
 	}
 
@@ -338,5 +347,195 @@ func TestSetDefaults(t *testing.T) {
 	}
 	if config2.Settings.TeamName != "custom-team" {
 		t.Errorf("TeamName should not be overridden, got %v", config2.Settings.TeamName)
+	}
+}
+
+func TestAgentIsEnabled(t *testing.T) {
+	tests := []struct {
+		name  string
+		agent Agent
+		want  bool
+	}{
+		{
+			name: "agent with enabled=true",
+			agent: Agent{
+				Name:    "test",
+				Enabled: BoolPtr(true),
+			},
+			want: true,
+		},
+		{
+			name: "agent with enabled=false",
+			agent: Agent{
+				Name:    "test",
+				Enabled: BoolPtr(false),
+			},
+			want: false,
+		},
+		{
+			name: "agent without enabled field (default)",
+			agent: Agent{
+				Name: "test",
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.agent.IsEnabled(); got != tt.want {
+				t.Errorf("Agent.IsEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetEnabledAgentsWithEffectiveSettings(t *testing.T) {
+	config := &Config{
+		Repositories: Repositories{
+			Include: []string{"owner/repo"},
+		},
+		Agents: []Agent{
+			{
+				Name:        "dev1",
+				Prompt:      "Developer",
+				GitHubToken: "TOKEN1",
+				GitHubUser:  "user1",
+				Enabled:     BoolPtr(true),
+			},
+			{
+				Name:        "dev2",
+				Prompt:      "Developer",
+				GitHubToken: "TOKEN2",
+				GitHubUser:  "user2",
+				Enabled:     BoolPtr(false),
+			},
+			{
+				Name:        "dev3",
+				Prompt:      "Developer",
+				GitHubToken: "TOKEN3",
+				GitHubUser:  "user3",
+				// Enabled not set, defaults to true
+			},
+		},
+		Settings: Settings{
+			CheckInterval: 60,
+			TeamName:      "test",
+		},
+	}
+
+	agents := config.GetEnabledAgentsWithEffectiveSettings()
+	if len(agents) != 2 {
+		t.Errorf("GetEnabledAgentsWithEffectiveSettings() returned %d agents, want 2", len(agents))
+	}
+
+	// Check that only enabled agents are returned
+	for _, agent := range agents {
+		if agent.Agent.Name == "dev2" {
+			t.Errorf("GetEnabledAgentsWithEffectiveSettings() returned disabled agent dev2")
+		}
+	}
+}
+
+func TestValidateConfigWithDisabledAgents(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  Config
+		wantErr string
+	}{
+		{
+			name: "all agents disabled",
+			config: Config{
+				Repositories: Repositories{Include: []string{"owner/repo"}},
+				Agents: []Agent{
+					{
+						Name:        "dev1",
+						Prompt:      "prompt",
+						GitHubToken: "TOKEN",
+						GitHubUser:  "user",
+						Enabled:     BoolPtr(false),
+					},
+				},
+			},
+			wantErr: "at least one agent must be enabled",
+		},
+		{
+			name: "disabled agent without required fields",
+			config: Config{
+				Repositories: Repositories{Include: []string{"owner/repo"}},
+				Agents: []Agent{
+					{
+						Name:    "dev1",
+						Enabled: BoolPtr(false),
+						// Missing required fields, but should be OK since agent is disabled
+					},
+					{
+						Name:        "dev2",
+						Prompt:      "prompt",
+						GitHubToken: "TOKEN",
+						GitHubUser:  "user",
+						Enabled:     BoolPtr(true),
+					},
+				},
+			},
+			wantErr: "", // Should be valid
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateConfig(&tt.config)
+
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("validateConfig() error = %v, wantErr nil", err)
+				}
+				return
+			}
+
+			if err == nil {
+				t.Errorf("validateConfig() error = nil, wantErr %v", tt.wantErr)
+				return
+			}
+
+			if err.Error() != tt.wantErr {
+				t.Errorf("validateConfig() error = %v, wantErr %v", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestBuildCollaboratorsListWithDisabledAgents(t *testing.T) {
+	config := &Config{
+		Agents: []Agent{
+			{
+				Name:       "dev1",
+				GitHubUser: "user1",
+				Enabled:    BoolPtr(true),
+			},
+			{
+				Name:       "dev2",
+				GitHubUser: "user2",
+				Enabled:    BoolPtr(false),
+			},
+			{
+				Name:       "dev3",
+				GitHubUser: "user3",
+				// Enabled not set, defaults to true
+			},
+		},
+	}
+
+	list := buildCollaboratorsList(config)
+
+	// Should only list enabled agents
+	if !strings.Contains(list, "user1") {
+		t.Errorf("buildCollaboratorsList() should include enabled agent user1")
+	}
+	if strings.Contains(list, "user2") {
+		t.Errorf("buildCollaboratorsList() should not include disabled agent user2")
+	}
+	if !strings.Contains(list, "user3") {
+		t.Errorf("buildCollaboratorsList() should include enabled agent user3")
 	}
 }
