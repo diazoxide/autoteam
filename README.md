@@ -11,8 +11,8 @@ AutoTeam is a configurable system that deploys AI agents to automatically handle
 - **Multi-Repository Support**: Monitor and work across multiple repositories with pattern matching and regex support
 - **Universal Configuration**: Single YAML file to define repositories, agents, and settings
 - **Dynamic Agent Scaling**: Support for any number of specialized agents
-- **Comprehensive Event Tracking**: Monitors review requests, mentions, comments, notifications, failed workflows, and more
-- **Smart Priority System**: Intelligent prioritization based on event type, age, urgency keywords, and failure history
+- **Intelligent Notification Processing**: Single notification processing with type-specific prompts and intent recognition
+- **Smart Response System**: Distinguishes between consultation requests and implementation tasks to prevent over-engineering
 - **Repository Pattern Matching**: Flexible include/exclude patterns with regex support (`/pattern/` syntax)
 - **Smart Name Normalization**: Automatically handles agent names with spaces and special characters
 - **Template-Based Generation**: Docker Compose and entrypoint scripts generated from templates
@@ -185,34 +185,49 @@ repositories:
 - `volumes`: Global volume mounts applied to all agents (optional)
 - `environment`: Global environment variables for all agents (optional)
 
-### GitHub Event Tracking
+### Intelligent Notification Processing
 
-AutoTeam monitors and responds to various GitHub events:
+AutoTeam uses a sophisticated notification processing system that handles GitHub events intelligently:
 
-- **Review Requests**: PRs where agent is requested as reviewer
-- **Mentions**: @mentions in issues and PR comments
-- **Assigned Items**: Issues and PRs assigned to agents
-- **Failed Workflows**: CI/CD failures on agent's PRs
-- **Changes Requested**: PRs requiring updates from reviews
-- **Comments**: New comments on participating issues/PRs
-- **Notifications**: Unread GitHub notifications
+**Notification Types Supported:**
+- **Review Requests**: Professional code review workflow with quality guidelines
+- **Assigned Issues**: Smart intent detection for consultation vs implementation requests
+- **Assigned PRs**: Complete pull request handling workflow
+- **Mentions**: Context analysis to determine if consultation or action is needed
+- **Failed Workflows**: CI/CD failure investigation and automatic fixing
+- **Unread Comments**: Thread-appropriate responses based on comment type
+- **Generic Notifications**: Fallback handling for unknown notification types
 
-Events are prioritized intelligently based on type, age, urgency keywords, and failure history. See [docs/github-events.md](docs/github-events.md) for detailed information.
+**Key Features:**
+- **Type-Specific Prompts**: Each notification type gets specialized guidance
+- **Intent Recognition**: Distinguishes between "What do you think?" (consultation) vs "Please implement" (action)
+- **AI-Driven Validation**: Uses GitHub CLI commands to check if notifications are still current
+- **Automatic Read Marking**: Prevents duplicate processing by marking notifications as read
+- **Context-Aware Responses**: Agents respond appropriately based on notification type and user intent
 
-### Smart Review Detection
+This prevents the common problem where agents over-implement when users are simply asking for advice or opinions.
 
-AutoTeam includes intelligent review workflow detection that:
+### Intent Recognition Examples
 
-- **Tracks Review States**: Monitors PR review states (approved, changes requested, commented)
-- **Detects Re-Review Requests**: Automatically excludes PRs where developers have re-requested review
-- **Workflow-Aware**: Distinguishes between "developer action needed" vs "waiting for reviewer response"
-- **Prevents False Positives**: Avoids repeated notifications when waiting for reviewer feedback
+The system intelligently distinguishes between different types of requests:
 
-**How It Works:**
-1. When a PR has "changes requested" reviews → marked as pending developer action
-2. Developer addresses feedback and re-requests review → automatically excluded from pending
-3. Reviewer responds → PR returns to appropriate workflow state
-4. Agents get clear prompts to complete review cycles properly
+**Consultation Requests (Comment Only):**
+- "What do you think about this approach?"
+- "How should we structure the database?"
+- "Any thoughts on the best way to implement OAuth?"
+- "What's your opinion on using GraphQL here?"
+
+**Implementation Requests (Create PRs/Code):**
+- "Please implement user authentication"
+- "Fix the memory leak in the parser"
+- "Add support for file uploads"
+- "Create a REST API endpoint for users"
+
+**Smart Response Behavior:**
+- **For Consultation**: Agents provide thoughtful analysis and recommendations via comments
+- **For Implementation**: Agents write code, create pull requests, and implement solutions
+- **For Reviews**: Agents examine code thoroughly and provide professional feedback
+- **For CI Failures**: Agents investigate logs, identify issues, and create fixes
 
 ## Examples
 
@@ -448,10 +463,10 @@ ls .autoteam/agents/agent-name/codebase/
 # Test individual containers
 docker-compose -f .autoteam/compose.yaml up agent-name
 
-# View container logs with repository context
-docker-compose -f .autoteam/compose.yaml logs agent-name | grep -E "(Repository|Pending|Review)"
+# View notification processing logs
+docker-compose -f .autoteam/compose.yaml logs agent-name | grep -E "(Notification|Processing|Intent)"
 
-# Monitor real-time multi-repository activity
+# Monitor real-time notification activity
 docker-compose -f .autoteam/compose.yaml logs -f --tail=50
 ```
 
