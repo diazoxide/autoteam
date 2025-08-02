@@ -44,9 +44,7 @@ func (c *Client) GetPendingItems(ctx context.Context, username string) (*Pending
 	items.FailedWorkflows = c.buildFailedWorkflowsFromNotifications(ctx, notificationMap["failed_workflow"], username)
 
 	// Keep generic notifications that don't correlate to specific item types
-	for _, notification := range notificationMap["notification"] {
-		items.Notifications = append(items.Notifications, notification)
-	}
+	items.Notifications = append(items.Notifications, notificationMap["notification"]...)
 
 	// Phase 4: Supplement with critical items not in notifications (minimal REST calls)
 	c.supplementWithCriticalItems(ctx, items, username)
