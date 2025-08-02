@@ -51,16 +51,15 @@
 - REPOSITORIES_INCLUDE/REPOSITORIES_EXCLUDE environment variables (comma-separated patterns)
 - Clean separation: YAML config for main command, env vars for containerized entrypoint
 
-## Single Item Processing System
-- Implemented complete single item processing workflow with state management
-- Added processing state persistence in `.autoteam/processing_state.json`
-- Smart prioritization algorithm with age-based scoring and urgency detection
-- Resolution detection compares GitHub API snapshots to verify task completion
-- Fixed Claude agent `--continue` flag logic for proper conversation continuation
-- Git state management: fresh reset for new items, preserved state for continuations
-- Configurable max attempts per item (default: 3) with exponential cooldown on failures
-- Configuration via `max_attempts` in autoteam.yaml or `--max-attempts` flag in entrypoint
-- State survives container restarts and provides full workflow transparency
+## Single Notification Processing System  
+- Complete rewrite to simplified single notification processing workflow
+- AI-driven actuality validation using GitHub CLI commands
+- Type-specific prompts with intent recognition for consultation vs implementation
+- Notification types: review_request, assigned_issue, assigned_pr, mention, failed_workflow, unread_comment, generic
+- Smart intent detection prevents over-implementation for consultation requests (solves Issue #4 problem)
+- Mandatory notification read-marking after processing to prevent duplicates
+- Removed complex state management, prioritization, and resolution detection for simplicity
+- All tests pass and builds succeed across all platforms
 
 ## Build and Template Workflow
 - Use `make build` to build the main autoteam binary (required after template changes due to go:embed)

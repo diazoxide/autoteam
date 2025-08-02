@@ -169,79 +169,39 @@ func (m *Monitor) processSingleNotification(ctx context.Context) error {
 	return nil
 }
 
-// buildNotificationPrompt builds a prompt for AI to handle a raw notification
+// buildNotificationPrompt builds a type-specific prompt for AI to handle a notification
 func (m *Monitor) buildNotificationPrompt(notification *github.NotificationInfo) string {
 	var promptParts []string
 
-	// Main notification handling prompt
-	notificationPrompt := fmt.Sprintf(`🔔 **GitHub Notification to Process**
+	// Route to type-specific prompt builder
+	var typeSpecificPrompt string
+	switch notification.CorrelatedType {
+	case "review_request":
+		typeSpecificPrompt = m.buildReviewRequestPrompt(notification)
+	case "assigned_issue":
+		typeSpecificPrompt = m.buildAssignedIssuePrompt(notification)
+	case "assigned_pr":
+		typeSpecificPrompt = m.buildAssignedPRPrompt(notification)
+	case "mention":
+		typeSpecificPrompt = m.buildMentionPrompt(notification)
+	case "failed_workflow":
+		typeSpecificPrompt = m.buildFailedWorkflowPrompt(notification)
+	case "unread_comment":
+		typeSpecificPrompt = m.buildUnreadCommentPrompt(notification)
+	default:
+		// Generic notification or unknown type
+		typeSpecificPrompt = m.buildGenericNotificationPrompt(notification)
+	}
 
-**Notification Details:**
-- **Reason**: %s
-- **Subject**: %s
-- **Repository**: %s
-- **URL**: %s
-- **Updated**: %s
-- **Thread ID**: %s
-
-**YOUR MISSION**: Process this GitHub notification intelligently
-
-**CRITICAL INSTRUCTIONS**:
-
-1. **Validate if Actual**: First, check if this notification represents actual pending work:
-   - Use GitHub CLI to check current state (e.g., 'gh pr view <number>' or 'gh issue view <number>')
-   - Some notifications may be stale (PR already merged, issue closed, etc.)
-   - If notification is stale/not actionable → Mark as read and explain why
-
-2. **Handle if Actionable**: If the notification represents real pending work:
-   - **Review Requests**: Use 'gh pr view <number>' to examine PR, then 'gh pr review <number>' to submit review
-   - **Mentions**: Use 'gh issue view <number>' or 'gh pr view <number>' to read context, then comment with 'gh issue comment' or 'gh pr comment'
-   - **Comments**: Use 'gh issue view <number>' or 'gh pr view <number>' to read thread, then respond appropriately
-   - **Assignments**: Use 'gh issue view <number>' or 'gh pr view <number>' to understand requirements, then take action
-   - **CI Failures**: Use 'gh run view <run-id>' to examine logs, then fix issues and push changes
-   - **State Changes**: Use GitHub CLI to review changes and take appropriate action
-
-3. **MANDATORY**: After processing (whether actionable or stale):
-   - **ALWAYS** mark this notification as read using GitHub CLI command:
-     `+"`"+`bash
-     gh api -X PATCH "notifications/threads/%s"
-     `+"`"+`
-   - This prevents duplicate processing in future iterations
-   - You MUST run this command regardless of whether the notification was actionable or stale
-
-4. **Communication**: If the required action is unclear, write a comment asking for clarification rather than ignoring
-
-**Expected Workflow**:
-1. Check notification validity using GitHub CLI commands
-2. If stale → Mark as read with GitHub CLI and log why
-3. If actionable → Perform the required action thoroughly
-4. Mark notification as read with GitHub CLI when complete
-5. Document what you did
-
-**GitHub CLI Command to Mark as Read**:
-`+"`"+`bash
-gh api -X PATCH "notifications/threads/%s"
-`+"`"+`
-
-**Focus**: Handle ONE notification completely before moving to the next.`,
-		notification.Reason,
-		notification.Subject,
-		notification.Repository,
-		notification.URL,
-		notification.UpdatedAt.Format(time.RFC3339),
-		notification.ThreadID,
-		notification.ThreadID,
-		notification.ThreadID)
-
-	promptParts = append(promptParts, notificationPrompt)
+	promptParts = append(promptParts, typeSpecificPrompt)
 
 	// Add agent-specific prompt from configuration
 	if m.globalConfig.Agent.Prompt != "" {
 		promptParts = append(promptParts, "", "**Your Role-Specific Instructions:**", m.globalConfig.Agent.Prompt)
 	}
 
-	// Add final emphasis
-	finalInstructions := fmt.Sprintf("**REMEMBER**: You MUST mark the notification as read after processing, regardless of whether it was actionable or stale. Use this exact command:\n\n```bash\ngh api -X PATCH \"notifications/threads/%s\"\n```\n\nThis is critical for preventing duplicate work in future iterations.", notification.ThreadID)
+	// Add mandatory read-marking instruction (applies to all types)
+	finalInstructions := fmt.Sprintf("**CRITICAL REQUIREMENT**: You MUST mark this notification as read after processing, regardless of whether it was actionable or stale. Use this exact command:\n\n```bash\ngh api -X PATCH \"notifications/threads/%s\"\n```\n\nThis is mandatory for preventing duplicate processing in future iterations.", notification.ThreadID)
 	promptParts = append(promptParts, "", finalInstructions)
 
 	return strings.Join(promptParts, "\n")
