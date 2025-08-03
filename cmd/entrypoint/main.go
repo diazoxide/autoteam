@@ -182,11 +182,19 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		zap.String("log_level", string(logLevel)),
 	)
 
-	// Build configuration from CLI flags
+	// Build configuration from CLI flags and environment variables
 	cfg, err := buildConfigFromFlags(cmd)
 	if err != nil {
 		log.Error("Failed to build configuration", zap.Error(err))
 		return fmt.Errorf("failed to build configuration: %w", err)
+	}
+
+	// Load MCP servers from environment
+	if mcpServers, err := entrypoint.LoadMCPServers(); err != nil {
+		log.Error("Failed to load MCP servers", zap.Error(err))
+		return fmt.Errorf("failed to load MCP servers: %w", err)
+	} else {
+		cfg.MCPServers = mcpServers
 	}
 
 	// Validate configuration
@@ -234,7 +242,7 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	// Initialize agent registry and register available agents
 	log.Debug("Initializing agent registry")
 	agentRegistry := agent.NewRegistry()
-	claudeAgent := agent.NewClaudeAgent(cfg.Agent)
+	claudeAgent := agent.NewClaudeAgentWithMCP(cfg.Agent, cfg.MCPServers)
 	agentRegistry.Register("claude", claudeAgent)
 
 	// Get the configured agent
@@ -252,6 +260,8 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		log.Error("Failed to install dependencies", zap.Error(err))
 		return fmt.Errorf("failed to install dependencies: %w", err)
 	}
+
+	// Note: Agent MCP configuration happens after repo discovery in notification processing
 
 	// Setup Git configuration and credentials
 	log.Debug("Setting up Git configuration")

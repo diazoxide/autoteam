@@ -61,6 +61,21 @@
 - Removed complex state management, prioritization, and resolution detection for simplicity
 - All tests pass and builds succeed across all platforms
 
+## Model Context Protocol (MCP) Server Support
+- **NEW**: Comprehensive MCP server integration with auto-team's standard configuration pattern
+- Global, agent settings, and agent-level MCP servers with 3-level merging (agent-level > agent.settings > global settings)
+- MCP servers configured in autoteam.yaml under `settings.mcp_servers` section
+- Environment variable serialization: MCP servers passed to containers via MCP_SERVERS JSON environment variable
+- **IMPROVED**: Dedicated MCP configuration files at `/opt/autoteam/agents/{normalized_agent_name}/mcp.json`
+- MCP configuration uses correct Claude format with `mcpServers` wrapper object
+- Claude execution uses `--mcp-config` parameter to load agent-specific MCP configuration
+- No modification of user's personal `~/.claude.json` file - keeps auto-team MCP config isolated
+- Uses Agent.GetNormalizedName() for consistent agent name normalization in file paths
+- Configuration-only approach: AutoTeam only configures MCP servers in dedicated files, Claude Code handles installation/execution
+- Interface-based configuration: Agent.Configurable interface for extensible agent configuration
+- Always-run configuration: MCP server configuration runs independently of dependency installation (INSTALL_DEPS setting)
+- All tests pass with MCP server integration - no functionality changes to core workflows
+
 ## Build and Template Workflow
 - Use `make build` to build the main autoteam binary (required after template changes due to go:embed)
 - Use `make build-entrypoint` to build the entrypoint binary for current platform

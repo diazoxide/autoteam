@@ -241,7 +241,7 @@ func CreateSampleConfig(filename string) error {
 				GitHubToken: "ghp_your_github_token_here",
 				GitHubUser:  "your-github-username",
 				Settings: &AgentSettings{
-					CheckInterval: intPtr(30),
+					CheckInterval: IntPtr(30),
 					Service: map[string]interface{}{
 						"image": "python:3.11",
 						"volumes": []string{
@@ -598,30 +598,17 @@ func (a *Agent) IsEnabled() bool {
 	return *a.Enabled
 }
 
-// Helper functions for creating pointers
+// StringPtr returns a pointer to the given string value. Suitable for optional string parameters or configurations.
 func StringPtr(s string) *string {
 	return &s
 }
 
+// IntPtr returns a pointer to the given int value. Suitable for optional int parameters or configurations.
 func IntPtr(i int) *int {
 	return &i
 }
 
+// BoolPtr returns a pointer to the given boolean value.
 func BoolPtr(b bool) *bool {
 	return &b
-}
-
-// Deprecated: use StringPtr instead
-func stringPtr(s string) *string {
-	return StringPtr(s)
-}
-
-// Deprecated: use IntPtr instead
-func intPtr(i int) *int {
-	return IntPtr(i)
-}
-
-// Deprecated: use BoolPtr instead
-func boolPtr(b bool) *bool {
-	return BoolPtr(b)
 }

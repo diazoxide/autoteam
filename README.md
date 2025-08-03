@@ -24,6 +24,7 @@ AutoTeam is a configurable system that deploys AI agents to automatically handle
 - **Docker Integration**: Containerized environments with volume mounting and networking
 - **Security Validation**: GitHub token/user validation for enhanced security
 - **Cross-Platform Support**: macOS and Linux with universal installation script
+- **MCP Server Integration**: Model Context Protocol support for enhanced agent capabilities with context and tools
 
 ## Quick Start
 
@@ -167,11 +168,13 @@ repositories:
 - `github_token`: GitHub personal access token for this agent
 - `github_user`: GitHub username associated with the token (required for security validation)
 - `enabled`: Enable/disable agent without removing configuration (optional, defaults to true)
+- `mcp_servers`: Agent-specific MCP (Model Context Protocol) servers (optional)
 - `settings`: Agent-specific overrides for global settings (optional)
   - `docker_image`: Custom Docker image for this agent
   - `docker_user`: Custom user for this agent
   - `volumes`: Additional volume mounts
   - `environment`: Additional environment variables
+  - `mcp_servers`: MCP servers at agent settings level (optional)
 
 ### Settings
 
@@ -184,6 +187,66 @@ repositories:
 - `max_attempts`: Maximum retry attempts for failed items (default: 3)
 - `volumes`: Global volume mounts applied to all agents (optional)
 - `environment`: Global environment variables for all agents (optional)
+- `mcp_servers`: Global MCP (Model Context Protocol) servers for all agents (optional)
+
+### MCP Server Configuration
+
+AutoTeam supports Model Context Protocol (MCP) servers to enhance agent capabilities with additional context and tools. MCP servers can be configured at three levels with priority-based merging:
+
+1. **Global Level** (`settings.mcp_servers`): Applied to all agents
+2. **Agent Settings Level** (`agent.settings.mcp_servers`): Applied to specific agent, overrides global
+3. **Agent Level** (`agent.mcp_servers`): Highest priority, overrides both global and agent settings
+
+**Configuration Example:**
+```yaml
+# Global MCP servers (applied to all agents)
+settings:
+  mcp_servers:
+    github:
+      command: "npx"
+      args: ["-y", "@github/github-mcp-server"]
+      env:
+        GITHUB_TOKEN: "${GITHUB_TOKEN}"
+    memory:
+      command: "npx"
+      args: ["-y", "mcp-memory-service"]
+
+agents:
+  - name: "developer"
+    prompt: "You are a developer agent"
+    github_token: "${DEVELOPER_TOKEN}"
+    github_user: "dev-user"
+    # Agent-level MCP servers (highest priority)
+    mcp_servers:
+      sqlite:
+        command: "npx"
+        args: ["-y", "mcp-sqlite-server"]
+        env:
+          DATABASE_URL: "sqlite:///opt/autoteam/agents/developer/data.db"
+    settings:
+      # Agent settings-level MCP servers (medium priority)
+      mcp_servers:
+        filesystem:
+          command: "npx"
+          args: ["-y", "mcp-filesystem-server"]
+```
+
+**MCP Server Properties:**
+- `command`: Executable command to run the MCP server
+- `args`: Command line arguments (optional)
+- `env`: Environment variables for the MCP server (optional)
+
+**Popular MCP Servers:**
+- **GitHub**: `@github/github-mcp-server` - Enhanced GitHub operations and context
+- **Memory**: `mcp-memory-service` - Persistent conversation history
+- **SQLite**: `mcp-sqlite-server` - Database persistence and queries
+- **Filesystem**: `mcp-filesystem-server` - File system operations with context
+- **Web**: `mcp-web-server` - Web browsing and content fetching
+
+**Merging Behavior:**
+- Same-named servers at higher priority levels completely replace lower priority ones
+- Different-named servers from all levels are combined
+- Agent-level > Agent Settings-level > Global-level priority
 
 ### Intelligent Notification Processing
 

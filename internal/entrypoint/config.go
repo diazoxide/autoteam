@@ -1,6 +1,7 @@
 package entrypoint
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -18,6 +19,7 @@ type Config struct {
 	Git          GitConfig
 	Monitoring   MonitoringConfig
 	Dependencies DependenciesConfig
+	MCPServers   map[string]config.MCPServer
 	Debug        bool
 }
 
@@ -102,6 +104,12 @@ func Load() (*Config, error) {
 	// Dependencies configuration
 	cfg.Dependencies.InstallDeps = getEnvOrDefault("INSTALL_DEPS", "false") == "true"
 
+	// MCP servers configuration
+	cfg.MCPServers, err = LoadMCPServers()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load MCP servers: %w", err)
+	}
+
 	// Debug configuration
 	cfg.Debug = getEnvOrDefault("DEBUG", "false") == "true"
 
@@ -163,4 +171,19 @@ func BuildRepositoriesConfig(includeStr, excludeStr string) *config.Repositories
 	repositories.Exclude = parseRepositoriesFromString(excludeStr)
 
 	return repositories
+}
+
+// LoadMCPServers loads MCP server configuration from environment variables
+func LoadMCPServers() (map[string]config.MCPServer, error) {
+	mcpServersJSON := os.Getenv("MCP_SERVERS")
+	if mcpServersJSON == "" {
+		return nil, nil // No MCP servers configured
+	}
+
+	var mcpServers map[string]config.MCPServer
+	if err := json.Unmarshal([]byte(mcpServersJSON), &mcpServers); err != nil {
+		return nil, fmt.Errorf("failed to parse MCP_SERVERS JSON: %w", err)
+	}
+
+	return mcpServers, nil
 }

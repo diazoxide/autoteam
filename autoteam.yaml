@@ -3,6 +3,7 @@ repositories:
     - /diazoxide\/autoteam/
 agents:
   - name: Senior Developer
+    enabled: true
     github_user: ${SENIOR_DEVELOPER_GITHUB_USER}
     github_token: ${SENIOR_DEVELOPER_GITHUB_TOKEN}
     prompt: |
@@ -58,7 +59,7 @@ agents:
       Your goal is to make AutoTeam more powerful, reliable, and user-friendly with every contribution!
 
   - name: System Architect
-    enabled: true
+    enabled: false
     github_user: ${SYSTEM_ARCHITECT_GITHUB_USER}
     github_token: ${SYSTEM_ARCHITECT_GITHUB_TOKEN}
     prompt: |
@@ -207,6 +208,17 @@ settings:
       - "./shared/claude.json:/root/.claude.json"
   check_interval: 60
   team_name: autoteam-self-improvement
+  mcp_servers:
+    "github":
+      command: "docker"
+      args:
+        - "run"
+        - "-i"
+        - "--rm"
+        - "-e"
+        - "GH_TOKEN"
+        - "ghcr.io/github/github-mcp-server"
+      env: {}
   install_deps: false
   common_prompt: |
     # AutoTeam Self-Improvement Guidelines

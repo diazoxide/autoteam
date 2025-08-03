@@ -186,67 +186,50 @@ func (c *ClaudeAgent) buildArgs(options RunOptions) []string {
 		args = append(args, "--output-format", "stream-json")
 	}
 
+	// Add MCP config file if MCP servers are configured
+	if len(c.mcpServers) > 0 {
+		mcpConfigPath := c.getMCPConfigPath()
+		args = append(args, "--mcp-config", mcpConfigPath)
+	}
+
 	// Always add --print to display output
 	args = append(args, "--print")
 
 	return args
 }
 
-// InstallMCPServers installs MCP servers and updates Claude configuration
-func (c *ClaudeAgent) InstallMCPServers(ctx context.Context) error {
+// Configure configures MCP servers in Claude configuration
+func (c *ClaudeAgent) Configure(ctx context.Context) error {
+	return c.ConfigureForProject(ctx, "")
+}
+
+// ConfigureForProject configures MCP servers for a specific agent
+func (c *ClaudeAgent) ConfigureForProject(ctx context.Context, projectPath string) error {
 	lgr := logger.FromContext(ctx)
 
 	if len(c.mcpServers) == 0 {
-		lgr.Debug("No MCP servers to install")
+		lgr.Debug("No MCP servers to configure")
 		return nil
 	}
 
-	lgr.Info("Installing MCP servers", zap.Int("count", len(c.mcpServers)))
+	lgr.Info("Configuring MCP servers", zap.Int("count", len(c.mcpServers)), zap.String("agent", c.config.Name))
 
-	// Install MCP server packages
-	for name, server := range c.mcpServers {
-		if err := c.installMCPServer(ctx, name, server); err != nil {
-			lgr.Warn("Failed to install MCP server", zap.String("name", name), zap.Error(err))
-			// Continue with other servers instead of failing completely
-		}
+	// Create dedicated MCP configuration file for this agent
+	if err := c.createMCPConfigFile(ctx); err != nil {
+		return fmt.Errorf("failed to create MCP configuration file: %w", err)
 	}
 
-	// Update Claude configuration
-	if err := c.updateClaudeConfig(ctx); err != nil {
-		return fmt.Errorf("failed to update Claude configuration: %w", err)
-	}
-
-	lgr.Info("MCP servers installed and configured successfully")
+	lgr.Info("MCP servers configured successfully")
 	return nil
 }
 
-// installMCPServer installs a single MCP server package
-func (c *ClaudeAgent) installMCPServer(ctx context.Context, name string, server config.MCPServer) error {
-	lgr := logger.FromContext(ctx)
-
-	// Skip if command is a binary path (not an npm package)
-	if strings.HasPrefix(server.Command, "/") || server.Command == "npx" {
-		lgr.Debug("Skipping installation for binary/npx command", zap.String("name", name), zap.String("command", server.Command))
-		return nil
-	}
-
-	// Install npm packages globally
-	lgr.Info("Installing MCP server package", zap.String("name", name), zap.String("command", server.Command))
-
-	cmd := exec.CommandContext(ctx, "npm", "install", "-g", server.Command, "-y")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install MCP server %s: %w", name, err)
-	}
-
-	lgr.Info("MCP server package installed", zap.String("name", name))
-	return nil
-}
-
-// updateClaudeConfig updates the ~/.claude.json file with MCP server configurations
+// updateClaudeConfig updates the ~/.claude.json file with MCP server configurations (legacy method)
 func (c *ClaudeAgent) updateClaudeConfig(ctx context.Context) error {
+	return c.updateClaudeConfigForProject(ctx, "")
+}
+
+// updateClaudeConfigForProject updates the ~/.claude.json file with MCP server configurations for a specific project
+func (c *ClaudeAgent) updateClaudeConfigForProject(ctx context.Context, projectPath string) error {
 	lgr := logger.FromContext(ctx)
 
 	// Get home directory
@@ -270,6 +253,20 @@ func (c *ClaudeAgent) updateClaudeConfig(ctx context.Context) error {
 		claudeConfig = make(map[string]interface{})
 	}
 
+	// Determine project path - use provided path or fallback to current directory
+	var targetProjectPath string
+	if projectPath != "" {
+		targetProjectPath = projectPath
+	} else {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("failed to get current working directory: %w", err)
+		}
+		targetProjectPath = currentDir
+	}
+
+	lgr.Info("Configuring MCP servers for project", zap.String("project_path", targetProjectPath))
+
 	// Convert MCP servers to Claude format
 	mcpServersConfig := make(map[string]interface{})
 	for name, server := range c.mcpServers {
@@ -288,8 +285,28 @@ func (c *ClaudeAgent) updateClaudeConfig(ctx context.Context) error {
 		mcpServersConfig[name] = serverConfig
 	}
 
-	// Update Claude configuration
-	claudeConfig["mcpServers"] = mcpServersConfig
+	// Ensure projects object exists
+	if claudeConfig["projects"] == nil {
+		claudeConfig["projects"] = make(map[string]interface{})
+	}
+
+	projects, ok := claudeConfig["projects"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid format: projects is not a map")
+	}
+
+	// Ensure target project exists
+	if projects[targetProjectPath] == nil {
+		projects[targetProjectPath] = make(map[string]interface{})
+	}
+
+	project, ok := projects[targetProjectPath].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid format: project entry is not a map")
+	}
+
+	// Set MCP servers for the target project
+	project["mcpServers"] = mcpServersConfig
 
 	// Write updated configuration
 	data, err := json.MarshalIndent(claudeConfig, "", "  ")
@@ -302,6 +319,67 @@ func (c *ClaudeAgent) updateClaudeConfig(ctx context.Context) error {
 	}
 
 	lgr.Info("Claude configuration updated successfully", zap.Int("mcp_servers", len(c.mcpServers)))
+	return nil
+}
+
+// getMCPConfigPath returns the path to the MCP configuration file for this agent
+func (c *ClaudeAgent) getMCPConfigPath() string {
+	// Use config.Agent's GetNormalizedName() method for consistent normalization
+	configAgent := &config.Agent{Name: c.config.Name}
+	normalizedAgentName := configAgent.GetNormalizedName()
+	return fmt.Sprintf("/opt/autoteam/agents/%s/mcp.json", normalizedAgentName)
+}
+
+// createMCPConfigFile creates the MCP configuration file for this agent
+func (c *ClaudeAgent) createMCPConfigFile(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
+
+	mcpConfigPath := c.getMCPConfigPath()
+	lgr.Info("Creating MCP configuration file", zap.String("path", mcpConfigPath))
+
+	// Ensure the directory exists
+	if err := os.MkdirAll(filepath.Dir(mcpConfigPath), 0755); err != nil {
+		return fmt.Errorf("failed to create MCP config directory: %w", err)
+	}
+
+	// Convert MCP servers to Claude format with mcpServers wrapper
+	mcpServersMap := make(map[string]interface{})
+	for name, server := range c.mcpServers {
+		serverConfig := map[string]interface{}{
+			"command": server.Command,
+		}
+
+		if len(server.Args) > 0 {
+			serverConfig["args"] = server.Args
+		}
+
+		if len(server.Env) > 0 {
+			serverConfig["env"] = server.Env
+		}
+
+		mcpServersMap[name] = serverConfig
+	}
+
+	// Wrap in mcpServers object as required by Claude format
+	mcpConfig := map[string]interface{}{
+		"mcpServers": mcpServersMap,
+	}
+
+	// Marshal to JSON with indentation for readability
+	data, err := json.MarshalIndent(mcpConfig, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal MCP config: %w", err)
+	}
+
+	// Write the MCP configuration file
+	if err := os.WriteFile(mcpConfigPath, data, 0600); err != nil {
+		return fmt.Errorf("failed to write MCP config file: %w", err)
+	}
+
+	lgr.Info("MCP configuration file created successfully",
+		zap.String("path", mcpConfigPath),
+		zap.Int("mcp_servers", len(c.mcpServers)))
+
 	return nil
 }
 

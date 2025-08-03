@@ -43,7 +43,7 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 					Service: map[string]interface{}{
 						"image": "python:3.11",
 					},
-					CheckInterval: intPtr(30),
+					CheckInterval: IntPtr(30),
 				},
 			},
 			expectedResult: Settings{
@@ -68,9 +68,9 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 						"image": "golang:1.21",
 						"user":  "admin",
 					},
-					CheckInterval: intPtr(15),
-					TeamName:      stringPtr("custom-team"),
-					InstallDeps:   boolPtr(false),
+					CheckInterval: IntPtr(15),
+					TeamName:      StringPtr("custom-team"),
+					InstallDeps:   BoolPtr(false),
 				},
 			},
 			expectedResult: Settings{
@@ -136,7 +136,7 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 					Service: map[string]interface{}{
 						"image": "python:3.11",
 					},
-					CheckInterval: intPtr(30),
+					CheckInterval: IntPtr(30),
 				},
 			},
 		},

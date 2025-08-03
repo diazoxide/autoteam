@@ -26,6 +26,15 @@ type Agent interface {
 	Version(ctx context.Context) (string, error)
 }
 
+// Configurable represents an agent that supports configuration
+type Configurable interface {
+	// Configure performs any necessary configuration for the agent
+	Configure(ctx context.Context) error
+
+	// ConfigureForProject performs configuration for a specific project path
+	ConfigureForProject(ctx context.Context, projectPath string) error
+}
+
 // RunOptions contains options for running an agent
 type RunOptions struct {
 	// MaxRetries is the maximum number of retry attempts

@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -120,6 +121,15 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 		environment["ENTRYPOINT_VERSION"] = "${ENTRYPOINT_VERSION:-latest}"
 		environment["MAX_RETRIES"] = "${MAX_RETRIES:-100}"
 		environment["DEBUG"] = "${DEBUG:-false}"
+
+		// Add MCP servers configuration
+		if len(settings.MCPServers) > 0 {
+			mcpServersJSON, err := json.Marshal(settings.MCPServers)
+			if err != nil {
+				return fmt.Errorf("failed to marshal MCP servers for agent %s: %w", agent.Name, err)
+			}
+			environment["MCP_SERVERS"] = string(mcpServersJSON)
+		}
 
 		// Merge with environment from service config
 		if existingEnv, ok := serviceConfig["environment"]; ok {

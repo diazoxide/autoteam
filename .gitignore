@@ -8,6 +8,9 @@
 # Build artifacts
 build/
 
+# Variable
+var/
+
 # Environment files
 .env
 

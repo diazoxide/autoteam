@@ -131,6 +131,14 @@ func (m *Monitor) processSingleNotification(ctx context.Context) error {
 					lgr.Warn("Failed to switch to main branch", zap.Error(err))
 				}
 			}
+
+			// Configure MCP servers once per agent (not per repository)
+			if configurable, ok := m.agent.(agent.Configurable); ok {
+				lgr.Debug("Ensuring MCP servers are configured for agent")
+				if err := configurable.Configure(ctx); err != nil {
+					lgr.Warn("Failed to configure MCP servers for agent", zap.Error(err))
+				}
+			}
 		}
 	}
 
