@@ -392,24 +392,18 @@ func mergeMCPServers(globalMCPServers, agentSettingsMCPServers, agentMCPServers 
 	result := make(map[string]MCPServer)
 
 	// Start with global MCP servers
-	if globalMCPServers != nil {
-		for name, server := range globalMCPServers {
-			result[name] = copyMCPServer(server)
-		}
+	for name, server := range globalMCPServers {
+		result[name] = copyMCPServer(server)
 	}
 
 	// Override with agent settings MCP servers
-	if agentSettingsMCPServers != nil {
-		for name, server := range agentSettingsMCPServers {
-			result[name] = copyMCPServer(server)
-		}
+	for name, server := range agentSettingsMCPServers {
+		result[name] = copyMCPServer(server)
 	}
 
 	// Override with agent-level MCP servers (highest priority)
-	if agentMCPServers != nil {
-		for name, server := range agentMCPServers {
-			result[name] = copyMCPServer(server)
-		}
+	for name, server := range agentMCPServers {
+		result[name] = copyMCPServer(server)
 	}
 
 	return result

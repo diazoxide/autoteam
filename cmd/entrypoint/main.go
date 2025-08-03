@@ -190,12 +190,12 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// Load MCP servers from environment
-	if mcpServers, err := entrypoint.LoadMCPServers(); err != nil {
-		log.Error("Failed to load MCP servers", zap.Error(err))
-		return fmt.Errorf("failed to load MCP servers: %w", err)
-	} else {
-		cfg.MCPServers = mcpServers
+	mcpServers, mcpErr := entrypoint.LoadMCPServers()
+	if mcpErr != nil {
+		log.Error("Failed to load MCP servers", zap.Error(mcpErr))
+		return fmt.Errorf("failed to load MCP servers: %w", mcpErr)
 	}
+	cfg.MCPServers = mcpServers
 
 	// Validate configuration
 	if err = cfg.Validate(); err != nil {
