@@ -2,12 +2,15 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"autoteam/internal/config"
 	"autoteam/internal/entrypoint"
 	"autoteam/internal/logger"
 
@@ -18,6 +21,7 @@ import (
 type ClaudeAgent struct {
 	config     entrypoint.AgentConfig
 	binaryPath string
+	mcpServers map[string]config.MCPServer
 }
 
 // NewClaudeAgent creates a new Claude agent instance
@@ -25,6 +29,16 @@ func NewClaudeAgent(cfg entrypoint.AgentConfig) *ClaudeAgent {
 	return &ClaudeAgent{
 		config:     cfg,
 		binaryPath: "claude", // Will be found in PATH after installation
+		mcpServers: make(map[string]config.MCPServer),
+	}
+}
+
+// NewClaudeAgentWithMCP creates a new Claude agent instance with MCP servers
+func NewClaudeAgentWithMCP(cfg entrypoint.AgentConfig, mcpServers map[string]config.MCPServer) *ClaudeAgent {
+	return &ClaudeAgent{
+		config:     cfg,
+		binaryPath: "claude", // Will be found in PATH after installation
+		mcpServers: mcpServers,
 	}
 }
 
@@ -176,4 +190,122 @@ func (c *ClaudeAgent) buildArgs(options RunOptions) []string {
 	args = append(args, "--print")
 
 	return args
+}
+
+// InstallMCPServers installs MCP servers and updates Claude configuration
+func (c *ClaudeAgent) InstallMCPServers(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
+
+	if len(c.mcpServers) == 0 {
+		lgr.Debug("No MCP servers to install")
+		return nil
+	}
+
+	lgr.Info("Installing MCP servers", zap.Int("count", len(c.mcpServers)))
+
+	// Install MCP server packages
+	for name, server := range c.mcpServers {
+		if err := c.installMCPServer(ctx, name, server); err != nil {
+			lgr.Warn("Failed to install MCP server", zap.String("name", name), zap.Error(err))
+			// Continue with other servers instead of failing completely
+		}
+	}
+
+	// Update Claude configuration
+	if err := c.updateClaudeConfig(ctx); err != nil {
+		return fmt.Errorf("failed to update Claude configuration: %w", err)
+	}
+
+	lgr.Info("MCP servers installed and configured successfully")
+	return nil
+}
+
+// installMCPServer installs a single MCP server package
+func (c *ClaudeAgent) installMCPServer(ctx context.Context, name string, server config.MCPServer) error {
+	lgr := logger.FromContext(ctx)
+
+	// Skip if command is a binary path (not an npm package)
+	if strings.HasPrefix(server.Command, "/") || server.Command == "npx" {
+		lgr.Debug("Skipping installation for binary/npx command", zap.String("name", name), zap.String("command", server.Command))
+		return nil
+	}
+
+	// Install npm packages globally
+	lgr.Info("Installing MCP server package", zap.String("name", name), zap.String("command", server.Command))
+
+	cmd := exec.CommandContext(ctx, "npm", "install", "-g", server.Command, "-y")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to install MCP server %s: %w", name, err)
+	}
+
+	lgr.Info("MCP server package installed", zap.String("name", name))
+	return nil
+}
+
+// updateClaudeConfig updates the ~/.claude.json file with MCP server configurations
+func (c *ClaudeAgent) updateClaudeConfig(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
+
+	// Get home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	claudeConfigPath := filepath.Join(homeDir, ".claude.json")
+	lgr.Info("Updating Claude configuration", zap.String("path", claudeConfigPath))
+
+	// Read existing configuration
+	var claudeConfig map[string]interface{}
+	if data, err := os.ReadFile(claudeConfigPath); err == nil {
+		if err := json.Unmarshal(data, &claudeConfig); err != nil {
+			lgr.Warn("Failed to parse existing Claude config, creating new one", zap.Error(err))
+			claudeConfig = make(map[string]interface{})
+		}
+	} else {
+		lgr.Info("Creating new Claude configuration file")
+		claudeConfig = make(map[string]interface{})
+	}
+
+	// Convert MCP servers to Claude format
+	mcpServersConfig := make(map[string]interface{})
+	for name, server := range c.mcpServers {
+		serverConfig := map[string]interface{}{
+			"command": server.Command,
+		}
+
+		if len(server.Args) > 0 {
+			serverConfig["args"] = server.Args
+		}
+
+		if len(server.Env) > 0 {
+			serverConfig["env"] = server.Env
+		}
+
+		mcpServersConfig[name] = serverConfig
+	}
+
+	// Update Claude configuration
+	claudeConfig["mcpServers"] = mcpServersConfig
+
+	// Write updated configuration
+	data, err := json.MarshalIndent(claudeConfig, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal Claude config: %w", err)
+	}
+
+	if err := os.WriteFile(claudeConfigPath, data, 0600); err != nil {
+		return fmt.Errorf("failed to write Claude config: %w", err)
+	}
+
+	lgr.Info("Claude configuration updated successfully", zap.Int("mcp_servers", len(c.mcpServers)))
+	return nil
+}
+
+// SetMCPServers sets the MCP servers for this agent
+func (c *ClaudeAgent) SetMCPServers(mcpServers map[string]config.MCPServer) {
+	c.mcpServers = mcpServers
 }

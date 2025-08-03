@@ -15,9 +15,10 @@ const (
 )
 
 type Config struct {
-	Repositories Repositories `yaml:"repositories"`
-	Agents       []Agent      `yaml:"agents"`
-	Settings     Settings     `yaml:"settings"`
+	Repositories Repositories         `yaml:"repositories"`
+	Agents       []Agent              `yaml:"agents"`
+	Settings     Settings             `yaml:"settings"`
+	MCPServers   map[string]MCPServer `yaml:"mcp_servers,omitempty"`
 }
 
 type Repositories struct {
@@ -26,12 +27,13 @@ type Repositories struct {
 }
 
 type Agent struct {
-	Name        string         `yaml:"name"`
-	Prompt      string         `yaml:"prompt"`
-	GitHubToken string         `yaml:"github_token"`
-	GitHubUser  string         `yaml:"github_user"`
-	Enabled     *bool          `yaml:"enabled,omitempty"`
-	Settings    *AgentSettings `yaml:"settings,omitempty"`
+	Name        string               `yaml:"name"`
+	Prompt      string               `yaml:"prompt"`
+	GitHubToken string               `yaml:"github_token"`
+	GitHubUser  string               `yaml:"github_user"`
+	Enabled     *bool                `yaml:"enabled,omitempty"`
+	Settings    *AgentSettings       `yaml:"settings,omitempty"`
+	MCPServers  map[string]MCPServer `yaml:"mcp_servers,omitempty"`
 }
 
 type AgentSettings struct {
@@ -41,6 +43,7 @@ type AgentSettings struct {
 	CommonPrompt  *string                `yaml:"common_prompt,omitempty"`
 	MaxAttempts   *int                   `yaml:"max_attempts,omitempty"`
 	Service       map[string]interface{} `yaml:"service,omitempty"`
+	MCPServers    map[string]MCPServer   `yaml:"mcp_servers,omitempty"`
 }
 
 type Settings struct {
@@ -50,6 +53,14 @@ type Settings struct {
 	CommonPrompt  string                 `yaml:"common_prompt,omitempty"`
 	MaxAttempts   int                    `yaml:"max_attempts"`
 	Service       map[string]interface{} `yaml:"service,omitempty"`
+	MCPServers    map[string]MCPServer   `yaml:"mcp_servers,omitempty"`
+}
+
+// MCPServer represents a Model Context Protocol server configuration
+type MCPServer struct {
+	Command string            `yaml:"command"`
+	Args    []string          `yaml:"args,omitempty"`
+	Env     map[string]string `yaml:"env,omitempty"`
 }
 
 func LoadConfig(filename string) (*Config, error) {
@@ -263,6 +274,19 @@ func CreateSampleConfig(filename string) error {
 				"user":  "developer",
 			},
 		},
+		MCPServers: map[string]MCPServer{
+			"github": {
+				Command: "npx",
+				Args:    []string{"-y", "@github/github-mcp-server"},
+				Env: map[string]string{
+					"GITHUB_TOKEN": "${GITHUB_TOKEN}",
+				},
+			},
+			"memory": {
+				Command: "npx",
+				Args:    []string{"-y", "mcp-memory-service"},
+			},
+		},
 	}
 
 	data, err := yaml.Marshal(&sampleConfig)
@@ -358,10 +382,69 @@ func copyServiceConfig(source map[string]interface{}) map[string]interface{} {
 	return result
 }
 
+// mergeMCPServers merges MCP server configurations from global settings, agent settings, and agent-level MCP servers
+// Priority: agent-level MCPServers > agent.settings.MCPServers > global settings MCPServers
+func mergeMCPServers(globalMCPServers, agentSettingsMCPServers, agentMCPServers map[string]MCPServer) map[string]MCPServer {
+	if globalMCPServers == nil && agentSettingsMCPServers == nil && agentMCPServers == nil {
+		return nil
+	}
+
+	result := make(map[string]MCPServer)
+
+	// Start with global MCP servers
+	if globalMCPServers != nil {
+		for name, server := range globalMCPServers {
+			result[name] = copyMCPServer(server)
+		}
+	}
+
+	// Override with agent settings MCP servers
+	if agentSettingsMCPServers != nil {
+		for name, server := range agentSettingsMCPServers {
+			result[name] = copyMCPServer(server)
+		}
+	}
+
+	// Override with agent-level MCP servers (highest priority)
+	if agentMCPServers != nil {
+		for name, server := range agentMCPServers {
+			result[name] = copyMCPServer(server)
+		}
+	}
+
+	return result
+}
+
+// copyMCPServer creates a deep copy of an MCPServer
+func copyMCPServer(server MCPServer) MCPServer {
+	copied := MCPServer{
+		Command: server.Command,
+	}
+
+	// Copy args slice
+	if server.Args != nil {
+		copied.Args = make([]string, len(server.Args))
+		copy(copied.Args, server.Args)
+	}
+
+	// Copy env map
+	if server.Env != nil {
+		copied.Env = make(map[string]string)
+		for k, v := range server.Env {
+			copied.Env[k] = v
+		}
+	}
+
+	return copied
+}
+
 // GetEffectiveSettings returns the effective settings for an agent,
 // merging global settings with agent-specific overrides
 func (a *Agent) GetEffectiveSettings(globalSettings Settings) Settings {
 	effective := globalSettings // Start with global settings
+
+	// Always merge MCP servers, even if agent settings is nil
+	effective.MCPServers = mergeMCPServers(globalSettings.MCPServers, nil, a.MCPServers)
 
 	if a.Settings == nil {
 		return effective
@@ -388,6 +471,9 @@ func (a *Agent) GetEffectiveSettings(globalSettings Settings) Settings {
 	if len(a.Settings.Service) > 0 {
 		effective.Service = mergeServiceConfigs(globalSettings.Service, a.Settings.Service)
 	}
+
+	// Merge MCP server configurations
+	effective.MCPServers = mergeMCPServers(globalSettings.MCPServers, a.Settings.MCPServers, a.MCPServers)
 
 	return effective
 }
