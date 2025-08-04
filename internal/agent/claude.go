@@ -223,7 +223,6 @@ func (c *ClaudeAgent) ConfigureForProject(ctx context.Context, projectPath strin
 	return nil
 }
 
-
 // getMCPConfigPath returns the path to the MCP configuration file for this agent
 func (c *ClaudeAgent) getMCPConfigPath() string {
 	// Use config.Agent's GetNormalizedName() method for consistent normalization
