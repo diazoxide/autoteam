@@ -43,9 +43,9 @@ func (g *Generator) GenerateCompose(cfg *config.Config) error {
 		return fmt.Errorf("failed to generate compose.yaml: %w", err)
 	}
 
-	// Copy system entrypoints directory
-	if err := g.copyEntrypointsDirectory(); err != nil {
-		return fmt.Errorf("failed to copy entrypoints directory: %w", err)
+	// Copy system bin directory
+	if err := g.copyBinDirectory(); err != nil {
+		return fmt.Errorf("failed to copy bin directory: %w", err)
 	}
 
 	return nil
@@ -82,7 +82,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 		// Build volumes array
 		volumes := []string{
 			fmt.Sprintf("./agents/%s/codebase:/opt/autoteam/agents/%s/codebase", serviceName, serviceName),
-			"./entrypoints:/opt/autoteam/entrypoints:ro",
+			"./bin:/opt/autoteam/bin",
 		}
 
 		// Add any additional volumes from service config
@@ -122,9 +122,26 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 		environment["MAX_RETRIES"] = "${MAX_RETRIES:-100}"
 		environment["DEBUG"] = "${DEBUG:-false}"
 
-		// Add MCP servers configuration
-		if len(settings.MCPServers) > 0 {
-			mcpServersJSON, err := json.Marshal(settings.MCPServers)
+		// Auto-inject GitHub MCP server for all agents and add any configured MCP servers
+		finalMCPServers := make(map[string]config.MCPServer)
+
+		// Always add GitHub MCP server as default
+		finalMCPServers["github"] = config.MCPServer{
+			Command: "/opt/autoteam/bin/github-mcp-server",
+			Args:    []string{"stdio"},
+			Env: map[string]string{
+				"GITHUB_PERSONAL_ACCESS_TOKEN": agent.GitHubToken,
+			},
+		}
+
+		// Add any additional configured MCP servers (can override github if explicitly configured)
+		for name, server := range settings.MCPServers {
+			finalMCPServers[name] = server
+		}
+
+		// Add MCP servers configuration to environment
+		if len(finalMCPServers) > 0 {
+			mcpServersJSON, err := json.Marshal(finalMCPServers)
 			if err != nil {
 				return fmt.Errorf("failed to marshal MCP servers for agent %s: %w", agent.Name, err)
 			}
@@ -143,7 +160,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 
 		// Set default entrypoint if not specified
 		if _, hasEntrypoint := serviceConfig["entrypoint"]; !hasEntrypoint {
-			serviceConfig["entrypoint"] = []string{"/opt/autoteam/entrypoints/entrypoint.sh"}
+			serviceConfig["entrypoint"] = []string{"/opt/autoteam/bin/entrypoint.sh"}
 		}
 
 		compose.Services[serviceName] = serviceConfig
@@ -163,36 +180,45 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 	return nil
 }
 
-func (g *Generator) copyEntrypointsDirectory() error {
+func (g *Generator) copyBinDirectory() error {
 	// Ensure agents directory exists
 	if err := g.fileOps.EnsureDirectory(config.AgentsDir, config.DirPerm); err != nil {
 		return fmt.Errorf("failed to create agents directory: %w", err)
 	}
 
 	// Remove existing directory if it exists
-	if err := g.fileOps.RemoveIfExists(config.LocalEntrypointsPath); err != nil {
-		return fmt.Errorf("failed to remove existing entrypoints directory: %w", err)
+	if err := g.fileOps.RemoveIfExists(config.LocalBinPath); err != nil {
+		return fmt.Errorf("failed to remove existing bin directory: %w", err)
 	}
 
-	// Check if system entrypoints directory exists
-	if !g.fileOps.DirectoryExists(config.SystemEntrypointsDir) {
-		// Create a temporary directory with a helpful message
-		if err := g.fileOps.EnsureDirectory(config.LocalEntrypointsPath, config.DirPerm); err != nil {
-			return fmt.Errorf("failed to create temporary entrypoints directory: %w", err)
-		}
+	// Check if system bin directory exists
+	sourceDir := config.SystemBinDir
+	if !g.fileOps.DirectoryExists(config.SystemBinDir) {
+		// Fallback: check for old entrypoints directory for backward compatibility
+		oldEntrypointsDir := "/opt/autoteam/entrypoints"
+		if g.fileOps.DirectoryExists(oldEntrypointsDir) {
+			sourceDir = oldEntrypointsDir
+		} else {
+			// Neither directory exists - create a temporary directory with a helpful message
+			if err := g.fileOps.EnsureDirectory(config.LocalBinPath, config.DirPerm); err != nil {
+				return fmt.Errorf("failed to create temporary bin directory: %w", err)
+			}
 
-		readmePath := filepath.Join(config.LocalEntrypointsPath, config.ReadmeFile)
-		readmeContent := `# AutoTeam Entrypoint Binaries
+			readmePath := filepath.Join(config.LocalBinPath, config.ReadmeFile)
+			readmeContent := `# AutoTeam Binary Directory
 
-This directory should contain entrypoint binaries for different platforms.
+This directory should contain all AutoTeam binaries including:
+- Entrypoint scripts for different platforms
+- MCP servers (github-mcp-server, etc.)
+- Other runtime binaries
 
-To install the entrypoint binaries system-wide, run:
+To install the binaries system-wide, run:
 ` + "```bash" + `
 autoteam --install-entrypoints
 ` + "```" + `
 
 This will:
-1. Install entrypoint binaries for all supported platforms to ` + config.SystemEntrypointsDir + `
+1. Install all binaries for supported platforms to ` + config.SystemBinDir + `
 2. Copy the binaries to this local directory during generation
 
 Supported platforms:
@@ -202,15 +228,16 @@ Supported platforms:
 - darwin-arm64
 `
 
-		if err := g.fileOps.WriteFileIfNotExists(readmePath, []byte(readmeContent), config.ReadmePerm); err != nil {
-			return fmt.Errorf("failed to create README file: %w", err)
-		}
+			if err := g.fileOps.WriteFileIfNotExists(readmePath, []byte(readmeContent), config.ReadmePerm); err != nil {
+				return fmt.Errorf("failed to create README file: %w", err)
+			}
 
-		return nil
+			return nil
+		}
 	}
 
-	// Copy system entrypoints directory to local directory
-	return g.fileOps.CopyDirectory(config.SystemEntrypointsDir, config.LocalEntrypointsPath)
+	// Copy system bin directory (or fallback entrypoints directory) to local directory
+	return g.fileOps.CopyDirectory(sourceDir, config.LocalBinPath)
 }
 
 func (g *Generator) createAgentDirectories(cfg *config.Config) error {

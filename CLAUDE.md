@@ -36,6 +36,18 @@
   - All notification thread IDs are marked as read only after successful item resolution
   - **FIXED**: Resolution detector now supports all item types (mention, unread_comment, notification, failed_workflow)
   - Added proper resolution checking logic for notification-based items with correct matching criteria
+- **NEW**: Unified binary directory architecture with comprehensive dependency management
+  - Consolidated all binaries (entrypoints, MCP servers, tools) into single `/opt/autoteam/bin` directory
+  - Replaced separate `entrypoints` and `bin` directories with unified read/write `/opt/autoteam/bin`
+  - Updated Docker Compose volume mounting: `./bin:/opt/autoteam/bin` (read/write, no `:ro` restriction)
+  - Enhanced dependency installer with comprehensive existence checking before installation
+  - Added smart package management supporting apt, apk, and yum with missing package detection
+  - Implemented efficient logging showing which dependencies are already installed vs newly installed
+  - Fixed GitHub MCP server installation path conflicts and permission issues
+  - Updated MCP server token configuration to use agent-specific tokens (e.g., `${SENIOR_DEVELOPER_GITHUB_TOKEN}`)
+  - **Backward Compatibility**: Generator automatically falls back to `/opt/autoteam/entrypoints` if `/opt/autoteam/bin` doesn't exist
+  - Migration path: Move existing binaries from `/opt/autoteam/entrypoints` to `/opt/autoteam/bin` when convenient
+  - All tests updated and passing with unified architecture
 
 ## Multi-Repository Architecture
 - Complete multi-repository support with pattern matching and regex
@@ -60,6 +72,15 @@
 - Mandatory notification read-marking after processing to prevent duplicates
 - Removed complex state management, prioritization, and resolution detection for simplicity
 - All tests pass and builds succeed across all platforms
+
+## Improved Dependency Installer
+- Comprehensive existence checking before installing any dependency
+- Smart package management with support for apt, apk, and yum/dnf package managers
+- Avoids unnecessary installations when dependencies already exist
+- GitHub CLI installation integrated with system package manager with fallback methods
+- Special handling for nodejs (detects both 'node' and 'nodejs' commands)
+- GitHub MCP Server v0.10.0 auto-installation with multi-architecture support (x86_64, arm64, i386)
+- Efficient logging shows which packages are already installed vs newly installed
 
 ## Model Context Protocol (MCP) Server Support
 - **NEW**: Comprehensive MCP server integration with auto-team's standard configuration pattern

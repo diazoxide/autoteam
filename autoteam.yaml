@@ -208,18 +208,7 @@ settings:
       - "./shared/claude.json:/root/.claude.json"
   check_interval: 60
   team_name: autoteam-self-improvement
-  mcp_servers:
-    "github":
-      command: "docker"
-      args:
-        - "run"
-        - "-i"
-        - "--rm"
-        - "-e"
-        - "GH_TOKEN"
-        - "ghcr.io/github/github-mcp-server"
-      env: {}
-  install_deps: false
+  install_deps: true
   common_prompt: |
     # AutoTeam Self-Improvement Guidelines
     - You are part of a recursive AI system improving AutoTeam itself

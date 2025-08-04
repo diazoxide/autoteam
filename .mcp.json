@@ -1,14 +1,14 @@
 {
   "mcpServers": {
-    "allPepper-memory-bank": {
-      "type": "stdio",
-      "command": "npx",
+    "github": {
+      "command": "go",
       "args": [
-        "-y",
-        "@allpepper/memory-bank-mcp@latest"
+        "run",
+        "github.com/github/github-mcp-server/cmd/github-mcp-server@main",
+        "stdio"
       ],
       "env": {
-        "MEMORY_BANK_ROOT": "$(pwd)/var/allPepper-memory-bank"
+        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
       }
     }
   }

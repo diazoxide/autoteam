@@ -6,7 +6,7 @@ services:
     stdin_open: true
     volumes:
       - ./agents/{{ .Agent.GetNormalizedName }}/codebase:/opt/autoteam/agents/{{ .Agent.GetNormalizedName }}/codebase
-      - ./entrypoints:/opt/autoteam/entrypoints:ro
+      - ./bin:/opt/autoteam/bin
 {{- range .EffectiveSettings.Volumes }}
       - {{ . }}
 {{- end }}
@@ -35,6 +35,6 @@ services:
     entrypoint: |
 {{ .EffectiveSettings.Entrypoint | escapeDockerCompose | indent 6 }}
 {{- else }}
-    entrypoint: ["/opt/autoteam/entrypoints/entrypoint.sh"]
+    entrypoint: ["/opt/autoteam/bin/entrypoint.sh"]
 {{- end }}
 {{- end }}

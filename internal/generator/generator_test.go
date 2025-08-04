@@ -135,9 +135,9 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 		t.Errorf("dev1 should have codebase volume")
 	}
 
-	// Verify .autoteam/entrypoints directory was created
-	if !testutil.DirExists(".autoteam/entrypoints") {
-		t.Errorf(".autoteam/entrypoints directory should be created")
+	// Verify .autoteam/bin directory was created
+	if !testutil.DirExists(".autoteam/bin") {
+		t.Errorf(".autoteam/bin directory should be created")
 	}
 
 	// Verify agent directories were created

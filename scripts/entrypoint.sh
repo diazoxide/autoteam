@@ -32,7 +32,7 @@ case "$CONTAINER_ARCH" in
 esac
 
 PLATFORM="${CONTAINER_OS}-${CONTAINER_ARCH}"
-ENTRYPOINT_BINARY="/opt/autoteam/entrypoints/autoteam-entrypoint-${PLATFORM}"
+ENTRYPOINT_BINARY="/opt/autoteam/bin/autoteam-entrypoint-${PLATFORM}"
 
 echo "📦 Detected platform: ${PLATFORM}"
 echo "🔍 Looking for entrypoint binary: ${ENTRYPOINT_BINARY}"

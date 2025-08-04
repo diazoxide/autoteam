@@ -36,14 +36,19 @@ func (i *Installer) Install(ctx context.Context, selectedAgent agent.Agent) erro
 
 	lgr.Info("Installing dependencies")
 
-	// Install system dependencies
+	// Install system dependencies (includes GitHub CLI)
 	if err := i.installSystemDependencies(ctx); err != nil {
 		return fmt.Errorf("failed to install system dependencies: %w", err)
 	}
 
-	// Install GitHub CLI
+	// Fallback GitHub CLI installation if not installed via package manager
 	if err := i.installGitHubCLI(ctx); err != nil {
 		return fmt.Errorf("failed to install GitHub CLI: %w", err)
+	}
+
+	// Install GitHub MCP Server
+	if err := i.installGitHubMCPServer(ctx); err != nil {
+		return fmt.Errorf("failed to install GitHub MCP Server: %w", err)
 	}
 
 	// Install the AI agent if not available
@@ -63,15 +68,34 @@ func (i *Installer) Install(ctx context.Context, selectedAgent agent.Agent) erro
 // installSystemDependencies installs required system packages
 func (i *Installer) installSystemDependencies(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
-	lgr.Info("Installing system dependencies")
+	lgr.Info("Checking system dependencies")
 
-	// Detect package manager and install dependencies
+	// Check which packages need to be installed
+	requiredPackages := []string{"curl", "git", "nodejs", "npm", "gh"}
+	missingPackages := []string{}
+
+	for _, pkg := range requiredPackages {
+		if !i.isPackageInstalled(ctx, pkg) {
+			missingPackages = append(missingPackages, pkg)
+		} else {
+			lgr.Info("Package already installed", zap.String("package", pkg))
+		}
+	}
+
+	if len(missingPackages) == 0 {
+		lgr.Info("All system dependencies are already installed")
+		return nil
+	}
+
+	lgr.Info("Installing missing system dependencies", zap.Strings("packages", missingPackages))
+
+	// Detect package manager and install missing dependencies
 	if i.hasCommand(ctx, "apt") {
-		return i.installWithApt(ctx)
+		return i.installWithApt(ctx, missingPackages)
 	} else if i.hasCommand(ctx, "apk") {
-		return i.installWithApk(ctx)
+		return i.installWithApk(ctx, missingPackages)
 	} else if i.hasCommand(ctx, "yum") {
-		return i.installWithYum(ctx)
+		return i.installWithYum(ctx, missingPackages)
 	}
 
 	lgr.Warn("No supported package manager found, skipping system dependency installation")
@@ -84,8 +108,17 @@ func (i *Installer) hasCommand(ctx context.Context, command string) bool {
 	return cmd.Run() == nil
 }
 
+// isPackageInstalled checks if a package/command is installed
+func (i *Installer) isPackageInstalled(ctx context.Context, pkg string) bool {
+	// Special handling for nodejs (can be 'node' or 'nodejs')
+	if pkg == "nodejs" {
+		return i.hasCommand(ctx, "node") || i.hasCommand(ctx, "nodejs")
+	}
+	return i.hasCommand(ctx, pkg)
+}
+
 // installWithApt installs dependencies using apt (Debian/Ubuntu)
-func (i *Installer) installWithApt(ctx context.Context) error {
+func (i *Installer) installWithApt(ctx context.Context, missingPackages []string) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("Using apt package manager")
 
@@ -97,24 +130,45 @@ func (i *Installer) installWithApt(ctx context.Context) error {
 		lgr.Warn("Failed to update apt package list", zap.Error(err))
 	}
 
-	// Install required packages
-	packages := []string{"curl", "git", "nodejs", "npm"}
+	// Filter packages for apt installation (gh handled separately)
+	aptPackages := []string{}
+	needsGH := false
 
-	args := append([]string{"install", "-y"}, packages...)
-	cmd = exec.CommandContext(ctx, "apt", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install packages with apt: %w", err)
+	for _, pkg := range missingPackages {
+		if pkg == "gh" {
+			needsGH = true
+		} else {
+			aptPackages = append(aptPackages, pkg)
+		}
 	}
 
-	lgr.Info("Successfully installed system dependencies with apt")
+	// Install regular packages
+	if len(aptPackages) > 0 {
+		args := append([]string{"install", "-y"}, aptPackages...)
+		cmd = exec.CommandContext(ctx, "apt", args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to install packages with apt: %w", err)
+		}
+		lgr.Info("Successfully installed system dependencies with apt", zap.Strings("packages", aptPackages))
+	}
+
+	// Install GitHub CLI if needed
+	if needsGH {
+		if err := i.installGitHubCLIWithApt(ctx); err != nil {
+			lgr.Warn("Failed to install gh with apt, will try alternative method later", zap.Error(err))
+		} else {
+			lgr.Info("Successfully installed GitHub CLI with apt")
+		}
+	}
+
 	return nil
 }
 
 // installWithApk installs dependencies using apk (Alpine)
-func (i *Installer) installWithApk(ctx context.Context) error {
+func (i *Installer) installWithApk(ctx context.Context, missingPackages []string) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("Using apk package manager")
 
@@ -126,40 +180,82 @@ func (i *Installer) installWithApk(ctx context.Context) error {
 		lgr.Warn("Failed to update apk package index", zap.Error(err))
 	}
 
-	// Install required packages
-	packages := []string{"curl", "git", "nodejs", "npm"}
+	// Filter packages for apk installation (gh handled separately)
+	apkPackages := []string{}
+	needsGH := false
 
-	args := append([]string{"add", "--no-cache"}, packages...)
-	cmd = exec.CommandContext(ctx, "apk", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install packages with apk: %w", err)
+	for _, pkg := range missingPackages {
+		if pkg == "gh" {
+			needsGH = true
+		} else {
+			apkPackages = append(apkPackages, pkg)
+		}
 	}
 
-	lgr.Info("Successfully installed system dependencies with apk")
+	// Install regular packages
+	if len(apkPackages) > 0 {
+		args := append([]string{"add", "--no-cache"}, apkPackages...)
+		cmd = exec.CommandContext(ctx, "apk", args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to install packages with apk: %w", err)
+		}
+		lgr.Info("Successfully installed system dependencies with apk", zap.Strings("packages", apkPackages))
+	}
+
+	// Install GitHub CLI if needed
+	if needsGH {
+		if err := i.installGitHubCLIWithApk(ctx); err != nil {
+			lgr.Warn("Failed to install gh with apk, will try alternative method later", zap.Error(err))
+		} else {
+			lgr.Info("Successfully installed GitHub CLI with apk")
+		}
+	}
+
 	return nil
 }
 
 // installWithYum installs dependencies using yum (RHEL/CentOS)
-func (i *Installer) installWithYum(ctx context.Context) error {
+func (i *Installer) installWithYum(ctx context.Context, missingPackages []string) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("Using yum package manager")
 
-	// Install required packages
-	packages := []string{"curl", "git", "nodejs", "npm"}
+	// Filter packages for yum installation (gh handled separately)
+	yumPackages := []string{}
+	needsGH := false
 
-	args := append([]string{"install", "-y"}, packages...)
-	cmd := exec.CommandContext(ctx, "yum", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install packages with yum: %w", err)
+	for _, pkg := range missingPackages {
+		if pkg == "gh" {
+			needsGH = true
+		} else {
+			yumPackages = append(yumPackages, pkg)
+		}
 	}
 
-	lgr.Info("Successfully installed system dependencies with yum")
+	// Install regular packages
+	if len(yumPackages) > 0 {
+		args := append([]string{"install", "-y"}, yumPackages...)
+		cmd := exec.CommandContext(ctx, "yum", args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to install packages with yum: %w", err)
+		}
+		lgr.Info("Successfully installed system dependencies with yum", zap.Strings("packages", yumPackages))
+	}
+
+	// Install GitHub CLI if needed
+	if needsGH {
+		if err := i.installGitHubCLIWithYum(ctx); err != nil {
+			lgr.Warn("Failed to install gh with yum, will try alternative method later", zap.Error(err))
+		} else {
+			lgr.Info("Successfully installed GitHub CLI with yum")
+		}
+	}
+
 	return nil
 }
 
@@ -335,6 +431,69 @@ func (i *Installer) installGitHubCLIBinary(ctx context.Context) error {
 	}
 
 	lgr.Info("Successfully installed GitHub CLI binary")
+	return nil
+}
+
+// installGitHubMCPServer downloads and installs GitHub MCP Server binary
+func (i *Installer) installGitHubMCPServer(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
+
+	// Check if GitHub MCP Server is already installed
+	mcpServerPath := "/opt/autoteam/bin/github-mcp-server"
+	if _, err := os.Stat(mcpServerPath); err == nil {
+		lgr.Info("GitHub MCP Server is already installed", zap.String("path", mcpServerPath))
+		return nil
+	}
+
+	lgr.Info("Installing GitHub MCP Server")
+
+	// Create unified bin directory if it doesn't exist
+	if err := os.MkdirAll("/opt/autoteam/bin", 0755); err != nil {
+		return fmt.Errorf("failed to create unified bin directory: %w", err)
+	}
+
+	// Determine architecture
+	archCmd := exec.CommandContext(ctx, "uname", "-m")
+	archOutput, err := archCmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to determine architecture: %w", err)
+	}
+
+	arch := string(archOutput)
+	var downloadArch string
+	switch arch {
+	case "x86_64\n":
+		downloadArch = "x86_64"
+	case "aarch64\n", "arm64\n":
+		downloadArch = "arm64"
+	case "i386\n", "i686\n":
+		downloadArch = "i386"
+	default:
+		return fmt.Errorf("unsupported architecture for GitHub MCP Server: %s", arch)
+	}
+
+	// Download and install GitHub MCP Server binary
+	version := "v0.10.0"
+	downloadURL := fmt.Sprintf("https://github.com/github/github-mcp-server/releases/download/%s/github-mcp-server_Linux_%s.tar.gz", version, downloadArch)
+
+	commands := [][]string{
+		{"curl", "-fsSL", downloadURL, "-o", "/tmp/github-mcp-server.tar.gz"},
+		{"tar", "-xzf", "/tmp/github-mcp-server.tar.gz", "-C", "/tmp"},
+		{"bash", "-c", "find /tmp -name 'github-mcp-server' -type f | head -1 | xargs -I {} cp {} /opt/autoteam/bin/github-mcp-server"},
+		{"chmod", "+x", "/opt/autoteam/bin/github-mcp-server"},
+		{"rm", "-rf", "/tmp/github-mcp-server*"},
+	}
+
+	for _, cmdArgs := range commands {
+		cmd := exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to run command %v: %w", cmdArgs, err)
+		}
+	}
+
+	lgr.Info("Successfully installed GitHub MCP Server", zap.String("path", mcpServerPath))
 	return nil
 }
 

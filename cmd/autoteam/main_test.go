@@ -256,8 +256,8 @@ echo "Integration test"`
 		}
 	}
 
-	// Verify .autoteam/entrypoints directory exists (even if empty due to no system installation)
-	if !testutil.DirExists(".autoteam/entrypoints") {
-		t.Errorf(".autoteam/entrypoints directory should be created")
+	// Verify .autoteam/bin directory exists (even if empty due to no system installation)
+	if !testutil.DirExists(".autoteam/bin") {
+		t.Errorf(".autoteam/bin directory should be created")
 	}
 }

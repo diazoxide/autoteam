@@ -10,7 +10,7 @@ REPO="diazoxide/autoteam"
 DEFAULT_BINARY="autoteam"
 BINARY_NAME=""
 INSTALL_DIR="/usr/local/bin"
-ENTRYPOINTS_DIR="/opt/autoteam/entrypoints"
+ENTRYPOINTS_DIR="/opt/autoteam/bin"
 TEMP_DIR=$(mktemp -d)
 VERSION=${VERSION:-latest}
 INSTALL_ENTRYPOINTS="true"
@@ -439,7 +439,7 @@ echo "Agent: ${AGENT_NAME:-unknown}"
 echo "Repository: ${GITHUB_REPO:-unknown}"
 echo "Platform: $(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/armv7l/arm/')"
 PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/armv7l/arm/')"
-ENTRYPOINT_BINARY="/opt/autoteam/entrypoints/autoteam-entrypoint-${PLATFORM}"
+ENTRYPOINT_BINARY="/opt/autoteam/bin/autoteam-entrypoint-${PLATFORM}"
 if [ -f "$ENTRYPOINT_BINARY" ] && [ -x "$ENTRYPOINT_BINARY" ]; then
   cp "$ENTRYPOINT_BINARY" /tmp/autoteam-entrypoint
   chmod +x /tmp/autoteam-entrypoint

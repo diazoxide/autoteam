@@ -2,14 +2,14 @@ package config
 
 // System paths and directories
 const (
-	// SystemEntrypointsDir is the system-wide installation directory for entrypoint binaries
-	SystemEntrypointsDir = "/opt/autoteam/entrypoints"
+	// SystemBinDir is the system-wide installation directory for all binaries (entrypoints, MCP servers, etc.)
+	SystemBinDir = "/opt/autoteam/bin"
 
 	// AutoTeamDir is the main .autoteam directory for all generated files
 	AutoTeamDir = ".autoteam"
 
-	// LocalEntrypointsPath is the local path where entrypoints are copied during generation
-	LocalEntrypointsPath = AutoTeamDir + "/entrypoints"
+	// LocalBinPath is the local path where binaries are copied during generation
+	LocalBinPath = AutoTeamDir + "/bin"
 
 	// AgentsDir is the base directory for all agent-specific directories
 	AgentsDir = AutoTeamDir + "/agents"

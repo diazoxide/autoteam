@@ -277,18 +277,18 @@ install-linux: ## Install on Linux
 		echo "$(YELLOW)⚠ No entrypoint binary found, run 'make build-entrypoint' or 'make build-entrypoint-all' first$(NC)"; \
 	fi
 
-install-entrypoints: ## Install entrypoint binaries for all platforms to /opt/autoteam/entrypoints
+install-entrypoints: ## Install entrypoint binaries for all platforms to /opt/autoteam/bin
 	@echo "$(BLUE)Installing entrypoint binaries for all platforms...$(NC)"
-	@sudo mkdir -p /opt/autoteam/entrypoints
+	@sudo mkdir -p /opt/autoteam/bin
 	@echo "$(BLUE)Installing entrypoint.sh script...$(NC)"
-	@sudo cp scripts/entrypoint.sh /opt/autoteam/entrypoints/entrypoint.sh
-	@sudo chmod +x /opt/autoteam/entrypoints/entrypoint.sh
-	@echo "$(GREEN)✓ Installed entrypoint.sh to /opt/autoteam/entrypoints/entrypoint.sh$(NC)"
+	@sudo cp scripts/entrypoint.sh /opt/autoteam/bin/entrypoint.sh
+	@sudo chmod +x /opt/autoteam/bin/entrypoint.sh
+	@echo "$(GREEN)✓ Installed entrypoint.sh to /opt/autoteam/bin/entrypoint.sh$(NC)"
 	@for platform in $(PLATFORMS); do \
 		GOOS=$$(echo $$platform | cut -d'/' -f1); \
 		GOARCH=$$(echo $$platform | cut -d'/' -f2); \
 		BINARY="$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)-$$GOOS-$$GOARCH"; \
-		TARGET="/opt/autoteam/entrypoints/$(ENTRYPOINT_BINARY_NAME)-$$GOOS-$$GOARCH"; \
+		TARGET="/opt/autoteam/bin/$(ENTRYPOINT_BINARY_NAME)-$$GOOS-$$GOARCH"; \
 		if [ -f "$$BINARY" ]; then \
 			sudo cp "$$BINARY" "$$TARGET"; \
 			sudo chmod +x "$$TARGET"; \
@@ -297,7 +297,7 @@ install-entrypoints: ## Install entrypoint binaries for all platforms to /opt/au
 			echo "$(YELLOW)⚠ Binary not found: $$BINARY$(NC)"; \
 		fi; \
 	done
-	@echo "$(GREEN)✓ All available entrypoint binaries installed to /opt/autoteam/entrypoints$(NC)"
+	@echo "$(GREEN)✓ All available entrypoint binaries installed to /opt/autoteam/bin$(NC)"
 
 # Uninstall target
 uninstall: ## Uninstall binaries from system
@@ -314,11 +314,11 @@ uninstall: ## Uninstall binaries from system
 	else \
 		echo "$(YELLOW)! $(ENTRYPOINT_BINARY_NAME) not found in /usr/local/bin/$(NC)"; \
 	fi
-	@if [ -d "/opt/autoteam/entrypoints" ]; then \
-		sudo rm -rf /opt/autoteam/entrypoints; \
-		echo "$(GREEN)✓ Uninstalled entrypoint binaries from /opt/autoteam/entrypoints$(NC)"; \
+	@if [ -d "/opt/autoteam/bin" ]; then \
+		sudo rm -rf /opt/autoteam/bin; \
+		echo "$(GREEN)✓ Uninstalled entrypoint binaries from /opt/autoteam/bin$(NC)"; \
 	else \
-		echo "$(YELLOW)! Entrypoints directory not found in /opt/autoteam/entrypoints$(NC)"; \
+		echo "$(YELLOW)! Binary directory not found in /opt/autoteam/bin$(NC)"; \
 	fi
 
 # Generate checksums for build artifacts
