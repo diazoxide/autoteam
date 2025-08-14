@@ -28,21 +28,14 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 
 	// Create test config with new service structure
 	cfg := &config.Config{
-		Repositories: config.Repositories{
-			Include: []string{"owner/test-repo"},
-		},
 		Agents: []config.Agent{
 			{
-				Name:        "dev1",
-				Prompt:      "You are a developer agent",
-				GitHubToken: "DEV1_TOKEN",
-				GitHubUser:  "dev-user",
+				Name:   "dev1",
+				Prompt: "You are a developer agent",
 			},
 			{
-				Name:        "arch1",
-				Prompt:      "You are an architect agent",
-				GitHubToken: "ARCH1_TOKEN",
-				GitHubUser:  "arch-user",
+				Name:   "arch1",
+				Prompt: "You are an architect agent",
 				Settings: &config.AgentSettings{
 					Service: map[string]interface{}{
 						"image":   "python:3.11",
@@ -51,15 +44,15 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 				},
 			},
 		},
-		Settings: config.Settings{
+		Settings: config.AgentSettings{
 			Service: map[string]interface{}{
 				"image":   "node:18",
 				"user":    "testuser",
 				"volumes": []string{"./shared:/app/shared"},
 			},
-			CheckInterval: 30,
-			TeamName:      "test-team",
-			InstallDeps:   false,
+			CheckInterval: config.IntPtr(30),
+			TeamName:      config.StringPtr("test-team"),
+			InstallDeps:   config.BoolPtr(false),
 		},
 	}
 
@@ -110,29 +103,27 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 	if dev1EnvInterface["AGENT_NAME"] != "dev1" {
 		t.Errorf("dev1 environment should contain AGENT_NAME=dev1, got %v", dev1EnvInterface["AGENT_NAME"])
 	}
-	if dev1EnvInterface["GH_TOKEN"] != "DEV1_TOKEN" {
-		t.Errorf("dev1 environment should contain GH_TOKEN=DEV1_TOKEN, got %v", dev1EnvInterface["GH_TOKEN"])
-	}
+	// GitHub token environment variables removed
 
 	// Verify volumes are properly merged
 	// The YAML unmarshaling converts volumes to []interface{}
 	dev1VolumesInterface := dev1Service["volumes"].([]interface{})
 	hasSharedVolume := false
-	hasCodebaseVolume := false
+	hasAgentVolume := false
 	for _, vol := range dev1VolumesInterface {
 		volStr := vol.(string)
 		if strings.Contains(volStr, "./shared:/app/shared") {
 			hasSharedVolume = true
 		}
-		if strings.Contains(volStr, "dev1/codebase") {
-			hasCodebaseVolume = true
+		if strings.Contains(volStr, "dev1:/opt/autoteam/agents/dev1") {
+			hasAgentVolume = true
 		}
 	}
 	if !hasSharedVolume {
 		t.Errorf("dev1 should have shared volume from global settings")
 	}
-	if !hasCodebaseVolume {
-		t.Errorf("dev1 should have codebase volume")
+	if !hasAgentVolume {
+		t.Errorf("dev1 should have full agent directory volume")
 	}
 
 	// Verify .autoteam/bin directory was created
@@ -142,8 +133,8 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 
 	// Verify agent directories were created
 	agentDirs := []string{
-		".autoteam/agents/dev1/codebase",
-		".autoteam/agents/arch1/codebase",
+		".autoteam/agents/dev1",
+		".autoteam/agents/arch1",
 	}
 
 	for _, dir := range agentDirs {
@@ -181,8 +172,8 @@ func TestGenerator_CreateAgentDirectories(t *testing.T) {
 
 	// Verify directories were created
 	expectedDirs := []string{
-		".autoteam/agents/test1/codebase",
-		".autoteam/agents/test2/codebase",
+		".autoteam/agents/test1",
+		".autoteam/agents/test2",
 	}
 
 	for _, dir := range expectedDirs {
@@ -207,20 +198,17 @@ func TestGenerator_GenerateComposeYAML(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Repositories: config.Repositories{Include: []string{"owner/repo"}},
-		Settings: config.Settings{
+		Settings: config.AgentSettings{
 			Service: map[string]interface{}{
 				"image": "node:18",
 				"user":  "developer",
 			},
-			TeamName: "test-team",
+			TeamName: config.StringPtr("test-team"),
 		},
 		Agents: []config.Agent{
 			{
-				Name:        "dev1",
-				Prompt:      "Developer agent",
-				GitHubToken: "DEV_TOKEN",
-				GitHubUser:  "dev-user",
+				Name:   "dev1",
+				Prompt: "Developer agent",
 			},
 		},
 	}

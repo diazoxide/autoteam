@@ -6,39 +6,35 @@ import (
 )
 
 func TestAgentGetEffectiveSettings(t *testing.T) {
-	globalSettings := Settings{
+	globalSettings := AgentSettings{
 		Service: map[string]interface{}{
 			"image": "node:18",
 			"user":  "developer",
 		},
-		CheckInterval: 60,
-		TeamName:      "global-team",
-		InstallDeps:   true,
+		CheckInterval: IntPtr(60),
+		TeamName:      StringPtr("global-team"),
+		InstallDeps:   BoolPtr(true),
 	}
 
 	tests := []struct {
 		name           string
 		agent          Agent
-		expectedResult Settings
+		expectedResult AgentSettings
 	}{
 		{
 			name: "no agent settings - should use global",
 			agent: Agent{
-				Name:        "test1",
-				Prompt:      "test prompt",
-				GitHubToken: "TOKEN1",
-				GitHubUser:  "test-user",
-				Settings:    nil,
+				Name:     "test1",
+				Prompt:   "test prompt",
+				Settings: nil,
 			},
 			expectedResult: globalSettings,
 		},
 		{
 			name: "partial agent settings - should override only specified",
 			agent: Agent{
-				Name:        "test2",
-				Prompt:      "test prompt",
-				GitHubToken: "TOKEN2",
-				GitHubUser:  "test-user",
+				Name:   "test2",
+				Prompt: "test prompt",
 				Settings: &AgentSettings{
 					Service: map[string]interface{}{
 						"image": "python:3.11",
@@ -46,23 +42,21 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 					CheckInterval: IntPtr(30),
 				},
 			},
-			expectedResult: Settings{
+			expectedResult: AgentSettings{
 				Service: map[string]interface{}{
 					"image": "python:3.11", // overridden
 					"user":  "developer",   // from global
 				},
-				CheckInterval: 30,            // overridden
-				TeamName:      "global-team", // from global
-				InstallDeps:   true,          // from global
+				CheckInterval: IntPtr(30),               // overridden
+				TeamName:      StringPtr("global-team"), // from global
+				InstallDeps:   BoolPtr(true),            // from global
 			},
 		},
 		{
 			name: "full agent settings - should override all",
 			agent: Agent{
-				Name:        "test3",
-				Prompt:      "test prompt",
-				GitHubToken: "TOKEN3",
-				GitHubUser:  "test-user",
+				Name:   "test3",
+				Prompt: "test prompt",
 				Settings: &AgentSettings{
 					Service: map[string]interface{}{
 						"image": "golang:1.21",
@@ -73,14 +67,14 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 					InstallDeps:   BoolPtr(false),
 				},
 			},
-			expectedResult: Settings{
+			expectedResult: AgentSettings{
 				Service: map[string]interface{}{
 					"image": "golang:1.21",
 					"user":  "admin",
 				},
-				CheckInterval: 15,
-				TeamName:      "custom-team",
-				InstallDeps:   false,
+				CheckInterval: IntPtr(15),
+				TeamName:      StringPtr("custom-team"),
+				InstallDeps:   BoolPtr(false),
 			},
 		},
 	}
@@ -101,14 +95,14 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 					}
 				}
 			}
-			if result.CheckInterval != tt.expectedResult.CheckInterval {
-				t.Errorf("CheckInterval = %v, want %v", result.CheckInterval, tt.expectedResult.CheckInterval)
+			if result.GetCheckInterval() != tt.expectedResult.GetCheckInterval() {
+				t.Errorf("CheckInterval = %v, want %v", result.GetCheckInterval(), tt.expectedResult.GetCheckInterval())
 			}
-			if result.TeamName != tt.expectedResult.TeamName {
-				t.Errorf("TeamName = %v, want %v", result.TeamName, tt.expectedResult.TeamName)
+			if result.GetTeamName() != tt.expectedResult.GetTeamName() {
+				t.Errorf("TeamName = %v, want %v", result.GetTeamName(), tt.expectedResult.GetTeamName())
 			}
-			if result.InstallDeps != tt.expectedResult.InstallDeps {
-				t.Errorf("InstallDeps = %v, want %v", result.InstallDeps, tt.expectedResult.InstallDeps)
+			if result.GetInstallDeps() != tt.expectedResult.GetInstallDeps() {
+				t.Errorf("InstallDeps = %v, want %v", result.GetInstallDeps(), tt.expectedResult.GetInstallDeps())
 			}
 		})
 	}
@@ -116,22 +110,15 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 
 func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 	cfg := &Config{
-		Repositories: Repositories{
-			Include: []string{"owner/repo"},
-		},
 		Agents: []Agent{
 			{
-				Name:        "dev",
-				Prompt:      "developer prompt",
-				GitHubToken: "DEV_TOKEN",
-				GitHubUser:  "dev-user",
-				Settings:    nil, // no overrides
+				Name:     "dev",
+				Prompt:   "developer prompt",
+				Settings: nil, // no overrides
 			},
 			{
-				Name:        "arch",
-				Prompt:      "architect prompt",
-				GitHubToken: "ARCH_TOKEN",
-				GitHubUser:  "arch-user",
+				Name:   "arch",
+				Prompt: "architect prompt",
 				Settings: &AgentSettings{
 					Service: map[string]interface{}{
 						"image": "python:3.11",
@@ -140,14 +127,14 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 				},
 			},
 		},
-		Settings: Settings{
+		Settings: AgentSettings{
 			Service: map[string]interface{}{
 				"image": "node:18",
 				"user":  "developer",
 			},
-			CheckInterval: 60,
-			TeamName:      "test-team",
-			InstallDeps:   true,
+			CheckInterval: IntPtr(60),
+			TeamName:      StringPtr("test-team"),
+			InstallDeps:   BoolPtr(true),
 		},
 	}
 
@@ -165,8 +152,8 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 	if devAgent.EffectiveSettings.Service["image"] != "node:18" {
 		t.Errorf("Dev agent Service[image] = %v, want node:18", devAgent.EffectiveSettings.Service["image"])
 	}
-	if devAgent.EffectiveSettings.CheckInterval != 60 {
-		t.Errorf("Dev agent CheckInterval = %v, want 60", devAgent.EffectiveSettings.CheckInterval)
+	if devAgent.EffectiveSettings.GetCheckInterval() != 60 {
+		t.Errorf("Dev agent CheckInterval = %v, want 60", devAgent.EffectiveSettings.GetCheckInterval())
 	}
 
 	// Second agent should have overridden settings
@@ -177,20 +164,20 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 	if archAgent.EffectiveSettings.Service["image"] != "python:3.11" {
 		t.Errorf("Arch agent Service[image] = %v, want python:3.11", archAgent.EffectiveSettings.Service["image"])
 	}
-	if archAgent.EffectiveSettings.CheckInterval != 30 {
-		t.Errorf("Arch agent CheckInterval = %v, want 30", archAgent.EffectiveSettings.CheckInterval)
+	if archAgent.EffectiveSettings.GetCheckInterval() != 30 {
+		t.Errorf("Arch agent CheckInterval = %v, want 30", archAgent.EffectiveSettings.GetCheckInterval())
 	}
 	// Non-overridden settings should use global values
 	if archAgent.EffectiveSettings.Service["user"] != "developer" {
 		t.Errorf("Arch agent Service[user] = %v, want developer", archAgent.EffectiveSettings.Service["user"])
 	}
-	if archAgent.EffectiveSettings.TeamName != "test-team" {
-		t.Errorf("Arch agent TeamName = %v, want test-team", archAgent.EffectiveSettings.TeamName)
+	if archAgent.EffectiveSettings.GetTeamName() != "test-team" {
+		t.Errorf("Arch agent TeamName = %v, want test-team", archAgent.EffectiveSettings.GetTeamName())
 	}
 }
 
 func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
-	globalSettings := Settings{
+	globalSettings := AgentSettings{
 		Service: map[string]interface{}{
 			"image":   "node:18",
 			"user":    "developer",
@@ -200,23 +187,21 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 				"SHARED_VAR": "global_shared",
 			},
 		},
-		CheckInterval: 60,
-		TeamName:      "global-team",
-		InstallDeps:   true,
+		CheckInterval: IntPtr(60),
+		TeamName:      StringPtr("global-team"),
+		InstallDeps:   BoolPtr(true),
 	}
 
 	tests := []struct {
 		name           string
 		agent          Agent
-		expectedResult Settings
+		expectedResult AgentSettings
 	}{
 		{
 			name: "custom volumes should replace global",
 			agent: Agent{
-				Name:        "test1",
-				Prompt:      "test prompt",
-				GitHubToken: "TOKEN1",
-				GitHubUser:  "test-user",
+				Name:   "test1",
+				Prompt: "test prompt",
 				Settings: &AgentSettings{
 					Service: map[string]interface{}{
 						"volumes": []string{
@@ -226,7 +211,7 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: Settings{
+			expectedResult: AgentSettings{
 				Service: map[string]interface{}{
 					"image":   "node:18",
 					"user":    "developer",
@@ -236,25 +221,23 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 						"SHARED_VAR": "global_shared",
 					},
 				},
-				CheckInterval: 60,
-				TeamName:      "global-team",
-				InstallDeps:   true,
+				CheckInterval: IntPtr(60),
+				TeamName:      StringPtr("global-team"),
+				InstallDeps:   BoolPtr(true),
 			},
 		},
 		{
 			name: "custom entrypoint should override global",
 			agent: Agent{
-				Name:        "test2",
-				Prompt:      "test prompt",
-				GitHubToken: "TOKEN2",
-				GitHubUser:  "test-user",
+				Name:   "test2",
+				Prompt: "test prompt",
 				Settings: &AgentSettings{
 					Service: map[string]interface{}{
 						"entrypoint": []string{"/custom/entrypoint.sh"},
 					},
 				},
 			},
-			expectedResult: Settings{
+			expectedResult: AgentSettings{
 				Service: map[string]interface{}{
 					"image":      "node:18",
 					"user":       "developer",
@@ -265,18 +248,16 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 						"SHARED_VAR": "global_shared",
 					},
 				},
-				CheckInterval: 60,
-				TeamName:      "global-team",
-				InstallDeps:   true,
+				CheckInterval: IntPtr(60),
+				TeamName:      StringPtr("global-team"),
+				InstallDeps:   BoolPtr(true),
 			},
 		},
 		{
 			name: "custom environment should merge with global",
 			agent: Agent{
-				Name:        "test3",
-				Prompt:      "test prompt",
-				GitHubToken: "TOKEN3",
-				GitHubUser:  "test-user",
+				Name:   "test3",
+				Prompt: "test prompt",
 				Settings: &AgentSettings{
 					Service: map[string]interface{}{
 						"environment": map[string]string{
@@ -286,7 +267,7 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: Settings{
+			expectedResult: AgentSettings{
 				Service: map[string]interface{}{
 					"image":   "node:18",
 					"user":    "developer",
@@ -297,18 +278,16 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 						"CUSTOM_VAR": "custom_value",
 					},
 				},
-				CheckInterval: 60,
-				TeamName:      "global-team",
-				InstallDeps:   true,
+				CheckInterval: IntPtr(60),
+				TeamName:      StringPtr("global-team"),
+				InstallDeps:   BoolPtr(true),
 			},
 		},
 		{
 			name: "all custom service fields combined",
 			agent: Agent{
-				Name:        "test4",
-				Prompt:      "test prompt",
-				GitHubToken: "TOKEN4",
-				GitHubUser:  "test-user",
+				Name:   "test4",
+				Prompt: "test prompt",
 				Settings: &AgentSettings{
 					Service: map[string]interface{}{
 						"image":       "python:3.11",
@@ -318,7 +297,7 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: Settings{
+			expectedResult: AgentSettings{
 				Service: map[string]interface{}{
 					"image":      "python:3.11",
 					"user":       "developer",
@@ -330,9 +309,9 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 						"PYTHON_ENV": "production",
 					},
 				},
-				CheckInterval: 60,
-				TeamName:      "global-team",
-				InstallDeps:   true,
+				CheckInterval: IntPtr(60),
+				TeamName:      StringPtr("global-team"),
+				InstallDeps:   BoolPtr(true),
 			},
 		},
 	}
@@ -380,14 +359,14 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 			}
 
 			// Check other fields
-			if result.CheckInterval != tt.expectedResult.CheckInterval {
-				t.Errorf("CheckInterval = %v, want %v", result.CheckInterval, tt.expectedResult.CheckInterval)
+			if result.GetCheckInterval() != tt.expectedResult.GetCheckInterval() {
+				t.Errorf("CheckInterval = %v, want %v", result.GetCheckInterval(), tt.expectedResult.GetCheckInterval())
 			}
-			if result.TeamName != tt.expectedResult.TeamName {
-				t.Errorf("TeamName = %v, want %v", result.TeamName, tt.expectedResult.TeamName)
+			if result.GetTeamName() != tt.expectedResult.GetTeamName() {
+				t.Errorf("TeamName = %v, want %v", result.GetTeamName(), tt.expectedResult.GetTeamName())
 			}
-			if result.InstallDeps != tt.expectedResult.InstallDeps {
-				t.Errorf("InstallDeps = %v, want %v", result.InstallDeps, tt.expectedResult.InstallDeps)
+			if result.GetInstallDeps() != tt.expectedResult.GetInstallDeps() {
+				t.Errorf("InstallDeps = %v, want %v", result.GetInstallDeps(), tt.expectedResult.GetInstallDeps())
 			}
 		})
 	}

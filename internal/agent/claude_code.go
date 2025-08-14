@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,25 +18,25 @@ import (
 	"go.uber.org/zap"
 )
 
-// ClaudeAgent implements the Agent interface for Claude Code
-type ClaudeAgent struct {
+// ClaudeCode implements the Agent interface for Claude Code
+type ClaudeCode struct {
 	config     entrypoint.AgentConfig
 	binaryPath string
 	mcpServers map[string]config.MCPServer
 }
 
-// NewClaudeAgent creates a new Claude agent instance
-func NewClaudeAgent(cfg entrypoint.AgentConfig) *ClaudeAgent {
-	return &ClaudeAgent{
+// NewClaudeCode creates a new Claude Code agent instance
+func NewClaudeCode(cfg entrypoint.AgentConfig) *ClaudeCode {
+	return &ClaudeCode{
 		config:     cfg,
 		binaryPath: "claude", // Will be found in PATH after installation
 		mcpServers: make(map[string]config.MCPServer),
 	}
 }
 
-// NewClaudeAgentWithMCP creates a new Claude agent instance with MCP servers
-func NewClaudeAgentWithMCP(cfg entrypoint.AgentConfig, mcpServers map[string]config.MCPServer) *ClaudeAgent {
-	return &ClaudeAgent{
+// NewClaudeCodeWithMCP creates a new Claude Code agent instance with MCP servers
+func NewClaudeCodeWithMCP(cfg entrypoint.AgentConfig, mcpServers map[string]config.MCPServer) *ClaudeCode {
+	return &ClaudeCode{
 		config:     cfg,
 		binaryPath: "claude", // Will be found in PATH after installation
 		mcpServers: mcpServers,
@@ -43,22 +44,18 @@ func NewClaudeAgentWithMCP(cfg entrypoint.AgentConfig, mcpServers map[string]con
 }
 
 // Name returns the agent name
-func (c *ClaudeAgent) Name() string {
+func (c *ClaudeCode) Name() string {
 	return c.config.Name
 }
 
 // Type returns the agent type
-func (c *ClaudeAgent) Type() string {
+func (c *ClaudeCode) Type() string {
 	return "claude"
 }
 
 // Run executes Claude with the given prompt and options
-func (c *ClaudeAgent) Run(ctx context.Context, prompt string, options RunOptions) error {
+func (c *ClaudeCode) Run(ctx context.Context, prompt string, options RunOptions) (*AgentOutput, error) {
 	lgr := logger.FromContext(ctx)
-	if options.DryRun {
-		lgr.Info("DRY RUN: Would execute Claude with prompt", zap.Int("prompt_length", len(prompt)))
-		return nil
-	}
 
 	// Update Claude before running
 	if err := c.update(ctx); err != nil {
@@ -69,6 +66,7 @@ func (c *ClaudeAgent) Run(ctx context.Context, prompt string, options RunOptions
 	args := c.buildArgs(options)
 
 	var lastErr error
+	var lastOutput *AgentOutput
 	maxRetries := options.MaxRetries
 	if maxRetries <= 0 {
 		maxRetries = 1
@@ -83,23 +81,40 @@ func (c *ClaudeAgent) Run(ctx context.Context, prompt string, options RunOptions
 			currentArgs = append(args, "--continue")
 		}
 
+		// Prepare output capture buffers
+		var stdout, stderr bytes.Buffer
+
 		// Execute Claude
 		cmd := exec.CommandContext(ctx, c.binaryPath, currentArgs...)
 		cmd.Dir = options.WorkingDirectory
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
 		cmd.Stdin = strings.NewReader(prompt)
 
 		// Set environment variables
 		cmd.Env = os.Environ()
 
+		lgr.Debug("Executing Claude command",
+			zap.String("binary", c.binaryPath),
+			zap.Strings("args", currentArgs),
+			zap.String("working_dir", options.WorkingDirectory),
+			zap.Int("prompt_length", len(prompt)))
+
 		if err := cmd.Run(); err != nil {
+			// Create output after command execution
+			lastOutput = &AgentOutput{
+				Stdout: stdout.String(),
+				Stderr: stderr.String(),
+			}
 			lastErr = fmt.Errorf("claude execution failed (attempt %d): %w", attempt, err)
-			lgr.Warn("Attempt failed", zap.Int("attempt", attempt), zap.Error(err))
+			lgr.Warn("Attempt failed",
+				zap.Int("attempt", attempt),
+				zap.Error(err),
+				zap.String("stderr", stderr.String()))
 
 			// Don't retry on context cancellation
 			if ctx.Err() != nil {
-				return ctx.Err()
+				return lastOutput, ctx.Err()
 			}
 
 			// Wait before retry (exponential backoff)
@@ -108,51 +123,48 @@ func (c *ClaudeAgent) Run(ctx context.Context, prompt string, options RunOptions
 				lgr.Info("Retrying", zap.Duration("backoff", backoff))
 				select {
 				case <-ctx.Done():
-					return ctx.Err()
+					return lastOutput, ctx.Err()
 				case <-time.After(backoff):
 					continue
 				}
 			}
 		} else {
-			lgr.Info("Claude execution succeeded", zap.Int("attempt", attempt))
-			return nil
+			// Create output after successful execution
+			lastOutput = &AgentOutput{
+				Stdout: stdout.String(),
+				Stderr: stderr.String(),
+			}
+			lgr.Info("Claude execution succeeded",
+				zap.Int("attempt", attempt),
+				zap.Int("stdout_length", len(stdout.String())))
+			return lastOutput, nil
 		}
 	}
 
-	return fmt.Errorf("all %d attempts failed, last error: %w", maxRetries, lastErr)
+	return lastOutput, fmt.Errorf("all %d attempts failed, last error: %w", maxRetries, lastErr)
 }
 
 // IsAvailable checks if Claude is available
-func (c *ClaudeAgent) IsAvailable(ctx context.Context) bool {
+func (c *ClaudeCode) IsAvailable(ctx context.Context) bool {
 	cmd := exec.CommandContext(ctx, c.binaryPath, "--version")
 	return cmd.Run() == nil
 }
 
-// Install installs Claude Code via npm
-func (c *ClaudeAgent) Install(ctx context.Context) error {
+// CheckAvailability checks if Claude Code is available, returns error if not found
+func (c *ClaudeCode) CheckAvailability(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
-	lgr.Info("Installing Claude Code")
+	lgr.Info("Checking Claude Code availability")
 
-	// Check if npm is available
-	if err := exec.CommandContext(ctx, "npm", "--version").Run(); err != nil {
-		return fmt.Errorf("npm is not available, cannot install Claude Code: %w", err)
+	if !c.IsAvailable(ctx) {
+		return fmt.Errorf("claude command not found - please install Claude Code using: npm install -g @anthropic-ai/claude-code")
 	}
 
-	// Install Claude Code globally
-	cmd := exec.CommandContext(ctx, "npm", "install", "-g", "@anthropic-ai/claude-code", "-y")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install Claude Code: %w", err)
-	}
-
-	lgr.Info("Claude Code installed successfully")
+	lgr.Info("Claude Code is available")
 	return nil
 }
 
 // Version returns the Claude version
-func (c *ClaudeAgent) Version(ctx context.Context) (string, error) {
+func (c *ClaudeCode) Version(ctx context.Context) (string, error) {
 	cmd := exec.CommandContext(ctx, c.binaryPath, "--version")
 	output, err := cmd.Output()
 	if err != nil {
@@ -162,7 +174,7 @@ func (c *ClaudeAgent) Version(ctx context.Context) (string, error) {
 }
 
 // update updates Claude to the latest version
-func (c *ClaudeAgent) update(ctx context.Context) error {
+func (c *ClaudeCode) update(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, c.binaryPath, "update")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -170,20 +182,12 @@ func (c *ClaudeAgent) update(ctx context.Context) error {
 }
 
 // buildArgs builds the command line arguments for Claude
-func (c *ClaudeAgent) buildArgs(options RunOptions) []string {
+func (c *ClaudeCode) buildArgs(options RunOptions) []string {
 	args := []string{
 		"--dangerously-skip-permissions",
-	}
-
-	if options.Verbose {
-		args = append(args, "--verbose")
-	}
-
-	if options.OutputFormat != "" {
-		args = append(args, "--output-format", options.OutputFormat)
-	} else {
-		// Default to stream-json for better parsing
-		args = append(args, "--output-format", "stream-json")
+		"--output-format", "stream-json",
+		"--verbose",
+		"--print",
 	}
 
 	// Add MCP config file if MCP servers are configured
@@ -192,19 +196,16 @@ func (c *ClaudeAgent) buildArgs(options RunOptions) []string {
 		args = append(args, "--mcp-config", mcpConfigPath)
 	}
 
-	// Always add --print to display output
-	args = append(args, "--print")
-
 	return args
 }
 
 // Configure configures MCP servers in Claude configuration
-func (c *ClaudeAgent) Configure(ctx context.Context) error {
+func (c *ClaudeCode) Configure(ctx context.Context) error {
 	return c.ConfigureForProject(ctx, "")
 }
 
 // ConfigureForProject configures MCP servers for a specific agent
-func (c *ClaudeAgent) ConfigureForProject(ctx context.Context, projectPath string) error {
+func (c *ClaudeCode) ConfigureForProject(ctx context.Context, projectPath string) error {
 	lgr := logger.FromContext(ctx)
 
 	if len(c.mcpServers) == 0 {
@@ -224,15 +225,14 @@ func (c *ClaudeAgent) ConfigureForProject(ctx context.Context, projectPath strin
 }
 
 // getMCPConfigPath returns the path to the MCP configuration file for this agent
-func (c *ClaudeAgent) getMCPConfigPath() string {
-	// Use config.Agent's GetNormalizedName() method for consistent normalization
-	configAgent := &config.Agent{Name: c.config.Name}
-	normalizedAgentName := configAgent.GetNormalizedName()
-	return fmt.Sprintf("/opt/autoteam/agents/%s/mcp.json", normalizedAgentName)
+func (c *ClaudeCode) getMCPConfigPath() string {
+	// Use the agent name as passed from the factory (already normalized with variations)
+	// Don't re-normalize as it would convert senior_developer/executor back to senior_developer_executor
+	return fmt.Sprintf("/opt/autoteam/agents/%s/.mcp.json", c.config.Name)
 }
 
 // createMCPConfigFile creates the MCP configuration file for this agent
-func (c *ClaudeAgent) createMCPConfigFile(ctx context.Context) error {
+func (c *ClaudeCode) createMCPConfigFile(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
 
 	mcpConfigPath := c.getMCPConfigPath()
@@ -285,6 +285,6 @@ func (c *ClaudeAgent) createMCPConfigFile(ctx context.Context) error {
 }
 
 // SetMCPServers sets the MCP servers for this agent
-func (c *ClaudeAgent) SetMCPServers(mcpServers map[string]config.MCPServer) {
+func (c *ClaudeCode) SetMCPServers(mcpServers map[string]config.MCPServer) {
 	c.mcpServers = mcpServers
 }

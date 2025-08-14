@@ -10,21 +10,22 @@ AutoTeam is a configurable system that deploys AI agents to automatically handle
 
 - **Multi-Repository Support**: Monitor and work across multiple repositories with pattern matching and regex support
 - **Universal Configuration**: Single YAML file to define repositories, agents, and settings
+- **Two-Layer Agent Architecture**: Clean collector/executor subdirectory structure for task separation
 - **Dynamic Agent Scaling**: Support for any number of specialized agents
 - **Intelligent Notification Processing**: Single notification processing with type-specific prompts and intent recognition
 - **Smart Response System**: Distinguishes between consultation requests and implementation tasks to prevent over-engineering
 - **Repository Pattern Matching**: Flexible include/exclude patterns with regex support (`/pattern/` syntax)
-- **Smart Name Normalization**: Automatically handles agent names with spaces and special characters
+- **Smart Name Normalization**: Automatically handles agent names with spaces and special characters using subdirectories
 - **Template-Based Generation**: Docker Compose and entrypoint scripts generated from templates
 - **Role-Based Agents**: Each agent can have specialized prompts and responsibilities
 - **Agent-Specific Settings**: Per-agent Docker images, volumes, and environment overrides
 - **Consolidated Prompt System**: Unified prompt handling with collaborator awareness
-- **Organized File Structure**: All generated files in `.autoteam/` directory
+- **Organized File Structure**: All generated files in `.autoteam/` directory with clean subdirectory structure
 - **Continuous Monitoring**: Configurable intervals for checking GitHub activity
 - **Docker Integration**: Containerized environments with volume mounting and networking
 - **Security Validation**: GitHub token/user validation for enhanced security
 - **Cross-Platform Support**: macOS and Linux with universal installation script
-- **MCP Server Integration**: Model Context Protocol support for enhanced agent capabilities with context and tools
+- **MCP Server Integration**: Model Context Protocol support with agent-specific configuration in proper subdirectories
 
 ## Quick Start
 
@@ -222,7 +223,7 @@ agents:
         command: "npx"
         args: ["-y", "mcp-sqlite-server"]
         env:
-          DATABASE_URL: "sqlite:///opt/autoteam/agents/developer/data.db"
+          DATABASE_URL: "sqlite:///opt/autoteam/agents/developer/collector/data.db"
     settings:
       # Agent settings-level MCP servers (medium priority)
       mcp_servers:
@@ -333,12 +334,24 @@ This generates Docker Compose services with normalized names:
 - `Senior Developer` → `senior_developer` (service name)
 - `API Agent #1` → `api_agent_1` (service name)
 
-Directory structure uses normalized names:
+Directory structure uses normalized names with two-layer architecture:
 ```
 .autoteam/agents/
 ├── senior_developer/
-│   └── codebase/
+│   ├── collector/          # Task collection agent (Gemini/Qwen)
+│   │   ├── .gemini/        # Gemini CLI configuration
+│   │   └── codebase/       # Repository clones
+│   ├── executor/           # Task execution agent (Claude)
+│   │   ├── mcp.json        # Claude MCP configuration
+│   │   └── codebase/       # Repository clones
+│   └── codebase/           # Shared repository access
 └── api_agent_1/
+    ├── collector/
+    │   ├── .qwen/          # Qwen Code configuration
+    │   └── codebase/
+    ├── executor/
+    │   ├── mcp.json
+    │   └── codebase/
     └── codebase/
 ```
 
@@ -372,16 +385,16 @@ Use `autoteam agents` to list all agents and their states.
 ## Architecture
 
 ```
-autoteam.yaml → Generator → .autoteam/compose.yaml + entrypoints/
+autoteam.yaml → Generator → .autoteam/compose.yaml + bin/
       ↓                           ↓
-Multi-Repo Config → Docker Compose → Agent Containers
+Multi-Repo Config → Docker Compose → Agent Containers (collector/executor)
       ↓                           ↓
 Pattern Matching → GitHub Monitoring → Claude Code → Cross-Repo Tasks
 ```
 
 ### Multi-Repository Structure
 
-Each agent maintains separate working directories for each repository:
+Each agent maintains separate working directories with two-layer architecture:
 
 ```
 ./
@@ -390,22 +403,34 @@ Each agent maintains separate working directories for each repository:
     ├── compose.yaml       # Docker Compose configuration
     ├── agents/            # Agent-specific directories
     │   ├── agent1/
-    │   │   ├── codebase/
-    │   │   │   ├── owner1-repo1/    # Repository-specific clone
-    │   │   │   ├── owner1-repo2/    # Multiple repos per agent
-    │   │   │   └── owner2-repo3/
-    │   │   └── claude/              # Claude configuration
+    │   │   ├── collector/          # Task collection layer
+    │   │   │   ├── .gemini/        # Gemini CLI config
+    │   │   │   └── codebase/
+    │   │   │       ├── owner1-repo1/    # Repository-specific clone
+    │   │   │       ├── owner1-repo2/    # Multiple repos per agent
+    │   │   │       └── owner2-repo3/
+    │   │   ├── executor/           # Task execution layer
+    │   │   │   ├── mcp.json        # Claude MCP config
+    │   │   │   └── codebase/
+    │   │   │       ├── owner1-repo1/    # Same repos, separate working dirs
+    │   │   │       └── owner1-repo2/
+    │   │   └── codebase/           # Shared access point
     │   └── agent2/
-    │       ├── codebase/
-    │       │   ├── owner1-repo1/    # Same repos, separate working dirs
-    │       │   └── owner1-repo2/
-    │       └── claude/
-    ├── entrypoints/       # Agent entrypoint binaries
+    │       ├── collector/
+    │       │   ├── .qwen/          # Qwen Code config
+    │       │   └── codebase/
+    │       ├── executor/
+    │       │   ├── mcp.json
+    │       │   └── codebase/
+    │       └── codebase/
+    ├── bin/               # Unified binary directory
     │   ├── autoteam-entrypoint-*
-    │   └── entrypoint.sh
+    │   ├── entrypoint.sh
+    │   └── github-mcp-server
     └── shared/            # Shared configurations
-        ├── .claude
-        └── .claude.json
+        ├── claude/
+        ├── claude.json
+        └── gemini/
 ```
 
 ### Repository Pattern Matching
@@ -515,13 +540,14 @@ See `make help` for all available targets.
 # Check generated files
 autoteam generate
 cat .autoteam/compose.yaml
-ls .autoteam/entrypoints/
+ls .autoteam/bin/
 
 # Verify repository pattern matching
 docker-compose -f .autoteam/compose.yaml logs | grep "Found.*repositories"
 
 # Check individual agent working directories
-ls .autoteam/agents/agent-name/codebase/
+ls .autoteam/agents/agent-name/collector/codebase/
+ls .autoteam/agents/agent-name/executor/codebase/
 
 # Test individual containers
 docker-compose -f .autoteam/compose.yaml up agent-name

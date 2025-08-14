@@ -1,7 +1,3 @@
-repositories:
-  include:
-    - "owner/repo"
-
 agents:
   - name: "dev1"
     prompt: "Developer"

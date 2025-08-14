@@ -55,6 +55,14 @@ func main() {
 				Name:   "up",
 				Usage:  "Generate and start containers",
 				Action: upCommand,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "docker-compose-args",
+						Aliases: []string{"args"},
+						Usage:   "Additional arguments to pass to docker compose command",
+						Value:   "",
+					},
+				},
 			},
 			{
 				Name:   "down",
@@ -92,7 +100,7 @@ func generateCommand(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("config not available in context")
 	}
 
-	log.Info("Generating compose.yaml", zap.String("team_name", cfg.Settings.TeamName))
+	log.Info("Generating compose.yaml", zap.String("team_name", cfg.Settings.GetTeamName()))
 	gen := generator.New()
 	if err := gen.GenerateCompose(cfg); err != nil {
 		log.Error("Failed to generate compose.yaml", zap.Error(err))
@@ -110,7 +118,18 @@ func upCommand(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	fmt.Println("Starting containers...")
-	if err := runDockerCompose(ctx, "up", "-d", "--remove-orphans"); err != nil {
+
+	// Start with default args
+	args := []string{"up", "-d", "--remove-orphans"}
+
+	// Add additional docker-compose-args if provided
+	if dockerComposeArgs := cmd.String("docker-compose-args"); dockerComposeArgs != "" {
+		// Split the args string by spaces and append to args
+		additionalArgs := strings.Fields(dockerComposeArgs)
+		args = append(args, additionalArgs...)
+	}
+
+	if err := runDockerCompose(ctx, args...); err != nil {
 		return fmt.Errorf("failed to start containers: %w", err)
 	}
 
@@ -155,7 +174,6 @@ func agentsCommand(ctx context.Context, cmd *cli.Command) error {
 		}
 
 		fmt.Printf("%d. %s (%s)\n", i+1, agent.Name, status)
-		fmt.Printf("   GitHub User: %s\n", agent.GitHubUser)
 		if agent.Prompt != "" {
 			// Show first line of prompt
 			lines := strings.Split(agent.Prompt, "\n")
@@ -190,8 +208,8 @@ func runDockerCompose(ctx context.Context, args ...string) error {
 	composeArgs := []string{"-f", config.ComposeFilePath}
 
 	// If config is available, use custom project name, otherwise use default
-	if cfg != nil && cfg.Settings.TeamName != "" {
-		composeArgs = append(composeArgs, "-p", cfg.Settings.TeamName)
+	if cfg != nil && cfg.Settings.GetTeamName() != "" {
+		composeArgs = append(composeArgs, "-p", cfg.Settings.GetTeamName())
 	}
 
 	composeArgs = append(composeArgs, args...)
@@ -236,7 +254,7 @@ func setupContextWithLogger(ctx context.Context, cmd *cli.Command) (context.Cont
 		return ctx, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	log.Debug("Config loaded successfully", zap.String("team_name", cfg.Settings.TeamName))
+	log.Debug("Config loaded successfully", zap.String("team_name", cfg.Settings.GetTeamName()))
 	return context.WithValue(ctx, configContextKey, cfg), nil
 }
 

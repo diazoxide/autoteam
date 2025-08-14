@@ -81,7 +81,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 
 		// Build volumes array
 		volumes := []string{
-			fmt.Sprintf("./agents/%s/codebase:/opt/autoteam/agents/%s/codebase", serviceName, serviceName),
+			fmt.Sprintf("./agents/%s:/opt/autoteam/agents/%s", serviceName, serviceName),
 			"./bin:/opt/autoteam/bin",
 		}
 
@@ -105,19 +105,47 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 
 		// Add standard environment variables
 		environment["IS_SANDBOX"] = "1"
-		environment["GH_TOKEN"] = agent.GitHubToken
-		environment["GH_USER"] = agent.GitHubUser
-		environment["REPOSITORIES_INCLUDE"] = strings.Join(cfg.Repositories.Include, ",")
-		if len(cfg.Repositories.Exclude) > 0 {
-			environment["REPOSITORIES_EXCLUDE"] = strings.Join(cfg.Repositories.Exclude, ",")
-		}
 		environment["AGENT_NAME"] = agent.Name
 		environment["AGENT_NORMALIZED_NAME"] = serviceName
 		environment["AGENT_TYPE"] = "claude"
 		environment["AGENT_PROMPT"] = agentWithSettings.GetConsolidatedPrompt(cfg)
-		environment["TEAM_NAME"] = settings.TeamName
-		environment["CHECK_INTERVAL"] = fmt.Sprintf("%d", settings.CheckInterval)
-		environment["INSTALL_DEPS"] = fmt.Sprintf("%t", settings.InstallDeps)
+		environment["TEAM_NAME"] = settings.GetTeamName()
+		environment["CHECK_INTERVAL"] = fmt.Sprintf("%d", settings.GetCheckInterval())
+		environment["INSTALL_DEPS"] = fmt.Sprintf("%t", settings.GetInstallDeps())
+
+		// Two-Layer Agent Architecture Configuration
+		if settings.AggregationAgent != nil {
+			environment["AGGREGATION_AGENT_TYPE"] = settings.AggregationAgent.Type
+			if len(settings.AggregationAgent.Args) > 0 {
+				environment["AGGREGATION_AGENT_ARGS"] = strings.Join(settings.AggregationAgent.Args, ",")
+			}
+			if len(settings.AggregationAgent.Env) > 0 {
+				var envPairs []string
+				for k, v := range settings.AggregationAgent.Env {
+					envPairs = append(envPairs, k+"="+v)
+				}
+				environment["AGGREGATION_AGENT_ENV"] = strings.Join(envPairs, ",")
+			}
+			if settings.AggregationAgent.Prompt != nil {
+				environment["AGGREGATION_AGENT_PROMPT"] = *settings.AggregationAgent.Prompt
+			}
+		}
+		if settings.ExecutionAgent != nil {
+			environment["EXECUTION_AGENT_TYPE"] = settings.ExecutionAgent.Type
+			if len(settings.ExecutionAgent.Args) > 0 {
+				environment["EXECUTION_AGENT_ARGS"] = strings.Join(settings.ExecutionAgent.Args, ",")
+			}
+			if len(settings.ExecutionAgent.Env) > 0 {
+				var envPairs []string
+				for k, v := range settings.ExecutionAgent.Env {
+					envPairs = append(envPairs, k+"="+v)
+				}
+				environment["EXECUTION_AGENT_ENV"] = strings.Join(envPairs, ",")
+			}
+			if settings.ExecutionAgent.Prompt != nil {
+				environment["EXECUTION_AGENT_PROMPT"] = *settings.ExecutionAgent.Prompt
+			}
+		}
 		environment["ENTRYPOINT_VERSION"] = "${ENTRYPOINT_VERSION:-latest}"
 		environment["MAX_RETRIES"] = "${MAX_RETRIES:-100}"
 		environment["DEBUG"] = "${DEBUG:-false}"
@@ -125,16 +153,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 		// Auto-inject GitHub MCP server for all agents and add any configured MCP servers
 		finalMCPServers := make(map[string]config.MCPServer)
 
-		// Always add GitHub MCP server as default
-		finalMCPServers["github"] = config.MCPServer{
-			Command: "/opt/autoteam/bin/github-mcp-server",
-			Args:    []string{"stdio"},
-			Env: map[string]string{
-				"GITHUB_PERSONAL_ACCESS_TOKEN": agent.GitHubToken,
-			},
-		}
-
-		// Add any additional configured MCP servers (can override github if explicitly configured)
+		// Add configured MCP servers
 		for name, server := range settings.MCPServers {
 			finalMCPServers[name] = server
 		}
@@ -150,9 +169,16 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 
 		// Merge with environment from service config
 		if existingEnv, ok := serviceConfig["environment"]; ok {
+			// Handle both map[string]string and map[string]interface{} cases
 			if envMap, ok := existingEnv.(map[string]string); ok {
 				for k, v := range envMap {
 					environment[k] = v
+				}
+			} else if envMapInterface, ok := existingEnv.(map[string]interface{}); ok {
+				for k, v := range envMapInterface {
+					if vStr, ok := v.(string); ok {
+						environment[k] = vStr
+					}
 				}
 			}
 		}
@@ -164,6 +190,19 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 		}
 
 		compose.Services[serviceName] = serviceConfig
+	}
+
+	// Add custom services from configuration
+	if cfg.Services != nil {
+		for serviceName, serviceConfig := range cfg.Services {
+			// Check for conflicts with agent services
+			if _, exists := compose.Services[serviceName]; exists {
+				return fmt.Errorf("custom service '%s' conflicts with generated agent service - please choose a different name", serviceName)
+			}
+
+			// Add custom service directly to compose
+			compose.Services[serviceName] = serviceConfig
+		}
 	}
 
 	// Marshal to YAML

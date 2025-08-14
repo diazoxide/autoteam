@@ -2,72 +2,80 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"autoteam/internal/agent"
+	"autoteam/internal/config"
 	"autoteam/internal/entrypoint"
-	"autoteam/internal/git"
-	"autoteam/internal/github"
 	"autoteam/internal/logger"
+	"autoteam/internal/task"
 
 	"go.uber.org/zap"
 )
 
-// Config contains configuration for the simplified monitor
+// Config contains configuration for the two-layer monitor
 type Config struct {
 	CheckInterval time.Duration
-	DryRun        bool
 	TeamName      string
 }
 
-// Monitor handles the main monitoring loop
+// Monitor handles the two-layer agent monitoring loop
 type Monitor struct {
-	githubClient *github.Client
-	agent        agent.Agent
-	config       Config
-	globalConfig *entrypoint.Config
-	gitSetup     *git.Setup
+	taskCollectionAgent agent.Agent // First Layer - uses AggregationAgent config
+	taskExecutionAgent  agent.Agent // Second Layer - uses Agent config
+	config              Config
+	globalConfig        *entrypoint.Config
+	firstLayerConfig    *config.AgentConfig // First Layer configuration with custom prompt
+	secondLayerConfig   *config.AgentConfig // Second Layer configuration with custom prompt
+	taskService         *task.Service       // Service for task persistence operations
 }
 
-// New creates a new monitor instance
-func New(githubClient *github.Client, selectedAgent agent.Agent, monitorConfig Config, globalConfig *entrypoint.Config) *Monitor {
-	gitSetup := git.NewSetup(globalConfig.Git, globalConfig.GitHub, globalConfig.Repositories)
+// New creates a new two-layer monitor instance
+func New(collectionAgent, executionAgent agent.Agent, monitorConfig Config, globalConfig *entrypoint.Config) *Monitor {
+	// Get agent directory for task service
+	agentNormalizedName := strings.ToLower(strings.ReplaceAll(globalConfig.Agent.Name, " ", "_"))
+	agentDirectory := fmt.Sprintf("/opt/autoteam/agents/%s", agentNormalizedName)
 
 	return &Monitor{
-		githubClient: githubClient,
-		agent:        selectedAgent,
-		config:       monitorConfig,
-		globalConfig: globalConfig,
-		gitSetup:     gitSetup,
+		taskCollectionAgent: collectionAgent,
+		taskExecutionAgent:  executionAgent,
+		config:              monitorConfig,
+		globalConfig:        globalConfig,
+		firstLayerConfig:    nil, // Will be set via SetLayerConfigs if custom prompts are configured
+		secondLayerConfig:   nil, // Will be set via SetLayerConfigs if custom prompts are configured
+		taskService:         task.NewService(agentDirectory),
 	}
 }
 
-// Start starts the simplified notification processing loop
+// SetLayerConfigs sets the layer configurations for custom prompt support
+func (m *Monitor) SetLayerConfigs(firstLayer, secondLayer *config.AgentConfig) {
+	m.firstLayerConfig = firstLayer
+	m.secondLayerConfig = secondLayer
+}
+
+// Start starts the two-layer agent processing loop
 func (m *Monitor) Start(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
-	lgr.Info("Starting simplified notification monitor", zap.Duration("check_interval", m.config.CheckInterval))
+	lgr.Info("Starting two-layer agent monitor",
+		zap.Duration("check_interval", m.config.CheckInterval),
+		zap.String("collection_agent", m.taskCollectionAgent.Type()),
+		zap.String("execution_agent", m.taskExecutionAgent.Type()))
 
-	// Get authenticated user info
-	user, err := m.githubClient.GetAuthenticatedUser(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get authenticated user: %w", err)
+	// Repository access handled via MCP servers
+
+	lgr.Info("Starting two-layer processing loop: task collection -> task execution")
+
+	// Configure agents if they support configuration
+	if err := m.configureAgents(ctx); err != nil {
+		lgr.Warn("Failed to configure agents", zap.Error(err))
 	}
 
-	username := user.GetLogin()
-	lgr.Info("Authenticated as GitHub user", zap.String("username", username))
-
-	// Log repository patterns for transparency
-	if m.globalConfig.Repositories != nil {
-		lgr.Info("Repository patterns configured",
-			zap.Strings("include", m.globalConfig.Repositories.Include),
-			zap.Strings("exclude", m.globalConfig.Repositories.Exclude))
-	}
-
-	lgr.Info("Starting single notification processing loop (no complex prioritization or state management)")
-
-	// Start continuous notification processing loop
+	// Start continuous two-layer processing loop
 	ticker := time.NewTicker(m.config.CheckInterval)
 	defer ticker.Stop()
 
@@ -78,139 +86,514 @@ func (m *Monitor) Start(ctx context.Context) error {
 			return ctx.Err()
 
 		case <-ticker.C:
-			// Process single notification
-			if err := m.processSingleNotification(ctx); err != nil {
-				lgr.Warn("Failed to process notification", zap.Error(err))
+			// Execute two-layer processing cycle
+			if err := m.processTwoLayerCycle(ctx); err != nil {
+				lgr.Warn("Failed to process two-layer cycle", zap.Error(err))
 			}
 		}
 	}
 }
 
-// processSingleNotification gets one notification and processes it with AI validation
-func (m *Monitor) processSingleNotification(ctx context.Context) error {
+// processTwoLayerCycle executes one cycle of the two-layer architecture
+func (m *Monitor) processTwoLayerCycle(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
+	lgr.Debug("Starting two-layer processing cycle")
 
-	// Get single unread notification
-	notification, err := m.githubClient.GetSingleNotification(ctx)
+	// Layer 1: Collect tasks using aggregation agent
+	tasks, err := m.collectTasksWithAggregationAgent(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get single notification: %w", err)
+		return fmt.Errorf("task collection failed: %w", err)
 	}
 
-	// No notifications found - this is normal, just wait for next cycle
-	if notification == nil {
-		lgr.Debug("No unread notifications found")
+	if tasks.IsEmpty() {
+		lgr.Debug("No tasks found by aggregation agent")
 		return nil
 	}
 
-	lgr.Info("Processing notification",
-		zap.String("reason", notification.Reason),
-		zap.String("subject", notification.Subject),
-		zap.String("repository", notification.Repository),
-		zap.String("thread_id", notification.ThreadID))
+	lgr.Info("Tasks collected by aggregation agent",
+		zap.Int("task_count", tasks.Count()),
+		zap.String("agent_type", m.taskCollectionAgent.Type()))
 
-	// Ensure repository is cloned before processing (if it has a repository)
-	if notification.Repository != "" {
-		if err := m.gitSetup.SetupRepository(ctx, notification.Repository); err != nil {
-			lgr.Warn("Failed to setup repository, continuing with notification processing",
-				zap.String("repository", notification.Repository),
-				zap.Error(err))
-		} else {
-			// Get default branch and setup git state
-			parts := strings.Split(notification.Repository, "/")
-			if len(parts) == 2 {
-				owner, repo := parts[0], parts[1]
-				defaultBranch, err := m.githubClient.GetDefaultBranch(ctx, owner, repo)
-				if err != nil {
-					lgr.Debug("Failed to get default branch, using main", zap.Error(err))
-					defaultBranch = "main"
-				}
+	// Layer 2: Execute highest priority task using execution agent
+	return m.executeHighestPriorityTask(ctx, tasks)
+}
 
-				// Setup fresh git state for notification processing
-				lgr.Debug("Setting up fresh git state", zap.String("repository", notification.Repository), zap.String("branch", defaultBranch))
-				if err := m.gitSetup.SwitchToMainBranch(ctx, notification.Repository, defaultBranch); err != nil {
-					lgr.Warn("Failed to switch to main branch", zap.Error(err))
-				}
-			}
+// collectTasksWithAggregationAgent uses the first layer agent to collect tasks
+func (m *Monitor) collectTasksWithAggregationAgent(ctx context.Context) (*task.TaskList, error) {
+	lgr := logger.FromContext(ctx)
+	lgr.Debug("Collecting tasks with aggregation agent", zap.String("agent_type", m.taskCollectionAgent.Type()))
 
-			// Configure MCP servers once per agent (not per repository)
-			if configurable, ok := m.agent.(agent.Configurable); ok {
-				lgr.Debug("Ensuring MCP servers are configured for agent")
-				if err := configurable.Configure(ctx); err != nil {
-					lgr.Warn("Failed to configure MCP servers for agent", zap.Error(err))
-				}
-			}
-		}
+	// Use custom prompt if configured, otherwise fallback to default first layer prompt
+	var basePrompt string
+	if m.firstLayerConfig != nil && m.firstLayerConfig.Prompt != nil {
+		basePrompt = *m.firstLayerConfig.Prompt
+		lgr.Debug("Using custom first layer prompt from configuration")
+	} else {
+		basePrompt = task.FirstLayerPrompt
+		lgr.Debug("Using default first layer prompt")
 	}
 
-	// Build notification prompt for AI
-	prompt := m.buildNotificationPrompt(notification)
-	lgr.Debug("Built notification prompt", zap.Int("length", len(prompt)))
+	// Add TODO_LIST format instruction to the prompt
+	prompt := basePrompt + `
 
-	// Get working directory (use repository-specific if available, otherwise current)
-	workingDir := ""
-	if notification.Repository != "" {
-		workingDir = m.gitSetup.GetRepositoryWorkingDirectory(notification.Repository)
-	}
+Return list of tasks in this exact format:
 
-	// Execute AI agent with notification
+TODO_LIST: ["task text", "task text", ...]
+
+IMPORTANT: 
+- Use exactly "TODO_LIST: " followed by a JSON array
+- If no tasks found, return: TODO_LIST: []
+- Include the TODO_LIST format in your response regardless of other output`
+
+	// Setup run options for task collection
+	// Use agent-specific collector directory for first layer
+	workingDirectory := m.getLayerWorkingDirectory("collector")
+
 	runOptions := agent.RunOptions{
 		MaxRetries:       1,
 		ContinueMode:     false,
-		OutputFormat:     "stream-json",
-		Verbose:          true,
-		DryRun:           m.config.DryRun,
-		WorkingDirectory: workingDir,
+		WorkingDirectory: workingDirectory,
 	}
 
-	if err := m.agent.Run(ctx, prompt, runOptions); err != nil {
-		lgr.Error("AI agent failed to process notification",
-			zap.String("thread_id", notification.ThreadID),
-			zap.String("reason", notification.Reason),
-			zap.Error(err))
-		return fmt.Errorf("agent execution failed: %w", err)
+	// Define file paths - tasks.json in common agent directory, output.txt in layer-specific directory
+	outputFilePath := fmt.Sprintf("%s/output.txt", workingDirectory)
+
+	// Log the working directory for debugging
+	lgr.Info("Executing task collection with aggregation agent",
+		zap.String("working_directory", workingDirectory),
+		zap.String("agent_type", m.taskCollectionAgent.Type()))
+
+	// Execute aggregation agent and capture stdout
+	output, err := m.taskCollectionAgent.Run(ctx, prompt, runOptions)
+
+	// Always save the stdout to output.txt for debugging (even on failure)
+	if output != nil {
+		if saveErr := m.saveAgentOutput(ctx, outputFilePath, output.Stdout, output.Stderr); saveErr != nil {
+			lgr.Warn("Failed to save agent output", zap.Error(saveErr))
+		}
 	}
 
-	lgr.Info("Notification processed successfully by AI",
-		zap.String("thread_id", notification.ThreadID),
-		zap.String("reason", notification.Reason))
+	if err != nil {
+		lgr.Error("Task collection agent failed", zap.Error(err))
+		// Do not create empty tasks.json - preserve existing tasks
+		return nil, fmt.Errorf("aggregation agent execution failed: %w", err)
+	}
+
+	// Parse tasks from agent stdout
+	newTasksJSON, err := task.ParseTasksFromStdout(output.Stdout)
+	if err != nil {
+		lgr.Error("Failed to parse tasks from stdout",
+			zap.Error(err),
+			zap.String("stdout", output.Stdout))
+
+		// Do not create empty tasks.json - preserve existing tasks
+		// Return empty task list to continue processing without losing existing data
+		return task.CreateEmptyTaskList(), nil
+	}
+
+	// Use task service to merge and save tasks
+	mergedTasksJSON, err := m.taskService.AddNewTasksAndSave(ctx, newTasksJSON)
+	if err != nil {
+		lgr.Warn("Failed to merge and save tasks", zap.Error(err))
+		mergedTasksJSON = newTasksJSON
+	}
+
+	// Convert TasksJSON to TaskList for compatibility with existing code
+	taskList := m.taskService.ConvertToTaskList(mergedTasksJSON)
+
+	lgr.Info("Task collection completed successfully",
+		zap.String("agent_type", m.taskCollectionAgent.Type()),
+		zap.Int("tasks_count", taskList.Count()),
+		zap.Int("todo_count", mergedTasksJSON.TodoCount()),
+		zap.Int("done_count", mergedTasksJSON.DoneCount()),
+		zap.Int("new_tasks_added", newTasksJSON.TodoCount()),
+		zap.String("tasks_file", m.taskService.GetTasksPath()),
+		zap.String("stdout_preview", truncateString(output.Stdout, 200)))
+
+	return taskList, nil
+}
+
+// createEmptyTasksJSON creates an empty tasks.json file
+func (m *Monitor) createEmptyTasksJSON(ctx context.Context, filePath string) error {
+	emptyTasks := task.NewTasksJSON()
+	return m.saveTasksJSON(ctx, filePath, emptyTasks)
+}
+
+// saveTasksJSON saves TasksJSON to a JSON file
+func (m *Monitor) saveTasksJSON(ctx context.Context, filePath string, tasksJSON *task.TasksJSON) error {
+	lgr := logger.FromContext(ctx)
+
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Marshal to JSON with indentation for readability
+	data, err := json.MarshalIndent(tasksJSON, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal tasks JSON: %w", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write tasks JSON file: %w", err)
+	}
+
+	lgr.Debug("Tasks JSON file saved successfully",
+		zap.String("path", filePath),
+		zap.Int("todo_count", len(tasksJSON.Todo)),
+		zap.Int("done_count", len(tasksJSON.Done)))
 
 	return nil
 }
 
-// buildNotificationPrompt builds a type-specific prompt for AI to handle a notification
-func (m *Monitor) buildNotificationPrompt(notification *github.NotificationInfo) string {
-	var promptParts []string
+// saveAgentOutput saves agent stdout and stderr to a file for debugging
+func (m *Monitor) saveAgentOutput(ctx context.Context, filePath, stdout, stderr string) error {
+	lgr := logger.FromContext(ctx)
 
-	// Route to type-specific prompt builder
-	var typeSpecificPrompt string
-	switch notification.CorrelatedType {
-	case "review_request":
-		typeSpecificPrompt = m.buildReviewRequestPrompt(notification)
-	case "assigned_issue":
-		typeSpecificPrompt = m.buildAssignedIssuePrompt(notification)
-	case "assigned_pr":
-		typeSpecificPrompt = m.buildAssignedPRPrompt(notification)
-	case "mention":
-		typeSpecificPrompt = m.buildMentionPrompt(notification)
-	case "failed_workflow":
-		typeSpecificPrompt = m.buildFailedWorkflowPrompt(notification)
-	case "unread_comment":
-		typeSpecificPrompt = m.buildUnreadCommentPrompt(notification)
-	default:
-		// Generic notification or unknown type
-		typeSpecificPrompt = m.buildGenericNotificationPrompt(notification)
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	promptParts = append(promptParts, typeSpecificPrompt)
+	// Create output content with timestamp and sections
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	content := fmt.Sprintf("=== Agent Output - %s ===\n\n", timestamp)
 
-	// Add agent-specific prompt from configuration
-	if m.globalConfig.Agent.Prompt != "" {
-		promptParts = append(promptParts, "", "**Your Role-Specific Instructions:**", m.globalConfig.Agent.Prompt)
+	// Add stdout section
+	content += "=== STDOUT ===\n"
+	if stdout != "" {
+		content += stdout
+	} else {
+		content += "(empty)\n"
+	}
+	content += "\n\n"
+
+	// Add stderr section
+	content += "=== STDERR ===\n"
+	if stderr != "" {
+		content += stderr
+	} else {
+		content += "(empty)\n"
+	}
+	content += "\n"
+
+	// Write to file
+	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write agent output file: %w", err)
 	}
 
-	// Add mandatory read-marking instruction (applies to all types)
-	finalInstructions := fmt.Sprintf("**CRITICAL REQUIREMENT**: You MUST mark this notification as read after processing, regardless of whether it was actionable or stale. Use this exact command:\n\n```bash\ngh api -X PATCH \"notifications/threads/%s\"\n```\n\nThis is mandatory for preventing duplicate processing in future iterations.", notification.ThreadID)
-	promptParts = append(promptParts, "", finalInstructions)
+	lgr.Debug("Agent output saved successfully",
+		zap.String("path", filePath),
+		zap.Int("stdout_length", len(stdout)),
+		zap.Int("stderr_length", len(stderr)))
 
-	return strings.Join(promptParts, "\n")
+	return nil
+}
+
+// truncateString truncates a string to maxLength with "..." suffix if needed
+func truncateString(s string, maxLength int) string {
+	if len(s) <= maxLength {
+		return s
+	}
+	return s[:maxLength-3] + "..."
+}
+
+// executeHighestPriorityTask uses the second layer agent to execute a task
+func (m *Monitor) executeHighestPriorityTask(ctx context.Context, tasks *task.TaskList) error {
+	lgr := logger.FromContext(ctx)
+
+	// Get the highest priority task
+	highestPriorityTask := tasks.GetHighestPriorityTask()
+	if highestPriorityTask == nil {
+		lgr.Debug("No tasks to execute")
+		return nil
+	}
+
+	lgr.Info("Executing task with execution agent",
+		zap.String("task_id", highestPriorityTask.ID),
+		zap.String("task_type", highestPriorityTask.Type),
+		zap.Int("priority", highestPriorityTask.Priority),
+		zap.String("agent_type", m.taskExecutionAgent.Type()))
+
+	// Repository operations handled via MCP servers
+	// Use custom prompt if configured, otherwise fallback to building task-specific prompt
+	var prompt string
+	if m.secondLayerConfig != nil && m.secondLayerConfig.Prompt != nil {
+		// Use custom second layer prompt with task description appended
+		prompt = *m.secondLayerConfig.Prompt + "\n\n## Task Description\n" + highestPriorityTask.Description
+		lgr.Debug("Using custom second layer prompt from configuration")
+	} else {
+		// Build task-specific prompt for execution using the task description
+		prompt = task.BuildSecondLayerPrompt(highestPriorityTask.Description)
+		lgr.Debug("Using default second layer prompt")
+	}
+
+	// Get working directory for execution agent (second layer)
+	workingDir := m.getLayerWorkingDirectory("executor")
+
+	// Setup run options for task execution with streaming logs
+	runOptions := agent.RunOptions{
+		MaxRetries:       3, // More retries for execution
+		ContinueMode:     false,
+		WorkingDirectory: workingDir,
+	}
+
+	// Define output file path in the executor directory (backward compatibility)
+	executorOutputPath := fmt.Sprintf("%s/output.txt", workingDir)
+
+	// Log the working directory for debugging
+	lgr.Info("Executing task with execution agent",
+		zap.String("working_directory", workingDir),
+		zap.String("agent_type", m.taskExecutionAgent.Type()))
+
+	// Execute the task with the execution agent using streaming logs
+	output, err := m.executeWithStreamingLogs(ctx, prompt, runOptions, highestPriorityTask.Description)
+
+	// Always save the stdout to output.txt for debugging (even on failure) - backward compatibility
+	if output != nil {
+		if saveErr := m.saveAgentOutput(ctx, executorOutputPath, output.Stdout, output.Stderr); saveErr != nil {
+			lgr.Warn("Failed to save executor agent output", zap.Error(saveErr))
+		}
+	}
+
+	if err != nil {
+		lgr.Error("Task execution agent failed",
+			zap.String("task_id", highestPriorityTask.ID),
+			zap.String("task_type", highestPriorityTask.Type),
+			zap.Error(err))
+		return fmt.Errorf("execution agent failed for task %s: %w", highestPriorityTask.ID, err)
+	}
+
+	lgr.Info("Task executed successfully",
+		zap.String("task_id", highestPriorityTask.ID),
+		zap.String("task_type", highestPriorityTask.Type),
+		zap.String("agent_type", m.taskExecutionAgent.Type()))
+
+	// Mark task as completed using task service
+	if err := m.taskService.MarkTaskCompleted(ctx, highestPriorityTask.Description); err != nil {
+		lgr.Warn("Failed to mark task as completed in tasks.json",
+			zap.Error(err),
+			zap.String("task_description", highestPriorityTask.Description))
+	}
+
+	return nil
+}
+
+// configureAgents configures both agents if they support configuration
+func (m *Monitor) configureAgents(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
+
+	// Configure task collection agent
+	if configurable, ok := m.taskCollectionAgent.(agent.Configurable); ok {
+		lgr.Debug("Configuring task collection agent", zap.String("agent_type", m.taskCollectionAgent.Type()))
+		if err := configurable.Configure(ctx); err != nil {
+			lgr.Warn("Failed to configure task collection agent", zap.Error(err))
+		}
+	}
+
+	// Configure task execution agent
+	if configurable, ok := m.taskExecutionAgent.(agent.Configurable); ok {
+		lgr.Debug("Configuring task execution agent", zap.String("agent_type", m.taskExecutionAgent.Type()))
+		if err := configurable.Configure(ctx); err != nil {
+			lgr.Warn("Failed to configure task execution agent", zap.Error(err))
+		}
+	}
+
+	return nil
+}
+
+// mergeWithExistingTasks loads existing tasks.json and merges with new tasks
+// This preserves the todo and done state across collection cycles
+func (m *Monitor) mergeWithExistingTasks(ctx context.Context, tasksJSONPath string, newTasksJSON *task.TasksJSON) (*task.TasksJSON, error) {
+	lgr := logger.FromContext(ctx)
+
+	// Try to load existing tasks.json file
+	existingData, err := os.ReadFile(tasksJSONPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			lgr.Debug("No existing tasks.json file, using new tasks only")
+			return newTasksJSON, nil
+		}
+		return nil, fmt.Errorf("failed to read existing tasks.json: %w", err)
+	}
+
+	// Parse existing tasks
+	existingTasksJSON, err := task.LoadTasksJSON(existingData)
+	if err != nil {
+		lgr.Warn("Failed to parse existing tasks.json, using new tasks only", zap.Error(err))
+		return newTasksJSON, nil
+	}
+
+	lgr.Debug("Merging tasks",
+		zap.Int("existing_todo", existingTasksJSON.TodoCount()),
+		zap.Int("existing_done", existingTasksJSON.DoneCount()),
+		zap.Int("new_todo", newTasksJSON.TodoCount()))
+
+	// Create merged tasks starting with existing tasks
+	mergedTasks := task.NewTasksJSON()
+
+	// Preserve existing todo items
+	for _, existingTodo := range existingTasksJSON.Todo {
+		mergedTasks.AddTodoTask(existingTodo)
+	}
+
+	// Preserve existing done items
+	for _, existingDone := range existingTasksJSON.Done {
+		mergedTasks.AddDoneTask(existingDone)
+	}
+
+	// Add new todo items (avoid duplicates)
+	for _, newTodo := range newTasksJSON.Todo {
+		if !mergedTasks.ContainsTodoTask(newTodo) {
+			mergedTasks.AddTodoTask(newTodo)
+		}
+	}
+
+	lgr.Info("Tasks merged successfully",
+		zap.Int("final_todo_count", mergedTasks.TodoCount()),
+		zap.Int("final_done_count", mergedTasks.DoneCount()),
+		zap.Int("tasks_added", newTasksJSON.TodoCount()))
+
+	return mergedTasks, nil
+}
+
+// markTaskAsCompleted moves a task from todo to done in the shared tasks.json file
+func (m *Monitor) markTaskAsCompleted(ctx context.Context, taskDescription string) error {
+	lgr := logger.FromContext(ctx)
+
+	// Get the shared tasks.json path
+	agentDirectory := m.getAgentWorkingDirectory()
+	tasksJSONPath := fmt.Sprintf("%s/tasks.json", agentDirectory)
+
+	// Load existing tasks.json
+	existingData, err := os.ReadFile(tasksJSONPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			lgr.Debug("No tasks.json file exists, nothing to mark as completed")
+			return nil
+		}
+		return fmt.Errorf("failed to read tasks.json: %w", err)
+	}
+
+	// Parse existing tasks
+	tasksJSON, err := task.LoadTasksJSON(existingData)
+	if err != nil {
+		return fmt.Errorf("failed to parse tasks.json: %w", err)
+	}
+
+	// Check if task exists in todo list
+	if !tasksJSON.ContainsTodoTask(taskDescription) {
+		lgr.Debug("Task not found in todo list, may have been already completed",
+			zap.String("task_description", taskDescription))
+		return nil
+	}
+
+	// Move task from todo to done
+	tasksJSON.MoveToDone(taskDescription)
+
+	// Save updated tasks.json
+	if err := m.saveTasksJSON(ctx, tasksJSONPath, tasksJSON); err != nil {
+		return fmt.Errorf("failed to save updated tasks.json: %w", err)
+	}
+
+	lgr.Info("Task marked as completed",
+		zap.String("task_description", taskDescription),
+		zap.Int("remaining_todo_count", tasksJSON.TodoCount()),
+		zap.Int("done_count", tasksJSON.DoneCount()))
+
+	return nil
+}
+
+// getAgentWorkingDirectory returns the common agent working directory
+func (m *Monitor) getAgentWorkingDirectory() string {
+	// Normalize agent name consistently using the same logic as config.Agent.GetNormalizedName()
+	agentNormalizedName := strings.ToLower(strings.ReplaceAll(m.globalConfig.Agent.Name, " ", "_"))
+	return fmt.Sprintf("/opt/autoteam/agents/%s", agentNormalizedName)
+}
+
+// getLayerWorkingDirectory returns the layer-specific working directory
+func (m *Monitor) getLayerWorkingDirectory(layer string) string {
+	// Normalize agent name consistently using the same logic as config.Agent.GetNormalizedName()
+	agentNormalizedName := strings.ToLower(strings.ReplaceAll(m.globalConfig.Agent.Name, " ", "_"))
+	return fmt.Sprintf("/opt/autoteam/agents/%s/%s", agentNormalizedName, layer)
+}
+
+// executeWithStreamingLogs executes the agent with streaming logs to a task-specific file
+func (m *Monitor) executeWithStreamingLogs(ctx context.Context, prompt string, runOptions agent.RunOptions, taskDescription string) (*agent.AgentOutput, error) {
+	lgr := logger.FromContext(ctx)
+
+	// Create streaming logger for the executor working directory
+	streamingLogger := task.NewStreamingLogger(runOptions.WorkingDirectory)
+
+	// Create log file for this task
+	logFile, err := streamingLogger.CreateLogFile(ctx, taskDescription)
+	if err != nil {
+		lgr.Warn("Failed to create streaming log file, proceeding without streaming logs", zap.Error(err))
+		// Fall back to regular execution without streaming logs
+		return m.taskExecutionAgent.Run(ctx, prompt, runOptions)
+	}
+	defer logFile.Close()
+
+	lgr.Info("Created streaming log file for task",
+		zap.String("task_description", taskDescription),
+		zap.String("normalized_name", task.NormalizeTaskText(taskDescription)),
+		zap.String("log_file", logFile.Name()))
+
+	// Note: The current agent interface doesn't support streaming output redirection
+	// For now, we'll execute the agent normally and then write the output to the log file
+	// This maintains backward compatibility while adding the streaming log functionality
+
+	// Execute the agent normally
+	output, err := m.taskExecutionAgent.Run(ctx, prompt, runOptions)
+
+	// Stream the output to the log file immediately after execution
+	if output != nil {
+		// Write stdout section
+		if _, writeErr := logFile.WriteString("=== AGENT STDOUT ===\n"); writeErr != nil {
+			lgr.Warn("Failed to write to streaming log file", zap.Error(writeErr))
+		}
+		if output.Stdout != "" {
+			if _, writeErr := logFile.WriteString(output.Stdout); writeErr != nil {
+				lgr.Warn("Failed to write stdout to streaming log file", zap.Error(writeErr))
+			}
+		} else {
+			if _, writeErr := logFile.WriteString("(empty)\n"); writeErr != nil {
+				lgr.Warn("Failed to write stdout to streaming log file", zap.Error(writeErr))
+			}
+		}
+		if _, writeErr := logFile.WriteString("\n\n"); writeErr != nil {
+			lgr.Warn("Failed to write to streaming log file", zap.Error(writeErr))
+		}
+
+		// Write stderr section
+		if _, writeErr := logFile.WriteString("=== AGENT STDERR ===\n"); writeErr != nil {
+			lgr.Warn("Failed to write to streaming log file", zap.Error(writeErr))
+		}
+		if output.Stderr != "" {
+			if _, writeErr := logFile.WriteString(output.Stderr); writeErr != nil {
+				lgr.Warn("Failed to write stderr to streaming log file", zap.Error(writeErr))
+			}
+		} else {
+			if _, writeErr := logFile.WriteString("(empty)\n"); writeErr != nil {
+				lgr.Warn("Failed to write stderr to streaming log file", zap.Error(writeErr))
+			}
+		}
+		if _, writeErr := logFile.WriteString("\n"); writeErr != nil {
+			lgr.Warn("Failed to write to streaming log file", zap.Error(writeErr))
+		}
+
+		// Write completion timestamp
+		completionTime := time.Now().Format("2006-01-02 15:04:05")
+		if _, writeErr := logFile.WriteString(fmt.Sprintf("=== Task Completed - %s ===\n", completionTime)); writeErr != nil {
+			lgr.Warn("Failed to write completion timestamp to streaming log file", zap.Error(writeErr))
+		}
+
+		lgr.Info("Successfully wrote agent output to streaming log file",
+			zap.String("log_file", logFile.Name()),
+			zap.Int("stdout_length", len(output.Stdout)),
+			zap.Int("stderr_length", len(output.Stderr)))
+	}
+
+	return output, err
 }

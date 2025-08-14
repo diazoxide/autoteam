@@ -18,32 +18,25 @@ func TestLoadConfig_Valid(t *testing.T) {
 			name:     "valid config",
 			filename: "testdata/valid.yaml",
 			want: Config{
-				Repositories: Repositories{
-					Include: []string{"owner/test-repo"},
-				},
 				Agents: []Agent{
 					{
-						Name:        "dev1",
-						Prompt:      "You are a developer agent",
-						GitHubToken: "DEV1_TOKEN",
-						GitHubUser:  "dev-user",
+						Name:   "dev1",
+						Prompt: "You are a developer agent",
 					},
 					{
-						Name:        "arch1",
-						Prompt:      "You are an architect agent",
-						GitHubToken: "ARCH1_TOKEN",
-						GitHubUser:  "arch-user",
+						Name:   "arch1",
+						Prompt: "You are an architect agent",
 					},
 				},
-				Settings: Settings{
+				Settings: AgentSettings{
 					Service: map[string]interface{}{
 						"image": "node:18.17.1",
 						"user":  "developer",
 					},
-					CheckInterval: 60,
-					TeamName:      "test-team",
-					InstallDeps:   true,
-					CommonPrompt:  "Follow best practices",
+					CheckInterval: IntPtr(60),
+					TeamName:      StringPtr("test-team"),
+					InstallDeps:   BoolPtr(true),
+					CommonPrompt:  StringPtr("Follow best practices"),
 				},
 			},
 		},
@@ -51,25 +44,20 @@ func TestLoadConfig_Valid(t *testing.T) {
 			name:     "minimal config with defaults",
 			filename: "testdata/minimal.yaml",
 			want: Config{
-				Repositories: Repositories{
-					Include: []string{"owner/repo"},
-				},
 				Agents: []Agent{
 					{
-						Name:        "dev1",
-						Prompt:      "Developer",
-						GitHubToken: "TOKEN",
-						GitHubUser:  "dev-user",
+						Name:   "dev1",
+						Prompt: "Developer",
 					},
 				},
-				Settings: Settings{
+				Settings: AgentSettings{
 					Service: map[string]interface{}{
 						"image": "node:18.17.1", // default
 						"user":  "developer",    // default
 					},
-					CheckInterval: 60,         // default
-					TeamName:      "autoteam", // default
-					InstallDeps:   false,      // default
+					CheckInterval: IntPtr(60),            // default
+					TeamName:      StringPtr("autoteam"), // default
+					InstallDeps:   BoolPtr(false),        // default
 				},
 			},
 		},
@@ -80,13 +68,6 @@ func TestLoadConfig_Valid(t *testing.T) {
 			got, err := LoadConfig(tt.filename)
 			if err != nil {
 				t.Fatalf("LoadConfig() error = %v", err)
-			}
-
-			if len(got.Repositories.Include) != len(tt.want.Repositories.Include) {
-				t.Errorf("Repositories.Include length = %v, want %v", len(got.Repositories.Include), len(tt.want.Repositories.Include))
-			}
-			if len(got.Repositories.Include) > 0 && got.Repositories.Include[0] != tt.want.Repositories.Include[0] {
-				t.Errorf("Repositories.Include[0] = %v, want %v", got.Repositories.Include[0], tt.want.Repositories.Include[0])
 			}
 
 			if len(got.Agents) != len(tt.want.Agents) {
@@ -101,9 +82,6 @@ func TestLoadConfig_Valid(t *testing.T) {
 				if agent.Prompt != wantAgent.Prompt {
 					t.Errorf("Agent[%d].Prompt = %v, want %v", i, agent.Prompt, wantAgent.Prompt)
 				}
-				if agent.GitHubToken != wantAgent.GitHubToken {
-					t.Errorf("Agent[%d].GitHubToken = %v, want %v", i, agent.GitHubToken, wantAgent.GitHubToken)
-				}
 			}
 
 			if got.Settings.Service["image"] != tt.want.Settings.Service["image"] {
@@ -112,11 +90,11 @@ func TestLoadConfig_Valid(t *testing.T) {
 			if got.Settings.Service["user"] != tt.want.Settings.Service["user"] {
 				t.Errorf("Settings.Service[user] = %v, want %v", got.Settings.Service["user"], tt.want.Settings.Service["user"])
 			}
-			if got.Settings.CheckInterval != tt.want.Settings.CheckInterval {
-				t.Errorf("Settings.CheckInterval = %v, want %v", got.Settings.CheckInterval, tt.want.Settings.CheckInterval)
+			if got.Settings.GetCheckInterval() != tt.want.Settings.GetCheckInterval() {
+				t.Errorf("Settings.CheckInterval = %v, want %v", got.Settings.GetCheckInterval(), tt.want.Settings.GetCheckInterval())
 			}
-			if got.Settings.TeamName != tt.want.Settings.TeamName {
-				t.Errorf("Settings.TeamName = %v, want %v", got.Settings.TeamName, tt.want.Settings.TeamName)
+			if got.Settings.GetTeamName() != tt.want.Settings.GetTeamName() {
+				t.Errorf("Settings.TeamName = %v, want %v", got.Settings.GetTeamName(), tt.want.Settings.GetTeamName())
 			}
 		})
 	}
@@ -128,11 +106,6 @@ func TestLoadConfig_Invalid(t *testing.T) {
 		filename string
 		wantErr  string
 	}{
-		{
-			name:     "missing repository",
-			filename: "testdata/invalid_no_repo.yaml",
-			wantErr:  "at least one repository must be specified in repositories.include",
-		},
 		{
 			name:     "no agents",
 			filename: "testdata/invalid_no_agents.yaml",
@@ -184,9 +157,6 @@ func TestCreateSampleConfig(t *testing.T) {
 	}
 
 	// Verify some basic properties
-	if len(cfg.Repositories.Include) == 0 || cfg.Repositories.Include[0] != "myorg/project-alpha" {
-		t.Errorf("Sample config Repositories.Include[0] = %v, want myorg/project-alpha", cfg.Repositories.Include)
-	}
 
 	if len(cfg.Agents) != 3 {
 		t.Errorf("Sample config len(Agents) = %v, want 3", len(cfg.Agents))
@@ -219,36 +189,24 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "valid config",
 			config: Config{
-				Repositories: Repositories{Include: []string{"owner/repo"}},
 				Agents: []Agent{
-					{Name: "dev1", Prompt: "prompt", GitHubToken: "TOKEN", GitHubUser: "dev-user"},
+					{Name: "dev1", Prompt: "prompt"},
 				},
 			},
 			wantErr: "",
 		},
 		{
-			name: "missing repository URL",
-			config: Config{
-				Agents: []Agent{
-					{Name: "dev1", Prompt: "prompt", GitHubToken: "TOKEN", GitHubUser: "dev-user"},
-				},
-			},
-			wantErr: "at least one repository must be specified in repositories.include",
-		},
-		{
 			name: "no agents",
 			config: Config{
-				Repositories: Repositories{Include: []string{"owner/repo"}},
-				Agents:       []Agent{},
+				Agents: []Agent{},
 			},
 			wantErr: "at least one agent must be configured",
 		},
 		{
 			name: "agent missing name",
 			config: Config{
-				Repositories: Repositories{Include: []string{"owner/repo"}},
 				Agents: []Agent{
-					{Prompt: "prompt", GitHubToken: "TOKEN", GitHubUser: "dev-user"},
+					{Prompt: "prompt"},
 				},
 			},
 			wantErr: "agent[0].name is required",
@@ -256,22 +214,11 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "agent missing prompt",
 			config: Config{
-				Repositories: Repositories{Include: []string{"owner/repo"}},
 				Agents: []Agent{
-					{Name: "dev1", GitHubToken: "TOKEN", GitHubUser: "dev-user"},
+					{Name: "dev1"},
 				},
 			},
 			wantErr: "agent[0].prompt is required for enabled agents",
-		},
-		{
-			name: "agent missing github token env",
-			config: Config{
-				Repositories: Repositories{Include: []string{"owner/repo"}},
-				Agents: []Agent{
-					{Name: "dev1", Prompt: "prompt", GitHubUser: "dev-user"},
-				},
-			},
-			wantErr: "agent[0].github_token is required for enabled agents",
 		},
 	}
 
@@ -308,29 +255,26 @@ func TestSetDefaults(t *testing.T) {
 	if config.Settings.Service["user"] != "developer" {
 		t.Errorf("Service[user] = %v, want developer", config.Settings.Service["user"])
 	}
-	if config.Settings.CheckInterval != 60 {
-		t.Errorf("CheckInterval = %v, want 60", config.Settings.CheckInterval)
+	if config.Settings.GetCheckInterval() != 60 {
+		t.Errorf("CheckInterval = %v, want 60", config.Settings.GetCheckInterval())
 	}
-	if config.Settings.TeamName != "autoteam" {
-		t.Errorf("TeamName = %v, want autoteam", config.Settings.TeamName)
+	if config.Settings.GetTeamName() != "autoteam" {
+		t.Errorf("TeamName = %v, want autoteam", config.Settings.GetTeamName())
 	}
 	// MaxAttempts should also be set
-	if config.Settings.MaxAttempts != 3 {
-		t.Errorf("MaxAttempts = %v, want 3", config.Settings.MaxAttempts)
+	if config.Settings.GetMaxAttempts() != 3 {
+		t.Errorf("MaxAttempts = %v, want 3", config.Settings.GetMaxAttempts())
 	}
 
 	// Test that existing values are not overridden
 	config2 := &Config{
-		Settings: Settings{
+		Settings: AgentSettings{
 			Service: map[string]interface{}{
 				"image": "custom:latest",
 				"user":  "custom-user",
 			},
-			CheckInterval: 120,
-			TeamName:      "custom-team",
-		},
-		Repositories: Repositories{
-			Include: []string{"owner/repo"},
+			CheckInterval: IntPtr(120),
+			TeamName:      StringPtr("custom-team"),
 		},
 	}
 
@@ -342,11 +286,11 @@ func TestSetDefaults(t *testing.T) {
 	if config2.Settings.Service["user"] != "custom-user" {
 		t.Errorf("Service[user] should not be overridden, got %v", config2.Settings.Service["user"])
 	}
-	if config2.Settings.CheckInterval != 120 {
-		t.Errorf("CheckInterval should not be overridden, got %v", config2.Settings.CheckInterval)
+	if config2.Settings.GetCheckInterval() != 120 {
+		t.Errorf("CheckInterval should not be overridden, got %v", config2.Settings.GetCheckInterval())
 	}
-	if config2.Settings.TeamName != "custom-team" {
-		t.Errorf("TeamName should not be overridden, got %v", config2.Settings.TeamName)
+	if config2.Settings.GetTeamName() != "custom-team" {
+		t.Errorf("TeamName should not be overridden, got %v", config2.Settings.GetTeamName())
 	}
 }
 
@@ -392,35 +336,26 @@ func TestAgentIsEnabled(t *testing.T) {
 
 func TestGetEnabledAgentsWithEffectiveSettings(t *testing.T) {
 	config := &Config{
-		Repositories: Repositories{
-			Include: []string{"owner/repo"},
-		},
 		Agents: []Agent{
 			{
-				Name:        "dev1",
-				Prompt:      "Developer",
-				GitHubToken: "TOKEN1",
-				GitHubUser:  "user1",
-				Enabled:     BoolPtr(true),
+				Name:    "dev1",
+				Prompt:  "Developer",
+				Enabled: BoolPtr(true),
 			},
 			{
-				Name:        "dev2",
-				Prompt:      "Developer",
-				GitHubToken: "TOKEN2",
-				GitHubUser:  "user2",
-				Enabled:     BoolPtr(false),
+				Name:    "dev2",
+				Prompt:  "Developer",
+				Enabled: BoolPtr(false),
 			},
 			{
-				Name:        "dev3",
-				Prompt:      "Developer",
-				GitHubToken: "TOKEN3",
-				GitHubUser:  "user3",
+				Name:   "dev3",
+				Prompt: "Developer",
 				// Enabled not set, defaults to true
 			},
 		},
-		Settings: Settings{
-			CheckInterval: 60,
-			TeamName:      "test",
+		Settings: AgentSettings{
+			CheckInterval: IntPtr(60),
+			TeamName:      StringPtr("test"),
 		},
 	}
 
@@ -446,14 +381,11 @@ func TestValidateConfigWithDisabledAgents(t *testing.T) {
 		{
 			name: "all agents disabled",
 			config: Config{
-				Repositories: Repositories{Include: []string{"owner/repo"}},
 				Agents: []Agent{
 					{
-						Name:        "dev1",
-						Prompt:      "prompt",
-						GitHubToken: "TOKEN",
-						GitHubUser:  "user",
-						Enabled:     BoolPtr(false),
+						Name:    "dev1",
+						Prompt:  "prompt",
+						Enabled: BoolPtr(false),
 					},
 				},
 			},
@@ -462,7 +394,6 @@ func TestValidateConfigWithDisabledAgents(t *testing.T) {
 		{
 			name: "disabled agent without required fields",
 			config: Config{
-				Repositories: Repositories{Include: []string{"owner/repo"}},
 				Agents: []Agent{
 					{
 						Name:    "dev1",
@@ -470,11 +401,9 @@ func TestValidateConfigWithDisabledAgents(t *testing.T) {
 						// Missing required fields, but should be OK since agent is disabled
 					},
 					{
-						Name:        "dev2",
-						Prompt:      "prompt",
-						GitHubToken: "TOKEN",
-						GitHubUser:  "user",
-						Enabled:     BoolPtr(true),
+						Name:    "dev2",
+						Prompt:  "prompt",
+						Enabled: BoolPtr(true),
 					},
 				},
 			},
@@ -502,40 +431,5 @@ func TestValidateConfigWithDisabledAgents(t *testing.T) {
 				t.Errorf("validateConfig() error = %v, wantErr %v", err.Error(), tt.wantErr)
 			}
 		})
-	}
-}
-
-func TestBuildCollaboratorsListWithDisabledAgents(t *testing.T) {
-	config := &Config{
-		Agents: []Agent{
-			{
-				Name:       "dev1",
-				GitHubUser: "user1",
-				Enabled:    BoolPtr(true),
-			},
-			{
-				Name:       "dev2",
-				GitHubUser: "user2",
-				Enabled:    BoolPtr(false),
-			},
-			{
-				Name:       "dev3",
-				GitHubUser: "user3",
-				// Enabled not set, defaults to true
-			},
-		},
-	}
-
-	list := buildCollaboratorsList(config)
-
-	// Should only list enabled agents
-	if !strings.Contains(list, "user1") {
-		t.Errorf("buildCollaboratorsList() should include enabled agent user1")
-	}
-	if strings.Contains(list, "user2") {
-		t.Errorf("buildCollaboratorsList() should not include disabled agent user2")
-	}
-	if !strings.Contains(list, "user3") {
-		t.Errorf("buildCollaboratorsList() should include enabled agent user3")
 	}
 }

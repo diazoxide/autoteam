@@ -161,11 +161,10 @@ func (f *FileOperations) ValidatePath(path string) error {
 // CreateAgentDirectoryStructure creates the complete directory structure for an agent
 func (f *FileOperations) CreateAgentDirectoryStructure(agentName string) error {
 	agentDir := filepath.Join(config.AgentsDir, agentName)
-	codebaseDir := filepath.Join(agentDir, config.CodebaseSubdir)
 
-	// Create codebase directory
-	if err := f.EnsureDirectory(codebaseDir, config.DirPerm); err != nil {
-		return fmt.Errorf("failed to create codebase directory for agent %s: %w", agentName, err)
+	// Create main agent directory - subdirectories will be created as needed by individual layers
+	if err := f.EnsureDirectory(agentDir, config.DirPerm); err != nil {
+		return fmt.Errorf("failed to create agent directory for agent %s: %w", agentName, err)
 	}
 
 	return nil

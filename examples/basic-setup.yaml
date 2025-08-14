@@ -1,10 +1,6 @@
 # Basic AutoTeam Configuration
 # Two-agent setup with developer and reviewer roles
 
-repositories:
-  include:
-    - "owner/repo-name"
-
 agents:
   - name: "developer"
     prompt: |

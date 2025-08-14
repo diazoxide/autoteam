@@ -6,14 +6,14 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"autoteam/internal/agent"
+	"autoteam/internal/config"
 	"autoteam/internal/deps"
 	"autoteam/internal/entrypoint"
-	"autoteam/internal/git"
-	"autoteam/internal/github"
 	"autoteam/internal/logger"
 	"autoteam/internal/monitor"
 
@@ -35,30 +35,10 @@ func main() {
 
 	app := &cli.Command{
 		Name:    "autoteam-entrypoint",
-		Usage:   "AutoTeam Agent Entrypoint - GitHub monitoring and AI agent execution",
+		Usage:   "AutoTeam Agent Entrypoint - AI agent execution via MCP servers",
 		Version: fmt.Sprintf("%s (built %s, commit %s)", Version, BuildTime, GitCommit),
 		Action:  runEntrypoint,
 		Flags: []cli.Flag{
-			// GitHub Configuration
-			&cli.StringFlag{
-				Name:     "gh-token",
-				Usage:    "GitHub token for authentication",
-				Required: true,
-				Sources:  cli.EnvVars("GH_TOKEN"),
-			},
-
-			// Repositories Configuration (multi-repo mode)
-			&cli.StringFlag{
-				Name:     "repositories-include",
-				Usage:    "Comma-separated list of repository patterns to include (supports regex with /pattern/)",
-				Required: true,
-				Sources:  cli.EnvVars("REPOSITORIES_INCLUDE"),
-			},
-			&cli.StringFlag{
-				Name:    "repositories-exclude",
-				Usage:   "Comma-separated list of repository patterns to exclude (supports regex with /pattern/)",
-				Sources: cli.EnvVars("REPOSITORIES_EXCLUDE"),
-			},
 
 			// Agent Configuration
 			&cli.StringFlag{
@@ -79,17 +59,50 @@ func main() {
 				Sources: cli.EnvVars("AGENT_PROMPT"),
 			},
 
-			// Git Configuration (optional overrides)
+			// Two-Layer Agent Architecture Configuration
 			&cli.StringFlag{
-				Name:    "git-user",
-				Usage:   "Git user name (defaults to repository owner)",
-				Sources: cli.EnvVars("GH_USER"),
+				Name:    "aggregation-agent-type",
+				Value:   "qwen",
+				Usage:   "Type of agent for task collection (first layer)",
+				Sources: cli.EnvVars("AGGREGATION_AGENT_TYPE"),
 			},
 			&cli.StringFlag{
-				Name:    "git-email",
-				Usage:   "Git user email (defaults to {user}@users.noreply.github.com)",
-				Sources: cli.EnvVars("GH_EMAIL"),
+				Name:    "aggregation-agent-args",
+				Usage:   "Comma-separated arguments for aggregation agent",
+				Sources: cli.EnvVars("AGGREGATION_AGENT_ARGS"),
 			},
+			&cli.StringFlag{
+				Name:    "aggregation-agent-env",
+				Usage:   "Comma-separated key=value environment variables for aggregation agent",
+				Sources: cli.EnvVars("AGGREGATION_AGENT_ENV"),
+			},
+			&cli.StringFlag{
+				Name:    "execution-agent-type",
+				Value:   "claude",
+				Usage:   "Type of agent for task execution (second layer)",
+				Sources: cli.EnvVars("EXECUTION_AGENT_TYPE"),
+			},
+			&cli.StringFlag{
+				Name:    "execution-agent-args",
+				Usage:   "Comma-separated arguments for execution agent",
+				Sources: cli.EnvVars("EXECUTION_AGENT_ARGS"),
+			},
+			&cli.StringFlag{
+				Name:    "execution-agent-env",
+				Usage:   "Comma-separated key=value environment variables for execution agent",
+				Sources: cli.EnvVars("EXECUTION_AGENT_ENV"),
+			},
+			&cli.StringFlag{
+				Name:    "aggregation-agent-prompt",
+				Usage:   "Custom prompt for the aggregation agent (first layer)",
+				Sources: cli.EnvVars("AGGREGATION_AGENT_PROMPT"),
+			},
+			&cli.StringFlag{
+				Name:    "execution-agent-prompt",
+				Usage:   "Custom prompt for the execution agent (second layer)",
+				Sources: cli.EnvVars("EXECUTION_AGENT_PROMPT"),
+			},
+
 			&cli.StringFlag{
 				Name:    "team-name",
 				Value:   "autoteam",
@@ -125,10 +138,6 @@ func main() {
 			},
 
 			// Runtime Configuration
-			&cli.BoolFlag{
-				Name:  "dry-run",
-				Usage: "Run in dry-run mode (don't execute AI agent)",
-			},
 			&cli.BoolFlag{
 				Name:    "debug",
 				Usage:   "Enable debug logging",
@@ -206,9 +215,7 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	log.Info("Configuration loaded successfully",
 		zap.String("agent_name", cfg.Agent.Name),
 		zap.String("agent_type", cfg.Agent.Type),
-		zap.Strings("repositories_include", cfg.Repositories.Include),
-		zap.Strings("repositories_exclude", cfg.Repositories.Exclude),
-		zap.String("team_name", cfg.Git.TeamName),
+		zap.String("team_name", cfg.TeamName),
 	)
 
 	// Create context for graceful shutdown
@@ -224,65 +231,74 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		cancel()
 	}()
 
-	// Initialize GitHub client with repositories filter
-	log.Debug("Initializing GitHub client")
-	githubClient, err := github.NewClientFromConfig(cfg.GitHub.Token, cfg.Repositories)
-	if err != nil {
-		log.Error("Failed to create GitHub client", zap.Error(err))
-		return fmt.Errorf("failed to create GitHub client: %w", err)
+	// Create layer agent configurations from CLI flags
+	// First Layer (Task Collection) - AggregationAgent
+	firstLayerConfig := config.AgentConfig{
+		Type: cmd.String("aggregation-agent-type"),
+		Args: parseCommaSeparated(cmd.String("aggregation-agent-args")),
+		Env:  parseKeyValuePairs(cmd.String("aggregation-agent-env")),
+	}
+	if aggregationPrompt := cmd.String("aggregation-agent-prompt"); aggregationPrompt != "" {
+		firstLayerConfig.Prompt = &aggregationPrompt
 	}
 
-	// Validate GitHub token and user for security
-	err = validateGitHubTokenAndUser(ctx, githubClient, cfg.Git.User)
-	if err != nil {
-		log.Error("GitHub token/user validation failed", zap.Error(err))
-		return fmt.Errorf("GitHub token/user validation failed: %w", err)
+	// Second Layer (Task Execution) - Agent
+	secondLayerConfig := config.AgentConfig{
+		Type: cmd.String("execution-agent-type"),
+		Args: parseCommaSeparated(cmd.String("execution-agent-args")),
+		Env:  parseKeyValuePairs(cmd.String("execution-agent-env")),
+	}
+	if executionPrompt := cmd.String("execution-agent-prompt"); executionPrompt != "" {
+		secondLayerConfig.Prompt = &executionPrompt
 	}
 
-	// Initialize agent registry and register available agents
-	log.Debug("Initializing agent registry")
-	agentRegistry := agent.NewRegistry()
-	claudeAgent := agent.NewClaudeAgentWithMCP(cfg.Agent, cfg.MCPServers)
-	agentRegistry.Register("claude", claudeAgent)
+	// Create agent helper for consistent naming
+	baseAgent := &config.Agent{Name: cfg.Agent.Name}
 
-	// Get the configured agent
-	selectedAgent, err := agentRegistry.Get(cfg.Agent.Type)
+	// Create First Layer agent (Task Collection)
+	log.Debug("Creating task collection agent", zap.String("agent_type", firstLayerConfig.Type))
+	collectorAgentName := baseAgent.GetNormalizedNameWithVariation("collector")
+	taskCollectionAgent, err := agent.CreateAgent(firstLayerConfig, collectorAgentName, cfg.MCPServers)
 	if err != nil {
-		log.Error("Failed to get agent", zap.String("agent_type", cfg.Agent.Type), zap.Error(err))
-		return fmt.Errorf("failed to get agent %s: %w", cfg.Agent.Type, err)
+		log.Error("Failed to create task collection agent", zap.Error(err))
+		return fmt.Errorf("failed to create task collection agent: %w", err)
 	}
-	log.Info("Agent initialized successfully", zap.String("agent_type", cfg.Agent.Type))
+	log.Info("Task collection agent initialized successfully", zap.String("agent_type", firstLayerConfig.Type))
 
-	// Install dependencies if needed
-	log.Debug("Installing dependencies")
+	// Create Second Layer agent (Task Execution)
+	log.Debug("Creating task execution agent", zap.String("agent_type", secondLayerConfig.Type))
+	executorAgentName := baseAgent.GetNormalizedNameWithVariation("executor")
+	taskExecutionAgent, err := agent.CreateAgent(secondLayerConfig, executorAgentName, cfg.MCPServers)
+	if err != nil {
+		log.Error("Failed to create task execution agent", zap.Error(err))
+		return fmt.Errorf("failed to create task execution agent: %w", err)
+	}
+	log.Info("Task execution agent initialized successfully", zap.String("agent_type", secondLayerConfig.Type))
+
+	// Install dependencies for both agents if needed
+	log.Debug("Installing dependencies for agents")
 	installer := deps.NewInstaller(cfg.Dependencies)
-	if err := installer.Install(ctx, selectedAgent); err != nil {
-		log.Error("Failed to install dependencies", zap.Error(err))
-		return fmt.Errorf("failed to install dependencies: %w", err)
+	if err := installer.Install(ctx, taskCollectionAgent, taskExecutionAgent); err != nil {
+		log.Warn("Failed to install dependencies for agents", zap.Error(err))
 	}
 
-	// Note: Agent MCP configuration happens after repo discovery in notification processing
+	// Note: Git operations now handled via MCP servers
 
-	// Setup Git configuration and credentials
-	log.Debug("Setting up Git configuration")
-	gitSetup := git.NewSetup(cfg.Git, cfg.GitHub, cfg.Repositories)
-	if err := gitSetup.Configure(ctx); err != nil {
-		log.Error("Failed to setup git", zap.Error(err))
-		return fmt.Errorf("failed to setup git: %w", err)
-	}
-
-	// Initialize and start monitor with simplified config
+	// Initialize and start monitor with two-layer config
 	monitorConfig := monitor.Config{
 		CheckInterval: cfg.Monitoring.CheckInterval,
-		DryRun:        cmd.Bool("dry-run"),
-		TeamName:      cfg.Git.TeamName,
+		TeamName:      cfg.TeamName,
 	}
 
-	mon := monitor.New(githubClient, selectedAgent, monitorConfig, cfg)
+	mon := monitor.New(taskCollectionAgent, taskExecutionAgent, monitorConfig, cfg)
 
-	log.Info("Starting simplified notification monitoring loop",
+	// Set layer configurations for custom prompt support
+	mon.SetLayerConfigs(&firstLayerConfig, &secondLayerConfig)
+
+	log.Info("Starting two-layer agent monitoring loop",
 		zap.Duration("check_interval", cfg.Monitoring.CheckInterval),
-		zap.Bool("dry_run", cmd.Bool("dry-run")),
+		zap.String("collection_agent", firstLayerConfig.Type),
+		zap.String("execution_agent", secondLayerConfig.Type),
 	)
 	return mon.Start(ctx)
 }
@@ -291,31 +307,13 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 func buildConfigFromFlags(cmd *cli.Command) (*entrypoint.Config, error) {
 	cfg := &entrypoint.Config{}
 
-	// GitHub configuration
-	cfg.GitHub.Token = cmd.String("gh-token")
-
-	// Repositories configuration (multi-repo mode)
-	includeStr := cmd.String("repositories-include")
-	excludeStr := cmd.String("repositories-exclude")
-	cfg.Repositories = entrypoint.BuildRepositoriesConfig(includeStr, excludeStr)
-
-	// Validate that at least one repository is included
-	if len(cfg.Repositories.Include) == 0 {
-		return nil, fmt.Errorf("at least one repository must be configured via REPOSITORIES_INCLUDE")
-	}
-
 	// Agent configuration
 	cfg.Agent.Name = cmd.String("agent-name")
 	cfg.Agent.Type = cmd.String("agent-type")
 	cfg.Agent.Prompt = cmd.String("agent-prompt")
 
-	// Git configuration
-	cfg.Git.User = cmd.String("git-user")
-	cfg.Git.Email = cmd.String("git-email")
-	if cfg.Git.Email == "" && cfg.Git.User != "" {
-		cfg.Git.Email = cfg.Git.User + "@users.noreply.github.com"
-	}
-	cfg.Git.TeamName = cmd.String("team-name")
+	// Team configuration
+	cfg.TeamName = cmd.String("team-name")
 
 	// Monitoring configuration
 	checkInterval := cmd.Int("check-interval")
@@ -331,41 +329,31 @@ func buildConfigFromFlags(cmd *cli.Command) (*entrypoint.Config, error) {
 	return cfg, nil
 }
 
-// validateGitHubTokenAndUser validates that the GitHub token belongs to the expected user
-func validateGitHubTokenAndUser(ctx context.Context, client *github.Client, expectedUser string) error {
-	log := logger.FromContext(ctx)
+// parseCommaSeparated parses comma-separated arguments from a string
+func parseCommaSeparated(value string) []string {
+	if value == "" {
+		return []string{}
+	}
+	args := strings.Split(value, ",")
+	// Trim whitespace from each arg
+	for i, arg := range args {
+		args[i] = strings.TrimSpace(arg)
+	}
+	return args
+}
 
-	if expectedUser == "" {
-		log.Warn("No GitHub user specified for validation, skipping token/user validation")
-		return nil
+// parseKeyValuePairs parses key=value pairs from a string (comma-separated)
+func parseKeyValuePairs(value string) map[string]string {
+	if value == "" {
+		return map[string]string{}
 	}
 
-	log.Info("Validating GitHub token", zap.String("expected_user", expectedUser))
-
-	// Get the authenticated user from the token
-	user, err := client.GetAuthenticatedUser(ctx)
-	if err != nil {
-		log.Error("Failed to get authenticated user from token", zap.Error(err))
-		return fmt.Errorf("failed to get authenticated user from token: %w", err)
+	envMap := make(map[string]string)
+	pairs := strings.Split(value, ",")
+	for _, pair := range pairs {
+		if kv := strings.SplitN(strings.TrimSpace(pair), "=", 2); len(kv) == 2 {
+			envMap[kv[0]] = kv[1]
+		}
 	}
-
-	// Check if the token belongs to the expected user
-	var actualUser string
-	if user.Login != nil {
-		actualUser = *user.Login
-	} else {
-		log.Error("Unable to determine authenticated user from token")
-		return fmt.Errorf("unable to determine authenticated user from token")
-	}
-
-	if actualUser != expectedUser {
-		log.Error("Security validation failed: user mismatch",
-			zap.String("actual_user", actualUser),
-			zap.String("expected_user", expectedUser),
-		)
-		return fmt.Errorf("security validation failed: token belongs to user '%s' but expected user '%s'", actualUser, expectedUser)
-	}
-
-	log.Info("GitHub token/user validation successful", zap.String("validated_user", actualUser))
-	return nil
+	return envMap
 }

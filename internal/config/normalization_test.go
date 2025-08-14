@@ -74,10 +74,8 @@ func TestNormalizeAgentName(t *testing.T) {
 
 func TestAgentGetNormalizedName(t *testing.T) {
 	agent := Agent{
-		Name:        "Senior Developer Agent",
-		Prompt:      "You are a senior developer",
-		GitHubToken: "token",
-		GitHubUser:  "user",
+		Name:   "Senior Developer Agent",
+		Prompt: "You are a senior developer",
 	}
 
 	expected := "senior_developer_agent"
@@ -85,5 +83,43 @@ func TestAgentGetNormalizedName(t *testing.T) {
 
 	if result != expected {
 		t.Errorf("Agent.GetNormalizedName() = %q, want %q", result, expected)
+	}
+}
+
+func TestAgentGetNormalizedNameWithVariation(t *testing.T) {
+	agent := Agent{
+		Name:   "Senior Developer Agent",
+		Prompt: "You are a senior developer",
+	}
+
+	tests := []struct {
+		name      string
+		variation string
+		expected  string
+	}{
+		{
+			name:      "no variation",
+			variation: "",
+			expected:  "senior_developer_agent",
+		},
+		{
+			name:      "collector variation",
+			variation: "collector",
+			expected:  "senior_developer_agent/collector",
+		},
+		{
+			name:      "executor variation",
+			variation: "executor",
+			expected:  "senior_developer_agent/executor",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := agent.GetNormalizedNameWithVariation(tt.variation)
+			if result != tt.expected {
+				t.Errorf("Agent.GetNormalizedNameWithVariation(%q) = %q, want %q", tt.variation, result, tt.expected)
+			}
+		})
 	}
 }

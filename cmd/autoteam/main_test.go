@@ -94,8 +94,8 @@ agents:
 	if !strings.Contains(composeContent, "dev1:") {
 		t.Errorf("compose.yaml should contain dev1 service")
 	}
-	if !strings.Contains(composeContent, "owner/test-repo") {
-		t.Errorf("compose.yaml should contain repository URL")
+	if !strings.Contains(composeContent, "dev1") {
+		t.Errorf("compose.yaml should contain dev1 service")
 	}
 }
 
@@ -156,9 +156,6 @@ func TestInitCommand(t *testing.T) {
 
 	// Verify content contains expected sample data
 	content := testutil.ReadFile(t, "autoteam.yaml")
-	if !strings.Contains(content, "repositories:") {
-		t.Errorf("autoteam.yaml should contain repositories section")
-	}
 	if !strings.Contains(content, "agents:") {
 		t.Errorf("autoteam.yaml should contain agents section")
 	}
@@ -246,8 +243,8 @@ echo "Integration test"`
 	expectedFiles := []string{
 		"autoteam.yaml",
 		".autoteam/compose.yaml",
-		".autoteam/agents/dev1/codebase",
-		".autoteam/agents/arch1/codebase",
+		".autoteam/agents/dev1",
+		".autoteam/agents/arch1",
 	}
 
 	for _, file := range expectedFiles {

@@ -1,4 +1,0 @@
-agents:
-  - name: "dev1"
-    prompt: "Developer"
-    github_token: "TOKEN"

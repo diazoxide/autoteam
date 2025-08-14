@@ -1,10 +1,6 @@
 # Custom Docker Configuration
 # Example with custom Docker image and settings
 
-repositories:
-  include:
-    - "owner/repo-name"
-
 agents:
   - name: "python-dev"
     prompt: |

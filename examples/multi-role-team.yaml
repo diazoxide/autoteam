@@ -1,10 +1,6 @@
 # Multi-Role Team Configuration
 # Comprehensive example with multiple specialized agents
 
-repositories:
-  include:
-    - "owner/large-project"
-
 agents:
   - name: "developer"
     prompt: |

@@ -5,15 +5,13 @@ services:
     tty: true
     stdin_open: true
     volumes:
-      - ./agents/{{ .Agent.GetNormalizedName }}/codebase:/opt/autoteam/agents/{{ .Agent.GetNormalizedName }}/codebase
+      - ./agents/{{ .Agent.GetNormalizedName }}:/opt/autoteam/agents/{{ .Agent.GetNormalizedName }}
       - ./bin:/opt/autoteam/bin
 {{- range .EffectiveSettings.Volumes }}
       - {{ . }}
 {{- end }}
     environment:
       IS_SANDBOX: 1 # for claude code to work on the {{ .EffectiveSettings.DockerUser }} user
-      GH_TOKEN: {{ .Agent.GitHubToken }}
-      GH_USER: {{ .Agent.GitHubUser }}
       REPOSITORIES_INCLUDE: {{ join $.Repositories.Include "," | printf "%q" }}
 {{- if $.Repositories.Exclude }}
       REPOSITORIES_EXCLUDE: {{ join $.Repositories.Exclude "," | printf "%q" }}

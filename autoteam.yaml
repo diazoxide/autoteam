@@ -1,11 +1,10 @@
-repositories:
-  include:
-    - /diazoxide\/autoteam/
 agents:
   - name: Senior Developer
     enabled: true
-    github_user: ${SENIOR_DEVELOPER_GITHUB_USER}
-    github_token: ${SENIOR_DEVELOPER_GITHUB_TOKEN}
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${SENIOR_DEVELOPER_GITHUB_TOKEN}
     prompt: |
       You are a Senior Developer Agent working on the AutoTeam project - an AI agent management system. Your mission is to continuously improve AutoTeam by implementing features, fixing bugs, and enhancing the codebase.
 
@@ -60,8 +59,10 @@ agents:
 
   - name: System Architect
     enabled: false
-    github_user: ${SYSTEM_ARCHITECT_GITHUB_USER}
-    github_token: ${SYSTEM_ARCHITECT_GITHUB_TOKEN}
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${SYSTEM_ARCHITECT_GITHUB_TOKEN}
     prompt: |
       You are a System Architect Agent responsible for maintaining and evolving the AutoTeam architecture. Your mission is to ensure AutoTeam remains scalable, maintainable, and architecturally sound as it grows.
 
@@ -123,8 +124,10 @@ agents:
 
   - name: DevOps Engineer
     enabled: false
-    github_user: ${DEVOPS_ENGINEER_GITHUB_USER}
-    github_token: ${DEVOPS_ENGINEER_GITHUB_TOKEN}
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${DEVOPS_ENGINEER_GITHUB_TOKEN}
     prompt: |
       You are a DevOps Engineer Agent focused on the operational excellence and automation of the AutoTeam project. Your mission is to optimize infrastructure, automate workflows, and ensure smooth operations.
 
@@ -196,19 +199,83 @@ agents:
       - **Developer Experience**: Make it easy to contribute to and use AutoTeam
 
       Your goal is to make AutoTeam operationally excellent and enable the team to focus on development!
+
+services: { }
+# Custom services that will be merged into the generated compose.yaml
+#  localai:
+#    image: localai/localai:latest
+#    command: ["qwen3-1.7b", "--threads", "12"]
+#    ports:
+#      - 8080:8080
+#      - 9090:9090
+#    volumes:
+#      - ./var/localai/models:/models
 settings:
   service:
-    image: autoteam:latest
     build:
       dockerfile: ../Dockerfile
       context: ./
     user: root
+    environment:
+      OPENAI_BASE_URL: "http://localai:8080/v1"
+      OPENAI_MODEL: "qwen3-1.7b"
+      OPENAI_API_KEY: "123"
     volumes:
       - "./shared/claude:/root/.claude"
       - "./shared/claude.json:/root/.claude.json"
+      - "./shared/gemini:/root/.gemini"
   check_interval: 60
   team_name: autoteam-self-improvement
   install_deps: true
+
+  # Aggregation Agent (First Layer - Task Collection)
+  aggregation_agent:
+    type: gemini
+    args: [ "--model", "gemini-2.5-flash" ]
+    prompt: |
+      You are a simple notification collector. Your only job is to get unread GitHub notifications and list them.
+
+      Use GitHub MCP to get unread notifications in this format:
+      
+      `{NOTIFICATION URL} - {NOTIFICATION TEXT}`
+
+      CRITICAL: After getting notifications make sure that all taken notifications marked as read
+      
+      Just output the list directly, nothing else.
+
+  # Execution Agent (Second Layer - Task Implementation)
+  execution_agent:
+    type: claude
+    args: [ ]
+    prompt: |
+      You are the **Task Execution Agent** - execute tasks and **PUBLISH YOUR RESULTS**.
+
+      ## 🔥 CRITICAL: Always Publish Results
+
+      **For Comments:** RESPOND publicly on GitHub
+      **For PR Reviews:** SUBMIT review with feedback  
+      **For Assigned Issues:** IMPLEMENT → CREATE PR
+      **For Mentions:** RESPOND appropriately
+
+      **Every task MUST result in a visible GitHub action (comment, review, PR).**
+
+      ## Task Handling:
+      - Implement features with proper code and tests
+      - Create PRs for all code changes  
+      - Respond to all comments publicly
+      - Submit formal reviews for review requests
+      - Update issue status with clear progress
+
+      **NEVER just process tasks silently - always publish your work to GitHub.**
+
+  # MCP Servers for both layers
+  mcp_servers:
+    github:
+      command: /opt/autoteam/custom/mcp/github/bin/github-mcp-server
+      args: [ "stdio" ]
+      env:
+        GITHUB_PERSONAL_ACCESS_TOKEN: $$GITHUB_TOKEN
+
   common_prompt: |
     # AutoTeam Self-Improvement Guidelines
     - You are part of a recursive AI system improving AutoTeam itself

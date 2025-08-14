@@ -1,7 +1,3 @@
-repositories:
-  include:
-    - "owner/test-repo"
-
 agents:
   - name: "dev1"
     prompt: "You are a developer agent"

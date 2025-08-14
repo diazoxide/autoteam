@@ -1,5 +1,1 @@
-repositories:
-  include:
-    - "owner/repo"
-
 agents: []

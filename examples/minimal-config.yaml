@@ -1,10 +1,6 @@
 # Minimal AutoTeam Configuration
 # This example shows the absolute minimum required configuration
 
-repositories:
-  include:
-    - "user/simple-project"
-
 agents:
   - name: "bot"
     prompt: "You are an AI assistant that helps with general development tasks."
