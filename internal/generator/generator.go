@@ -116,20 +116,20 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 		environment["INSTALL_DEPS"] = fmt.Sprintf("%t", settings.GetInstallDeps())
 
 		// Two-Layer Agent Architecture Configuration
-		if settings.AggregationAgent != nil {
-			environment["AGGREGATION_AGENT_TYPE"] = settings.AggregationAgent.Type
-			if len(settings.AggregationAgent.Args) > 0 {
-				environment["AGGREGATION_AGENT_ARGS"] = strings.Join(settings.AggregationAgent.Args, ",")
+		if settings.CollectorAgent != nil {
+			environment["COLLECTOR_AGENT_TYPE"] = settings.CollectorAgent.Type
+			if len(settings.CollectorAgent.Args) > 0 {
+				environment["COLLECTOR_AGENT_ARGS"] = strings.Join(settings.CollectorAgent.Args, ",")
 			}
-			if len(settings.AggregationAgent.Env) > 0 {
+			if len(settings.CollectorAgent.Env) > 0 {
 				var envPairs []string
-				for k, v := range settings.AggregationAgent.Env {
+				for k, v := range settings.CollectorAgent.Env {
 					envPairs = append(envPairs, k+"="+v)
 				}
-				environment["AGGREGATION_AGENT_ENV"] = strings.Join(envPairs, ",")
+				environment["COLLECTOR_AGENT_ENV"] = strings.Join(envPairs, ",")
 			}
-			if settings.AggregationAgent.Prompt != nil {
-				environment["AGGREGATION_AGENT_PROMPT"] = *settings.AggregationAgent.Prompt
+			if settings.CollectorAgent.Prompt != nil {
+				environment["COLLECTOR_AGENT_PROMPT"] = *settings.CollectorAgent.Prompt
 			}
 		}
 		if settings.ExecutionAgent != nil {

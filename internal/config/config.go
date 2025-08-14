@@ -39,7 +39,7 @@ type AgentSettings struct {
 	Service       map[string]interface{} `yaml:"service,omitempty"`
 	MCPServers    map[string]MCPServer   `yaml:"mcp_servers,omitempty"`
 	// Per-agent First Layer override
-	AggregationAgent *AgentConfig `yaml:"aggregation_agent,omitempty"`
+	CollectorAgent *AgentConfig `yaml:"collector_agent,omitempty"`
 	// Per-agent Second Layer override
 	ExecutionAgent *AgentConfig `yaml:"execution_agent,omitempty"`
 }
@@ -517,7 +517,7 @@ func copyAgentSettings(source AgentSettings) AgentSettings {
 	}
 
 	// Copy agent configurations
-	copied.AggregationAgent = copyAgentConfig(source.AggregationAgent)
+	copied.CollectorAgent = copyAgentConfig(source.CollectorAgent)
 	copied.ExecutionAgent = copyAgentConfig(source.ExecutionAgent)
 
 	return copied
@@ -561,7 +561,7 @@ func (a *Agent) GetEffectiveSettings(globalSettings AgentSettings) AgentSettings
 	effective.MCPServers = mergeMCPServers(globalSettings.MCPServers, a.Settings.MCPServers, a.MCPServers)
 
 	// Merge layer agent configurations
-	effective.AggregationAgent = mergeAgentConfig(globalSettings.AggregationAgent, a.Settings.AggregationAgent)
+	effective.CollectorAgent = mergeAgentConfig(globalSettings.CollectorAgent, a.Settings.CollectorAgent)
 	effective.ExecutionAgent = mergeAgentConfig(globalSettings.ExecutionAgent, a.Settings.ExecutionAgent)
 
 	return effective
@@ -716,8 +716,8 @@ func (s *AgentSettings) GetMaxAttempts() int {
 func (a *Agent) GetEffectiveLayers(globalSettings AgentSettings) (firstLayer, secondLayer *AgentConfig) {
 	effectiveSettings := a.GetEffectiveSettings(globalSettings)
 
-	// First Layer (Task Collection) - AggregationAgent field
-	firstLayer = effectiveSettings.AggregationAgent
+	// First Layer (Task Collection) - CollectorAgent field
+	firstLayer = effectiveSettings.CollectorAgent
 
 	// Second Layer (Task Execution) - ExecutionAgent field
 	secondLayer = effectiveSettings.ExecutionAgent

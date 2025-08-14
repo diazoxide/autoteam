@@ -1,32 +1,42 @@
 # AutoTeam
 
-Universal AI Agent Management System for automated GitHub workflows across multiple repositories.
+Universal AI Agent Management System powered by the Model Context Protocol (MCP) for platform-agnostic automation.
 
 ## Overview
 
-AutoTeam is a configurable system that deploys AI agents to automatically handle GitHub issues, pull requests, and reviews across multiple repositories. Instead of manually checking GitHub and working on tasks, this system continuously monitors for new work and automatically provisions containerized development environments with specialized AI agents.
+AutoTeam is a cutting-edge system that orchestrates intelligent AI agents to work autonomously across any platform that supports the Model Context Protocol (MCP). Using a sophisticated two-layer architecture, AutoTeam agents can collect tasks from multiple platforms and execute them with context-aware intelligence, whether it's GitHub repositories, Slack channels, databases, file systems, or any other MCP-enabled service.
 
 ## Features
 
-- **Multi-Repository Support**: Monitor and work across multiple repositories with pattern matching and regex support
-- **Universal Configuration**: Single YAML file to define repositories, agents, and settings
-- **Two-Layer Agent Architecture**: Clean collector/executor subdirectory structure for task separation
+### 🌐 Universal Platform Integration
+- **MCP Protocol Support**: Works with ANY platform that provides MCP servers (GitHub, Slack, databases, filesystems, web services, etc.)
+- **Platform-Agnostic Design**: Add new platforms by simply configuring MCP servers - no code changes required
+- **Multi-AI Agent Support**: Deploy Claude, Gemini, and Qwen agents with specialized capabilities
+- **Universal Task Processing**: Agents understand context across different platforms and services
+
+### 🏗️ Advanced Architecture
+- **Two-Layer Agent System**: Clean separation between task collection (aggregation) and execution agents
+- **Intelligent Agent Orchestration**: Multiple AI models working together with different strengths
+- **Containerized Isolation**: Each agent runs in isolated Docker containers with dedicated configurations
+- **Dynamic Scaling**: Deploy any number of specialized agents with custom roles and capabilities
+
+### ⚙️ Configuration & Management
+- **Universal Configuration**: Single YAML file to define agents, platforms, and MCP server connections
+- **Agent-Specific Settings**: Per-agent Docker images, volumes, MCP servers, and environment overrides
+- **Smart Name Normalization**: Automatically handles agent names with spaces and special characters
+- **Flexible MCP Configuration**: Global, agent-settings, and agent-level MCP server configurations with priority merging
+
+### 📊 Monitoring & Logging
 - **Streaming Task Logs**: Individual log files per task with timestamped, normalized filenames
-- **Dynamic Agent Scaling**: Support for any number of specialized agents
-- **Intelligent Notification Processing**: Single notification processing with type-specific prompts and intent recognition
-- **Smart Response System**: Distinguishes between consultation requests and implementation tasks to prevent over-engineering
-- **Repository Pattern Matching**: Flexible include/exclude patterns with regex support (`/pattern/` syntax)
-- **Smart Name Normalization**: Automatically handles agent names with spaces and special characters using subdirectories
-- **Template-Based Generation**: Docker Compose and entrypoint scripts generated from templates
-- **Role-Based Agents**: Each agent can have specialized prompts and responsibilities
-- **Agent-Specific Settings**: Per-agent Docker images, volumes, and environment overrides
-- **Consolidated Prompt System**: Unified prompt handling with collaborator awareness
-- **Organized File Structure**: All generated files in `.autoteam/` directory with clean subdirectory structure
-- **Continuous Monitoring**: Configurable intervals for checking GitHub activity
-- **Docker Integration**: Containerized environments with volume mounting and networking
-- **Security Validation**: GitHub token/user validation for enhanced security
+- **Real-time Processing**: Live task execution monitoring and output capture
+- **Structured Logging**: Comprehensive logging with contextual information using zap
+- **Organized File Structure**: Clean directory structure in `.autoteam/` with agent-specific subdirectories
+
+### 🔧 Developer Experience  
 - **Cross-Platform Support**: macOS and Linux with universal installation script
-- **MCP Server Integration**: Model Context Protocol support with agent-specific configuration in proper subdirectories
+- **Docker-First Design**: Container-native deployment with Docker Compose orchestration
+- **Template-Based Generation**: Automated configuration generation from templates
+- **Comprehensive Testing**: Full test coverage with CI/CD integration
 
 ## Quick Start
 
@@ -62,32 +72,36 @@ This creates a sample `autoteam.yaml` with basic configuration.
 
 ### 3. Configure Your Setup
 
-Edit `autoteam.yaml` to match your requirements:
+Edit `autoteam.yaml` to define your AI agents and the platforms they should work with:
 
 ```yaml
 agents:
-  - name: "Senior Developer"
+  - name: "Platform Specialist"
     enabled: true
     prompt: |
-      You are a developer agent responsible for implementing features and fixing bugs.
-      Focus on code quality, testing, and documentation.
+      You are a platform specialist that can work across multiple services.
+      Use available MCP tools to handle tasks from various platforms.
+      Always provide helpful, accurate responses and take appropriate actions.
     settings:
       service:
         environment:
-          GITHUB_TOKEN: ${DEVELOPER_GITHUB_TOKEN}
+          GITHUB_TOKEN: ${PLATFORM_SPECIALIST_GITHUB_TOKEN}
+          SLACK_TOKEN: ${PLATFORM_SPECIALIST_SLACK_TOKEN}
+          DATABASE_URL: ${DATABASE_URL}
           
-  - name: "Code Reviewer"
+  - name: "Content Manager"
     enabled: true 
     prompt: |
-      You are a code reviewer focused on quality and best practices.
-      Provide constructive feedback and ensure maintainable code.
+      You are a content manager focused on documentation and communication.
+      Help maintain wikis, update documentation, and manage content across platforms.
     settings:
       service:
         environment:
-          GITHUB_TOKEN: ${REVIEWER_GITHUB_TOKEN}
-        image: "golang:1.21"  # Custom image for reviewer
+          NOTION_TOKEN: ${CONTENT_MANAGER_NOTION_TOKEN}
+          GITHUB_TOKEN: ${CONTENT_MANAGER_GITHUB_TOKEN}
+        image: "node:20"  # Custom image for content operations
         volumes:
-          - "./tools:/opt/tools:ro"  # Additional volume mount
+          - "./content-tools:/opt/tools:ro"  # Content management tools
 
 settings:
   service:
@@ -101,43 +115,59 @@ settings:
   install_deps: true
   
   # Two-Layer Architecture Configuration
-  aggregation_agent:
+  collector_agent:
     type: gemini
     args: ["--model", "gemini-2.5-flash"]
     prompt: |
-      You are a notification collector. Get unread GitHub notifications and list them.
-      Use GitHub MCP to get notifications in format: {NOTIFICATION URL} - {NOTIFICATION TEXT}
-      Mark all notifications as read after processing.
+      You are a task collector that discovers actionable items across all platforms.
+      Use available MCP servers to check for tasks from any configured service.
+      Report tasks in format: {PLATFORM}: {TASK DESCRIPTION}
       
   execution_agent:
     type: claude
     args: []
     prompt: |
-      You are the task execution agent. Execute tasks and publish your results.
-      For comments: respond publicly on GitHub
-      For PR reviews: submit review with feedback
-      For assigned issues: implement and create PR
+      You are a universal task execution agent. Handle tasks from any platform.
+      Use appropriate MCP tools for the platform: GitHub for code, Slack for messages, 
+      databases for data operations, etc. Always complete tasks thoroughly.
       
-  # MCP Server Configuration
+  # Universal MCP Server Configuration
   mcp_servers:
     github:
       command: /opt/autoteam/bin/github-mcp-server
       args: ["stdio"]
       env:
         GITHUB_PERSONAL_ACCESS_TOKEN: $$GITHUB_TOKEN
+    slack:
+      command: /opt/autoteam/bin/slack-mcp-server
+      args: ["stdio"]
+      env:
+        SLACK_BOT_TOKEN: $$SLACK_TOKEN
+    database:
+      command: /opt/autoteam/bin/sqlite-mcp-server
+      args: ["stdio"]
+      env:
+        DATABASE_URL: $$DATABASE_URL
+    filesystem:
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/opt/workdir"]
 ```
 
-### 4. Add Your GitHub Tokens
+### 4. Add Platform Credentials
 
-Create a `.env` file in your project root to securely provide GitHub tokens:
+Create a `.env` file in your project root to securely provide platform credentials:
 
 ```bash
-# .env file
-DEVELOPER_GITHUB_TOKEN=ghp_your_actual_developer_token
-REVIEWER_GITHUB_TOKEN=ghp_your_actual_reviewer_token
+# .env file - Platform credentials for MCP servers
+PLATFORM_SPECIALIST_GITHUB_TOKEN=ghp_your_github_token
+PLATFORM_SPECIALIST_SLACK_TOKEN=xoxb_your_slack_bot_token
+DATABASE_URL=sqlite:///path/to/your/database.db
+
+CONTENT_MANAGER_NOTION_TOKEN=secret_your_notion_token
+CONTENT_MANAGER_GITHUB_TOKEN=ghp_your_content_github_token
 ```
 
-The tokens are referenced in your `autoteam.yaml` through environment variables in the `settings.service.environment` section as shown in the configuration above.
+These credentials enable your agents to work with different platforms through MCP servers. Each MCP server handles secure authentication for its respective platform.
 
 ### 5. Deploy Your Team
 
@@ -194,7 +224,7 @@ agents:
   - `environment`: Default environment variables for all agents
 
 **Two-Layer Architecture:**
-- `aggregation_agent`: First layer configuration (task collection)
+- `collector_agent`: First layer configuration (task collection)
   - `type`: Agent type (gemini, claude, qwen)
   - `args`: Command line arguments
   - `prompt`: Collection-specific prompt
@@ -414,61 +444,113 @@ Use `autoteam agents` to list all agents and their states.
 
 ## Architecture
 
-```
-autoteam.yaml → Generator → .autoteam/compose.yaml + bin/
-      ↓                           ↓
-Multi-Repo Config → Docker Compose → Agent Containers (collector/executor)
-      ↓                           ↓
-Pattern Matching → GitHub Monitoring → Claude Code → Cross-Repo Tasks
+```mermaid
+graph TB
+    Config[autoteam.yaml] --> Generator[Configuration Generator]
+    Generator --> Compose[.autoteam/compose.yaml]
+    Generator --> Binaries[.autoteam/bin/]
+    
+    Compose --> Docker[Docker Compose]
+    Docker --> AgentContainers[Agent Containers]
+    
+    subgraph "Two-Layer Agent Architecture"
+        AgentContainers --> Collector[Collector Agents<br/>Gemini/Qwen/Claude]
+        AgentContainers --> Executor[Executor Agents<br/>Claude/Gemini/Qwen]
+    end
+    
+    subgraph "Universal MCP Integration"
+        Collector --> MCP1[GitHub MCP]
+        Collector --> MCP2[Slack MCP]
+        Collector --> MCP3[Database MCP]
+        Collector --> MCP4[Filesystem MCP]
+        Collector --> MCP5[Web MCP]
+        Collector --> MCPn[Any MCP Server...]
+    end
+    
+    subgraph "Platform Ecosystem"
+        MCP1 --> GitHub[GitHub APIs]
+        MCP2 --> Slack[Slack APIs]
+        MCP3 --> DB[(Databases)]
+        MCP4 --> FS[File Systems]
+        MCP5 --> Web[Web Services]
+        MCPn --> Platform[Any Platform]
+    end
+    
+    Collector --> Tasks[Task Collection]
+    Tasks --> Executor
+    Executor --> Actions[Platform Actions]
+    Actions --> GitHub
+    Actions --> Slack  
+    Actions --> DB
+    Actions --> FS
+    Actions --> Web
+    Actions --> Platform
 ```
 
-### Multi-Repository Structure
+### Universal MCP-Based Design
 
-Each agent maintains separate working directories with two-layer architecture:
+AutoTeam's architecture is built around the Model Context Protocol (MCP), enabling seamless integration with any platform:
+
+- **Aggregation Layer**: AI agents discover tasks using MCP servers from multiple platforms
+- **Execution Layer**: Specialized AI agents handle tasks using appropriate MCP tools  
+- **Platform Abstraction**: MCP servers provide standardized interfaces to any service
+- **Agent Orchestration**: Container-based agents with per-agent MCP configurations
+
+### Multi-Platform Agent Structure
+
+Each agent maintains separate working directories with two-layer architecture and platform-specific configurations:
 
 ```
 ./
-├── autoteam.yaml          # Configuration
+├── autoteam.yaml          # Universal platform configuration
 └── .autoteam/             # Generated files directory
     ├── compose.yaml       # Docker Compose configuration
     ├── agents/            # Agent-specific directories
-    │   ├── agent1/
-    │   │   ├── collector/          # Task collection layer
+    │   ├── platform_specialist/
+    │   │   ├── collector/          # Task collection layer (Gemini)
     │   │   │   ├── .gemini/        # Gemini CLI config
-    │   │   │   └── codebase/
-    │   │   │       ├── owner1-repo1/    # Repository-specific clone
-    │   │   │       ├── owner1-repo2/    # Multiple repos per agent
-    │   │   │       └── owner2-repo3/
-    │   │   ├── executor/           # Task execution layer
-    │   │   │   ├── mcp.json        # Claude MCP config
-    │   │   │   └── codebase/
-    │   │   │       ├── owner1-repo1/    # Same repos, separate working dirs
-    │   │   │       └── owner1-repo2/
-    │   │   └── codebase/           # Shared access point
-    │   └── agent2/
-    │       ├── collector/
-    │       │   ├── .qwen/          # Qwen Code config
-    │       │   └── codebase/
-    │       ├── executor/
-    │       │   ├── mcp.json
-    │       │   └── codebase/
-    │       └── codebase/
+    │   │   │   ├── data/           # Platform-specific data
+    │   │   │   │   ├── github/     # GitHub workspace
+    │   │   │   │   ├── slack/      # Slack workspace  
+    │   │   │   │   └── database/   # Database workspace
+    │   │   │   └── logs/           # Collection logs
+    │   │   ├── executor/           # Task execution layer (Claude)
+    │   │   │   ├── .mcp.json       # Agent-specific MCP config
+    │   │   │   ├── data/           # Execution workspace
+    │   │   │   │   ├── github/     # Code repositories
+    │   │   │   │   ├── slack/      # Message contexts
+    │   │   │   │   └── database/   # Data operations
+    │   │   │   └── logs/           # Execution logs with streaming
+    │   │   └── shared/             # Shared resources
+    │   └── content_manager/
+    │       ├── collector/          # Task discovery (Qwen)
+    │       │   ├── .qwen/          # Qwen configuration
+    │       │   ├── data/           # Multi-platform data
+    │       │   └── logs/           # Collection logs
+    │       ├── executor/           # Content operations (Claude)
+    │       │   ├── .mcp.json       # MCP server configuration
+    │       │   ├── data/           # Content workspaces
+    │       │   └── logs/           # Task execution logs
+    │       └── shared/             # Shared configurations
     ├── bin/               # Unified binary directory
     │   ├── autoteam-entrypoint-*
     │   ├── entrypoint.sh
-    │   └── github-mcp-server
+    │   ├── github-mcp-server      # GitHub MCP server
+    │   ├── slack-mcp-server       # Slack MCP server
+    │   ├── sqlite-mcp-server      # Database MCP server
+    │   └── custom-mcp-servers/    # Custom MCP implementations
     └── shared/            # Shared configurations
         ├── claude/
         ├── claude.json
         └── gemini/
 ```
 
-### Repository Pattern Matching
+### Platform Integration Patterns
 
-- **Include Patterns**: Define which repositories to monitor
-- **Exclude Patterns**: Filter out unwanted repositories  
-- **Regex Support**: Use `/pattern/` syntax for complex matching
-- **Dynamic Discovery**: Automatically discovers matching repositories
+- **MCP Server Discovery**: Automatically detect and configure available MCP servers
+- **Multi-Platform Monitoring**: Collect tasks from multiple platforms simultaneously  
+- **Context-Aware Processing**: Agents understand platform-specific context and requirements
+- **Dynamic Platform Addition**: Add new platforms by installing MCP servers - no code changes needed
 
 ## Testing
 
@@ -543,26 +625,28 @@ See `make help` for all available targets.
 
 ## Security Considerations
 
-- Use separate GitHub tokens for each agent
-- Configure minimal required permissions for GitHub tokens
-- Ensure `github_user` matches the token owner (validated automatically)
-- Regularly rotate access tokens
-- Monitor API rate limits
-- Review generated Docker configurations
-- Use `.env` files for sensitive tokens instead of committing them to version control
+- **Platform Credentials**: Use separate tokens/credentials for each agent and platform
+- **Minimal Permissions**: Configure minimal required permissions for all platform tokens
+- **Credential Validation**: Ensure credentials match the intended service accounts
+- **Regular Rotation**: Regularly rotate access tokens and API keys across all platforms
+- **Rate Limit Monitoring**: Monitor API usage across all integrated platforms
+- **Container Security**: Review generated Docker configurations and agent isolation
+- **Environment Variables**: Use `.env` files for sensitive credentials - never commit to version control
+- **MCP Server Security**: Ensure MCP servers run with appropriate permissions and network access controls
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **GitHub Authentication**: Ensure tokens are properly set and have required permissions
-2. **Docker Issues**: Verify Docker and Docker Compose are installed and running
-3. **Rate Limits**: Monitor GitHub API usage with multiple agents
-4. **Port Conflicts**: Check for container port conflicts
-5. **Permission Issues**: Ensure proper file permissions for generated scripts
-6. **Repository Pattern Matching**: Verify regex patterns are properly escaped
-7. **Review Detection**: Check that agents are submitting reviews properly and re-requesting when needed
-8. **Multi-Repository Access**: Ensure GitHub tokens have access to all configured repositories
+1. **Platform Authentication**: Ensure tokens are properly set for all configured platforms (GitHub, Slack, databases, etc.)
+2. **MCP Server Connectivity**: Verify MCP servers are running and accessible to agents
+3. **Docker Issues**: Verify Docker and Docker Compose are installed and running
+4. **API Rate Limits**: Monitor rate limits across all integrated platforms
+5. **Port Conflicts**: Check for container port conflicts
+6. **Permission Issues**: Ensure proper file permissions for generated scripts and MCP configurations
+7. **Agent Communication**: Verify agents can communicate with their assigned MCP servers
+8. **Multi-Platform Access**: Ensure credentials have access to all configured services and platforms
+9. **MCP Protocol Issues**: Check MCP server logs for protocol-specific errors
 
 ### Debug Mode
 
@@ -572,25 +656,27 @@ autoteam generate
 cat .autoteam/compose.yaml
 ls .autoteam/bin/
 
-# Verify repository pattern matching
-docker-compose -f .autoteam/compose.yaml logs | grep "Found.*repositories"
+# Verify MCP server connectivity
+docker-compose -f .autoteam/compose.yaml logs | grep -E "(MCP|mcp)"
 
-# Check individual agent working directories
-ls .autoteam/agents/agent-name/collector/codebase/
-ls .autoteam/agents/agent-name/executor/codebase/
+# Check individual agent working directories and MCP configurations
+ls .autoteam/agents/agent-name/collector/data/
+ls .autoteam/agents/agent-name/executor/data/
+cat .autoteam/agents/agent-name/executor/.mcp.json
 
 # Test individual containers
 docker-compose -f .autoteam/compose.yaml up agent-name
 
-# View notification processing logs
-docker-compose -f .autoteam/compose.yaml logs agent-name | grep -E "(Notification|Processing|Intent)"
+# View platform task processing logs
+docker-compose -f .autoteam/compose.yaml logs agent-name | grep -E "(Task|Processing|Platform|MCP)"
 
-# Monitor real-time notification activity
+# Monitor real-time multi-platform activity
 docker-compose -f .autoteam/compose.yaml logs -f --tail=50
 
 # View streaming task logs for individual tasks
 ls .autoteam/agents/agent-name/executor/logs/
-cat .autoteam/agents/agent-name/executor/logs/20250814-121735-handle_bug_fix_in_parser.log
+cat .autoteam/agents/agent-name/executor/logs/20250814-121735-process_slack_message.log
+cat .autoteam/agents/agent-name/executor/logs/20250814-122304-update_database_record.log
 ```
 
 ## Streaming Task Logs

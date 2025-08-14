@@ -25,7 +25,7 @@ settings:
   install_deps: true
   
   # Two-Layer Architecture for Data Science Team
-  aggregation_agent:
+  collector_agent:
     type: gemini
     args: ["--model", "gemini-2.5-flash"]
     prompt: |

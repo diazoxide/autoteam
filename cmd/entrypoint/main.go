@@ -61,20 +61,20 @@ func main() {
 
 			// Two-Layer Agent Architecture Configuration
 			&cli.StringFlag{
-				Name:    "aggregation-agent-type",
+				Name:    "collector-agent-type",
 				Value:   "qwen",
 				Usage:   "Type of agent for task collection (first layer)",
-				Sources: cli.EnvVars("AGGREGATION_AGENT_TYPE"),
+				Sources: cli.EnvVars("COLLECTOR_AGENT_TYPE"),
 			},
 			&cli.StringFlag{
-				Name:    "aggregation-agent-args",
-				Usage:   "Comma-separated arguments for aggregation agent",
-				Sources: cli.EnvVars("AGGREGATION_AGENT_ARGS"),
+				Name:    "collector-agent-args",
+				Usage:   "Comma-separated arguments for collector agent",
+				Sources: cli.EnvVars("COLLECTOR_AGENT_ARGS"),
 			},
 			&cli.StringFlag{
-				Name:    "aggregation-agent-env",
-				Usage:   "Comma-separated key=value environment variables for aggregation agent",
-				Sources: cli.EnvVars("AGGREGATION_AGENT_ENV"),
+				Name:    "collector-agent-env",
+				Usage:   "Comma-separated key=value environment variables for collector agent",
+				Sources: cli.EnvVars("COLLECTOR_AGENT_ENV"),
 			},
 			&cli.StringFlag{
 				Name:    "execution-agent-type",
@@ -93,9 +93,9 @@ func main() {
 				Sources: cli.EnvVars("EXECUTION_AGENT_ENV"),
 			},
 			&cli.StringFlag{
-				Name:    "aggregation-agent-prompt",
-				Usage:   "Custom prompt for the aggregation agent (first layer)",
-				Sources: cli.EnvVars("AGGREGATION_AGENT_PROMPT"),
+				Name:    "collector-agent-prompt",
+				Usage:   "Custom prompt for the collector agent (first layer)",
+				Sources: cli.EnvVars("COLLECTOR_AGENT_PROMPT"),
 			},
 			&cli.StringFlag{
 				Name:    "execution-agent-prompt",
@@ -232,14 +232,14 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	}()
 
 	// Create layer agent configurations from CLI flags
-	// First Layer (Task Collection) - AggregationAgent
+	// First Layer (Task Collection) - CollectorAgent
 	firstLayerConfig := config.AgentConfig{
-		Type: cmd.String("aggregation-agent-type"),
-		Args: parseCommaSeparated(cmd.String("aggregation-agent-args")),
-		Env:  parseKeyValuePairs(cmd.String("aggregation-agent-env")),
+		Type: cmd.String("collector-agent-type"),
+		Args: parseCommaSeparated(cmd.String("collector-agent-args")),
+		Env:  parseKeyValuePairs(cmd.String("collector-agent-env")),
 	}
-	if aggregationPrompt := cmd.String("aggregation-agent-prompt"); aggregationPrompt != "" {
-		firstLayerConfig.Prompt = &aggregationPrompt
+	if collectorPrompt := cmd.String("collector-agent-prompt"); collectorPrompt != "" {
+		firstLayerConfig.Prompt = &collectorPrompt
 	}
 
 	// Second Layer (Task Execution) - Agent

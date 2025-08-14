@@ -25,7 +25,7 @@ type Config struct {
 
 // Monitor handles the two-layer agent monitoring loop
 type Monitor struct {
-	taskCollectionAgent agent.Agent // First Layer - uses AggregationAgent config
+	taskCollectionAgent agent.Agent // First Layer - uses CollectorAgent config
 	taskExecutionAgent  agent.Agent // Second Layer - uses Agent config
 	config              Config
 	globalConfig        *entrypoint.Config
@@ -98,8 +98,8 @@ func (m *Monitor) processTwoLayerCycle(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Debug("Starting two-layer processing cycle")
 
-	// Layer 1: Collect tasks using aggregation agent
-	tasks, err := m.collectTasksWithAggregationAgent(ctx)
+	// Layer 1: Collect tasks using collector agent
+	tasks, err := m.collectTasksWithCollectorAgent(ctx)
 	if err != nil {
 		return fmt.Errorf("task collection failed: %w", err)
 	}
@@ -117,10 +117,10 @@ func (m *Monitor) processTwoLayerCycle(ctx context.Context) error {
 	return m.executeHighestPriorityTask(ctx, tasks)
 }
 
-// collectTasksWithAggregationAgent uses the first layer agent to collect tasks
-func (m *Monitor) collectTasksWithAggregationAgent(ctx context.Context) (*task.TaskList, error) {
+// collectTasksWithCollectorAgent uses the first layer agent to collect tasks
+func (m *Monitor) collectTasksWithCollectorAgent(ctx context.Context) (*task.TaskList, error) {
 	lgr := logger.FromContext(ctx)
-	lgr.Debug("Collecting tasks with aggregation agent", zap.String("agent_type", m.taskCollectionAgent.Type()))
+	lgr.Debug("Collecting tasks with collector agent", zap.String("agent_type", m.taskCollectionAgent.Type()))
 
 	// Use custom prompt if configured, otherwise fallback to default first layer prompt
 	var basePrompt string

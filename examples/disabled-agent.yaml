@@ -47,7 +47,7 @@ settings:
     Write clear commit messages and document your changes.
   
   # Two-Layer Architecture
-  aggregation_agent:
+  collector_agent:
     type: gemini
     args: ["--model", "gemini-2.5-flash"]
     prompt: |

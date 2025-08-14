@@ -174,10 +174,10 @@
 
 ## Custom Layer Prompts Configuration
 - **NEW**: Users can now configure First Layer and Second Layer prompts directly in autoteam.yaml
-- Added `prompt` field to `AgentConfig` struct for both aggregation_agent and agent configurations
+- Added `prompt` field to `AgentConfig` struct for both collector_agent and agent configurations
 - Custom prompts override hardcoded defaults in `internal/task/prompts.go`
-- Environment variables: `AGGREGATION_AGENT_PROMPT` and `EXECUTION_AGENT_PROMPT` passed to containers
-- CLI flags: `--aggregation-agent-prompt` and `--execution-agent-prompt` for entrypoint command
+- Environment variables: `COLLECTOR_AGENT_PROMPT` and `EXECUTION_AGENT_PROMPT` passed to containers
+- CLI flags: `--collector-agent-prompt` and `--execution-agent-prompt` for entrypoint command
 - Layer configuration support in Monitor with fallback logic to default prompts when custom prompts not provided
 - Generator automatically extracts custom prompts from YAML config and passes as environment variables
 - All tests pass - backward compatible with existing hardcoded prompts serving as fallbacks

@@ -11,7 +11,7 @@ agents:
 
 settings:
   # Two-Layer Architecture (minimal)
-  aggregation_agent:
+  collector_agent:
     type: gemini
     args: ["--model", "gemini-2.5-flash"]
     prompt: "Get unread GitHub notifications and list them. Mark all as read after processing."

@@ -228,8 +228,8 @@ settings:
   team_name: autoteam-self-improvement
   install_deps: true
 
-  # Aggregation Agent (First Layer - Task Collection)
-  aggregation_agent:
+  # Collector Agent (First Layer - Task Collection)
+  collector_agent:
     type: gemini
     args: [ "--model", "gemini-2.5-flash" ]
     prompt: |
