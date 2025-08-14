@@ -81,31 +81,6 @@ func LoadConfig(filename string) (*Config, error) {
 	return &config, nil
 }
 
-// isRegexPattern checks if a pattern is a regex pattern (wrapped with /)
-func isRegexPattern(pattern string) bool {
-	return strings.HasPrefix(pattern, "/") && strings.HasSuffix(pattern, "/") && len(pattern) > 2
-}
-
-// extractRegexPattern extracts the regex pattern from /pattern/ format
-func extractRegexPattern(pattern string) string {
-	if !isRegexPattern(pattern) {
-		return pattern
-	}
-	return pattern[1 : len(pattern)-1]
-}
-
-// matchesPattern checks if a repository name matches a pattern (exact or regex)
-func matchesPattern(repoName, pattern string) bool {
-	if isRegexPattern(pattern) {
-		regex, err := regexp.Compile(extractRegexPattern(pattern))
-		if err != nil {
-			return false // Invalid regex, no match
-		}
-		return regex.MatchString(repoName)
-	}
-	return repoName == pattern
-}
-
 func validateConfig(config *Config) error {
 
 	if len(config.Agents) == 0 {
@@ -277,77 +252,6 @@ func mergeServiceConfigs(global, agent map[string]interface{}) map[string]interf
 	}
 
 	return result
-}
-
-// tryMergeAsMap attempts to merge two values as maps of various types
-// Returns the merged map if successful, nil if values aren't compatible maps
-func tryMergeAsMap(globalValue, agentValue interface{}) interface{} {
-	// Try map[string]string first (most common for environment, labels, etc.)
-	if globalMap, ok := globalValue.(map[string]string); ok {
-		if agentMap, ok := agentValue.(map[string]string); ok {
-			merged := make(map[string]string)
-			// Copy global values first
-			for k, v := range globalMap {
-				merged[k] = v
-			}
-			// Override with agent values
-			for k, v := range agentMap {
-				merged[k] = v
-			}
-			return merged
-		}
-	}
-
-	// Try map[string]interface{} (common after YAML unmarshaling)
-	if globalMap, ok := globalValue.(map[string]interface{}); ok {
-		if agentMap, ok := agentValue.(map[string]interface{}); ok {
-			merged := make(map[string]interface{})
-			// Copy global values first
-			for k, v := range globalMap {
-				merged[k] = v
-			}
-			// Override with agent values
-			for k, v := range agentMap {
-				merged[k] = v
-			}
-			return merged
-		}
-	}
-
-	// Try mixed map types - convert map[string]string to map[string]interface{}
-	if globalMap, ok := globalValue.(map[string]string); ok {
-		if agentMap, ok := agentValue.(map[string]interface{}); ok {
-			merged := make(map[string]interface{})
-			// Copy global values first (convert to interface{})
-			for k, v := range globalMap {
-				merged[k] = v
-			}
-			// Override with agent values
-			for k, v := range agentMap {
-				merged[k] = v
-			}
-			return merged
-		}
-	}
-
-	// Try reverse mixed types - convert map[string]interface{} to accommodate map[string]string
-	if globalMap, ok := globalValue.(map[string]interface{}); ok {
-		if agentMap, ok := agentValue.(map[string]string); ok {
-			merged := make(map[string]interface{})
-			// Copy global values first
-			for k, v := range globalMap {
-				merged[k] = v
-			}
-			// Override with agent values (convert to interface{})
-			for k, v := range agentMap {
-				merged[k] = v
-			}
-			return merged
-		}
-	}
-
-	// Values aren't compatible maps
-	return nil
 }
 
 // tryMergeAsMapRecursive attempts to merge two values as maps recursively using golang maps package

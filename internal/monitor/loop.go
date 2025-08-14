@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -213,40 +212,6 @@ IMPORTANT:
 	return taskList, nil
 }
 
-// createEmptyTasksJSON creates an empty tasks.json file
-func (m *Monitor) createEmptyTasksJSON(ctx context.Context, filePath string) error {
-	emptyTasks := task.NewTasksJSON()
-	return m.saveTasksJSON(ctx, filePath, emptyTasks)
-}
-
-// saveTasksJSON saves TasksJSON to a JSON file
-func (m *Monitor) saveTasksJSON(ctx context.Context, filePath string, tasksJSON *task.TasksJSON) error {
-	lgr := logger.FromContext(ctx)
-
-	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
-	}
-
-	// Marshal to JSON with indentation for readability
-	data, err := json.MarshalIndent(tasksJSON, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal tasks JSON: %w", err)
-	}
-
-	// Write to file
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write tasks JSON file: %w", err)
-	}
-
-	lgr.Debug("Tasks JSON file saved successfully",
-		zap.String("path", filePath),
-		zap.Int("todo_count", len(tasksJSON.Todo)),
-		zap.Int("done_count", len(tasksJSON.Done)))
-
-	return nil
-}
-
 // saveAgentOutput saves agent stdout and stderr to a file for debugging
 func (m *Monitor) saveAgentOutput(ctx context.Context, filePath, stdout, stderr string) error {
 	lgr := logger.FromContext(ctx)
@@ -399,108 +364,6 @@ func (m *Monitor) configureAgents(ctx context.Context) error {
 			lgr.Warn("Failed to configure task execution agent", zap.Error(err))
 		}
 	}
-
-	return nil
-}
-
-// mergeWithExistingTasks loads existing tasks.json and merges with new tasks
-// This preserves the todo and done state across collection cycles
-func (m *Monitor) mergeWithExistingTasks(ctx context.Context, tasksJSONPath string, newTasksJSON *task.TasksJSON) (*task.TasksJSON, error) {
-	lgr := logger.FromContext(ctx)
-
-	// Try to load existing tasks.json file
-	existingData, err := os.ReadFile(tasksJSONPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			lgr.Debug("No existing tasks.json file, using new tasks only")
-			return newTasksJSON, nil
-		}
-		return nil, fmt.Errorf("failed to read existing tasks.json: %w", err)
-	}
-
-	// Parse existing tasks
-	existingTasksJSON, err := task.LoadTasksJSON(existingData)
-	if err != nil {
-		lgr.Warn("Failed to parse existing tasks.json, using new tasks only", zap.Error(err))
-		return newTasksJSON, nil
-	}
-
-	lgr.Debug("Merging tasks",
-		zap.Int("existing_todo", existingTasksJSON.TodoCount()),
-		zap.Int("existing_done", existingTasksJSON.DoneCount()),
-		zap.Int("new_todo", newTasksJSON.TodoCount()))
-
-	// Create merged tasks starting with existing tasks
-	mergedTasks := task.NewTasksJSON()
-
-	// Preserve existing todo items
-	for _, existingTodo := range existingTasksJSON.Todo {
-		mergedTasks.AddTodoTask(existingTodo)
-	}
-
-	// Preserve existing done items
-	for _, existingDone := range existingTasksJSON.Done {
-		mergedTasks.AddDoneTask(existingDone)
-	}
-
-	// Add new todo items (avoid duplicates)
-	for _, newTodo := range newTasksJSON.Todo {
-		if !mergedTasks.ContainsTodoTask(newTodo) {
-			mergedTasks.AddTodoTask(newTodo)
-		}
-	}
-
-	lgr.Info("Tasks merged successfully",
-		zap.Int("final_todo_count", mergedTasks.TodoCount()),
-		zap.Int("final_done_count", mergedTasks.DoneCount()),
-		zap.Int("tasks_added", newTasksJSON.TodoCount()))
-
-	return mergedTasks, nil
-}
-
-// markTaskAsCompleted moves a task from todo to done in the shared tasks.json file
-func (m *Monitor) markTaskAsCompleted(ctx context.Context, taskDescription string) error {
-	lgr := logger.FromContext(ctx)
-
-	// Get the shared tasks.json path
-	agentDirectory := m.getAgentWorkingDirectory()
-	tasksJSONPath := fmt.Sprintf("%s/tasks.json", agentDirectory)
-
-	// Load existing tasks.json
-	existingData, err := os.ReadFile(tasksJSONPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			lgr.Debug("No tasks.json file exists, nothing to mark as completed")
-			return nil
-		}
-		return fmt.Errorf("failed to read tasks.json: %w", err)
-	}
-
-	// Parse existing tasks
-	tasksJSON, err := task.LoadTasksJSON(existingData)
-	if err != nil {
-		return fmt.Errorf("failed to parse tasks.json: %w", err)
-	}
-
-	// Check if task exists in todo list
-	if !tasksJSON.ContainsTodoTask(taskDescription) {
-		lgr.Debug("Task not found in todo list, may have been already completed",
-			zap.String("task_description", taskDescription))
-		return nil
-	}
-
-	// Move task from todo to done
-	tasksJSON.MoveToDone(taskDescription)
-
-	// Save updated tasks.json
-	if err := m.saveTasksJSON(ctx, tasksJSONPath, tasksJSON); err != nil {
-		return fmt.Errorf("failed to save updated tasks.json: %w", err)
-	}
-
-	lgr.Info("Task marked as completed",
-		zap.String("task_description", taskDescription),
-		zap.Int("remaining_todo_count", tasksJSON.TodoCount()),
-		zap.Int("done_count", tasksJSON.DoneCount()))
 
 	return nil
 }
