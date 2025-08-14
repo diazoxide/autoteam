@@ -82,7 +82,6 @@ func LoadConfig(filename string) (*Config, error) {
 }
 
 func validateConfig(config *Config) error {
-
 	if len(config.Agents) == 0 {
 		return fmt.Errorf("at least one agent must be configured")
 	}

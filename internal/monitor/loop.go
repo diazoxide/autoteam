@@ -368,13 +368,6 @@ func (m *Monitor) configureAgents(ctx context.Context) error {
 	return nil
 }
 
-// getAgentWorkingDirectory returns the common agent working directory
-func (m *Monitor) getAgentWorkingDirectory() string {
-	// Normalize agent name consistently using the same logic as config.Agent.GetNormalizedName()
-	agentNormalizedName := strings.ToLower(strings.ReplaceAll(m.globalConfig.Agent.Name, " ", "_"))
-	return fmt.Sprintf("/opt/autoteam/agents/%s", agentNormalizedName)
-}
-
 // getLayerWorkingDirectory returns the layer-specific working directory
 func (m *Monitor) getLayerWorkingDirectory(layer string) string {
 	// Normalize agent name consistently using the same logic as config.Agent.GetNormalizedName()

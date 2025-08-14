@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"autoteam/internal/config"
@@ -15,6 +16,7 @@ import (
 // ComposeConfig represents the structure of a Docker Compose file
 type ComposeConfig struct {
 	Services map[string]interface{} `yaml:"services"`
+	Volumes  map[string]interface{} `yaml:"volumes,omitempty"`
 }
 
 type Generator struct {
@@ -205,6 +207,16 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 		}
 	}
 
+	// Auto-detect and create named volume definitions
+	namedVolumes := g.detectNamedVolumes(compose.Services)
+	if len(namedVolumes) > 0 {
+		compose.Volumes = make(map[string]interface{})
+		for volumeName := range namedVolumes {
+			// Create empty volume definition (external volumes can be customized later)
+			compose.Volumes[volumeName] = map[string]interface{}{}
+		}
+	}
+
 	// Marshal to YAML
 	yamlData, err := yaml.Marshal(&compose)
 	if err != nil {
@@ -292,4 +304,37 @@ func (g *Generator) createAgentDirectories(cfg *config.Config) error {
 	}
 
 	return nil
+}
+
+// detectNamedVolumes scans all services for named volume references and returns a set of volume names
+func (g *Generator) detectNamedVolumes(services map[string]interface{}) map[string]bool {
+	namedVolumes := make(map[string]bool)
+	// Regex to match named volumes (e.g., "postgres_data:/var/lib/postgresql/data")
+	// Named volumes don't start with ./ or / (those are bind mounts)
+	namedVolumeRegex := regexp.MustCompile(`^([^/.][^:/]*):`)
+
+	for _, serviceConfig := range services {
+		if serviceMap, ok := serviceConfig.(map[string]interface{}); ok {
+			if volumes, exists := serviceMap["volumes"]; exists {
+				// Handle both []string and []interface{} volume formats
+				if volumeSlice, ok := volumes.([]string); ok {
+					for _, volume := range volumeSlice {
+						if matches := namedVolumeRegex.FindStringSubmatch(volume); matches != nil {
+							namedVolumes[matches[1]] = true
+						}
+					}
+				} else if volumeInterface, ok := volumes.([]interface{}); ok {
+					for _, v := range volumeInterface {
+						if volumeStr, ok := v.(string); ok {
+							if matches := namedVolumeRegex.FindStringSubmatch(volumeStr); matches != nil {
+								namedVolumes[matches[1]] = true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return namedVolumes
 }
