@@ -1,19 +1,16 @@
 # Example configuration with a disabled agent
 # This shows how to temporarily disable agents without removing their configuration
 
-repositories:
-  include:
-    - "myorg/main-project"
-    - "myorg/api-service"
-
 agents:
   # Active developer agent
   - name: "Developer"
     prompt: |
       You are a developer agent responsible for implementing features and fixing bugs.
       Focus on writing clean, maintainable code with proper tests.
-    github_token: "${DEVELOPER_TOKEN}"
-    github_user: "dev-user"
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${DEVELOPER_GITHUB_TOKEN}
     enabled: true  # Explicitly enabled (this is the default)
 
   # Temporarily disabled reviewer agent
@@ -21,8 +18,10 @@ agents:
     prompt: |
       You are a code reviewer focused on code quality, best practices, and security.
       Provide constructive feedback to improve code maintainability.
-    github_token: "${REVIEWER_TOKEN}"
-    github_user: "reviewer-user"
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${REVIEWER_GITHUB_TOKEN}
     enabled: false  # This agent won't be deployed
 
   # Another active agent
@@ -30,8 +29,10 @@ agents:
     prompt: |
       You are a DevOps engineer responsible for CI/CD, infrastructure, and deployment.
       Focus on automation and reliability.
-    github_token: "${DEVOPS_TOKEN}"
-    github_user: "devops-user"
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${DEVOPS_GITHUB_TOKEN}
     # 'enabled' not specified, defaults to true
 
 settings:
@@ -44,3 +45,29 @@ settings:
   common_prompt: |
     Always follow the project's coding standards and best practices.
     Write clear commit messages and document your changes.
+  
+  # Two-Layer Architecture
+  aggregation_agent:
+    type: gemini
+    args: ["--model", "gemini-2.5-flash"]
+    prompt: |
+      You are a notification collector. Get unread GitHub notifications and list them.
+      Use GitHub MCP to get notifications in format: {NOTIFICATION URL} - {NOTIFICATION TEXT}
+      Mark all notifications as read after processing.
+      
+  execution_agent:
+    type: claude
+    args: []
+    prompt: |
+      You are the task execution agent. Execute tasks and publish your results.
+      For comments: respond publicly on GitHub
+      For PR reviews: submit review with feedback
+      For assigned issues: implement and create PR
+      
+  # MCP Server Configuration
+  mcp_servers:
+    github:
+      command: /opt/autoteam/bin/github-mcp-server
+      args: ["stdio"]
+      env:
+        GITHUB_PERSONAL_ACCESS_TOKEN: $$GITHUB_TOKEN

@@ -4,5 +4,27 @@
 agents:
   - name: "bot"
     prompt: "You are an AI assistant that helps with general development tasks."
-    github_token: "ghp_your_token_here"
-    github_user: "your-github-username"
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${BOT_GITHUB_TOKEN}
+
+settings:
+  # Two-Layer Architecture (minimal)
+  aggregation_agent:
+    type: gemini
+    args: ["--model", "gemini-2.5-flash"]
+    prompt: "Get unread GitHub notifications and list them. Mark all as read after processing."
+      
+  execution_agent:
+    type: claude
+    args: []
+    prompt: "Execute tasks and publish results on GitHub."
+      
+  # MCP Server Configuration
+  mcp_servers:
+    github:
+      command: /opt/autoteam/bin/github-mcp-server
+      args: ["stdio"]
+      env:
+        GITHUB_PERSONAL_ACCESS_TOKEN: $$GITHUB_TOKEN

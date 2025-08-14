@@ -5,39 +5,41 @@ agents:
   - name: "developer"
     prompt: |
       You are a senior developer responsible for feature implementation.
-    github_token: "ghp_your_developer_token_here"
-    github_user: "your-github-username"
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${DEVELOPER_GITHUB_TOKEN}
     
   - name: "architect"
     prompt: |
       You are a system architect focused on design and scalability.
-    github_token: "ghp_your_architect_token_here"
-    github_user: "your-github-username"
     settings:
       service:
         image: "golang:1.21"
         volumes:
           - "./arch-configs:/app/configs:ro"
         environment:
+          GITHUB_TOKEN: ${ARCHITECT_GITHUB_TOKEN}
           ARCH_MODE: "strict"
     
   - name: "reviewer"
     prompt: |
       You are a code reviewer ensuring quality and best practices.
-    github_token: "ghp_your_reviewer_token_here"
-    github_user: "your-github-username"
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${REVIEWER_GITHUB_TOKEN}
 
   - name: "tester"
     prompt: |
       You are a QA engineer responsible for testing and bug validation.
-    github_token: "ghp_your_tester_token_here"
-    github_user: "your-github-username"
     settings:
       service:
         image: "python:3.11"
         volumes:
           - "./test-data:/app/test-data"
         environment:
+          GITHUB_TOKEN: ${TESTER_GITHUB_TOKEN}
           TEST_ENV: "staging"
 
 settings:
@@ -49,3 +51,29 @@ settings:
   team_name: "enterprise-team"
   check_interval: 45
   install_deps: true
+  
+  # Two-Layer Architecture
+  aggregation_agent:
+    type: gemini
+    args: ["--model", "gemini-2.5-flash"]
+    prompt: |
+      You are a notification collector for enterprise team. Get unread GitHub notifications and list them.
+      Use GitHub MCP to get notifications in format: {NOTIFICATION URL} - {NOTIFICATION TEXT}
+      Mark all notifications as read after processing.
+      
+  execution_agent:
+    type: claude
+    args: []
+    prompt: |
+      You are the enterprise task execution agent. Execute tasks with enterprise-grade quality.
+      For comments: respond professionally on GitHub
+      For PR reviews: provide comprehensive review feedback
+      For assigned issues: implement with proper architecture and testing
+      
+  # MCP Server Configuration
+  mcp_servers:
+    github:
+      command: /opt/autoteam/bin/github-mcp-server
+      args: ["stdio"]
+      env:
+        GITHUB_PERSONAL_ACCESS_TOKEN: $$GITHUB_TOKEN

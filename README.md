@@ -62,70 +62,82 @@ This creates a sample `autoteam.yaml` with basic configuration.
 
 ### 3. Configure Your Setup
 
-Edit `autoteam.yaml` to match your repositories and requirements:
+Edit `autoteam.yaml` to match your requirements:
 
 ```yaml
-# Multi-repository configuration
-repositories:
-  include:
-    - "myorg/project-alpha"           # Exact repository match
-    - "/myorg\\/backend-.*/'"         # Regex pattern for multiple repos
-    - "/diazoxide\\/.*/'"             # All repositories from diazoxide user
-  exclude:
-    - "myorg/legacy-project"          # Exclude specific repository
-    - "/.*-archived$/'"               # Exclude archived repositories
-
 agents:
-  - name: "developer"
-    prompt: "You are a developer agent responsible for implementing features and fixing bugs."
-    github_token: "ghp_your_developer_token_here"
-    github_user: "your-github-username"
-  - name: "reviewer"
-    prompt: "You are a code reviewer focused on quality and best practices."
-    github_token: "ghp_your_reviewer_token_here"
-    github_user: "your-github-username"
+  - name: "Senior Developer"
+    enabled: true
+    prompt: |
+      You are a developer agent responsible for implementing features and fixing bugs.
+      Focus on code quality, testing, and documentation.
     settings:
-      docker_image: "golang:1.21"  # Custom image for reviewer
-      volumes:
-        - "./tools:/opt/tools:ro"  # Additional volume mount
+      service:
+        environment:
+          GITHUB_TOKEN: ${DEVELOPER_GITHUB_TOKEN}
+          
+  - name: "Code Reviewer"
+    enabled: true 
+    prompt: |
+      You are a code reviewer focused on quality and best practices.
+      Provide constructive feedback and ensure maintainable code.
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${REVIEWER_GITHUB_TOKEN}
+        image: "golang:1.21"  # Custom image for reviewer
+        volumes:
+          - "./tools:/opt/tools:ro"  # Additional volume mount
 
 settings:
-  docker_image: "node:18.17.1"
-  docker_user: "developer"
+  service:
+    image: "node:18.17.1"
+    user: "developer"
+    volumes:
+      - "./shared/claude:/root/.claude"
+      - "./shared/claude.json:/root/.claude.json"
   check_interval: 60
   team_name: "autoteam"
   install_deps: true
+  
+  # Two-Layer Architecture Configuration
+  aggregation_agent:
+    type: gemini
+    args: ["--model", "gemini-2.5-flash"]
+    prompt: |
+      You are a notification collector. Get unread GitHub notifications and list them.
+      Use GitHub MCP to get notifications in format: {NOTIFICATION URL} - {NOTIFICATION TEXT}
+      Mark all notifications as read after processing.
+      
+  execution_agent:
+    type: claude
+    args: []
+    prompt: |
+      You are the task execution agent. Execute tasks and publish your results.
+      For comments: respond publicly on GitHub
+      For PR reviews: submit review with feedback
+      For assigned issues: implement and create PR
+      
+  # MCP Server Configuration
+  mcp_servers:
+    github:
+      command: /opt/autoteam/bin/github-mcp-server
+      args: ["stdio"]
+      env:
+        GITHUB_PERSONAL_ACCESS_TOKEN: $$GITHUB_TOKEN
 ```
 
 ### 4. Add Your GitHub Tokens
 
-You have two options for providing GitHub tokens:
+Create a `.env` file in your project root to securely provide GitHub tokens:
 
-**Option A: Direct in autoteam.yaml**
-```yaml
-agents:
-  - name: "developer"
-    github_token: "ghp_your_actual_developer_token"
-  - name: "reviewer"  
-    github_token: "ghp_your_actual_reviewer_token"
-```
-
-**Option B: Using .env file (recommended for security)**
-Create a `.env` file in your project root:
 ```bash
 # .env file
-DEVELOPER_TOKEN=ghp_your_actual_developer_token
-REVIEWER_TOKEN=ghp_your_actual_reviewer_token
+DEVELOPER_GITHUB_TOKEN=ghp_your_actual_developer_token
+REVIEWER_GITHUB_TOKEN=ghp_your_actual_reviewer_token
 ```
 
-Then reference them in `autoteam.yaml`:
-```yaml
-agents:
-  - name: "developer"
-    github_token: "${DEVELOPER_TOKEN}"
-  - name: "reviewer"  
-    github_token: "${REVIEWER_TOKEN}"
-```
+The tokens are referenced in your `autoteam.yaml` through environment variables in the `settings.service.environment` section as shown in the configuration above.
 
 ### 5. Deploy Your Team
 
@@ -142,54 +154,61 @@ autoteam down
 
 ## Configuration
 
-### Repository Settings
-
-**Multi-Repository Support:**
-- `repositories.include`: List of repository patterns to monitor
-  - Exact matches: `"owner/repo"`
-  - Regex patterns: `"/owner\\/prefix-.*/"`
-  - User patterns: `"/username\\/.*/"`
-- `repositories.exclude`: List of repository patterns to exclude (optional)
-
-**Repository Pattern Examples:**
-```yaml
-repositories:
-  include:
-    - "myorg/main-project"        # Single repository
-    - "/myorg\\/api-.*/'"         # All repositories starting with "api-"
-    - "/username\\/.*/'"          # All repositories from a specific user
-  exclude:
-    - "myorg/legacy-system"       # Exclude specific repository
-    - "/.*-archive$/'"            # Exclude archived repositories
-```
-
 ### Agent Configuration
 
+**Agent Properties:**
 - `name`: Unique identifier for the agent (supports names with spaces and special characters)
-- `prompt`: Primary role and responsibilities
-- `github_token`: GitHub personal access token for this agent
-- `github_user`: GitHub username associated with the token (required for security validation)
+- `prompt`: Primary role and responsibilities (supports multi-line YAML)
 - `enabled`: Enable/disable agent without removing configuration (optional, defaults to true)
-- `mcp_servers`: Agent-specific MCP (Model Context Protocol) servers (optional)
 - `settings`: Agent-specific overrides for global settings (optional)
-  - `docker_image`: Custom Docker image for this agent
-  - `docker_user`: Custom user for this agent
-  - `volumes`: Additional volume mounts
-  - `environment`: Additional environment variables
-  - `mcp_servers`: MCP servers at agent settings level (optional)
+  - `service`: Docker service configuration overrides
+    - `image`: Custom Docker image for this agent
+    - `user`: Custom user for this agent  
+    - `volumes`: Additional volume mounts
+    - `environment`: Environment variables (including GITHUB_TOKEN)
 
-### Settings
+**Example Agent Configuration:**
+```yaml
+agents:
+  - name: "Senior Developer"
+    enabled: true
+    prompt: |
+      You are a senior developer responsible for implementing features and fixes.
+      Focus on code quality, testing, and comprehensive documentation.
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${DEVELOPER_GITHUB_TOKEN}
+        image: "golang:1.21"
+        volumes:
+          - "./custom-tools:/opt/tools:ro"
+```
 
-- `docker_image`: Docker image for agent containers
-- `docker_user`: User account inside containers  
+### Global Settings
+
+**Service Configuration:**
+- `service`: Docker service defaults applied to all agents
+  - `image`: Default Docker image for agent containers
+  - `user`: Default user account inside containers
+  - `volumes`: Default volume mounts applied to all agents
+  - `environment`: Default environment variables for all agents
+
+**Two-Layer Architecture:**
+- `aggregation_agent`: First layer configuration (task collection)
+  - `type`: Agent type (gemini, claude, qwen)
+  - `args`: Command line arguments
+  - `prompt`: Collection-specific prompt
+- `execution_agent`: Second layer configuration (task execution)
+  - `type`: Agent type (gemini, claude, qwen)  
+  - `args`: Command line arguments
+  - `prompt`: Execution-specific prompt
+
+**System Settings:**
 - `check_interval`: Monitoring frequency in seconds
-- `team_name`: Project name used in paths
-- `install_deps`: Install dependencies on startup
+- `team_name`: Project name used in paths and Docker Compose project name
+- `install_deps`: Install dependencies on container startup
 - `common_prompt`: Common instructions shared by all agents (optional)
-- `max_attempts`: Maximum retry attempts for failed items (default: 3)
-- `volumes`: Global volume mounts applied to all agents (optional)
-- `environment`: Global environment variables for all agents (optional)
-- `mcp_servers`: Global MCP (Model Context Protocol) servers for all agents (optional)
+- `mcp_servers`: Global MCP (Model Context Protocol) servers for all agents
 
 ### MCP Server Configuration
 
@@ -205,19 +224,27 @@ AutoTeam supports Model Context Protocol (MCP) servers to enhance agent capabili
 settings:
   mcp_servers:
     github:
-      command: "npx"
-      args: ["-y", "@github/github-mcp-server"]
+      command: /opt/autoteam/bin/github-mcp-server
+      args: ["stdio"]
       env:
-        GITHUB_TOKEN: "${GITHUB_TOKEN}"
+        GITHUB_PERSONAL_ACCESS_TOKEN: $$GITHUB_TOKEN
     memory:
       command: "npx"
       args: ["-y", "mcp-memory-service"]
 
 agents:
   - name: "developer"
-    prompt: "You are a developer agent"
-    github_token: "${DEVELOPER_TOKEN}"
-    github_user: "dev-user"
+    prompt: |
+      You are a developer agent responsible for implementing features.
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${DEVELOPER_GITHUB_TOKEN}
+      # Agent settings-level MCP servers (medium priority)
+      mcp_servers:
+        filesystem:
+          command: "npx"
+          args: ["-y", "mcp-filesystem-server"]
     # Agent-level MCP servers (highest priority)
     mcp_servers:
       sqlite:
@@ -225,12 +252,6 @@ agents:
         args: ["-y", "mcp-sqlite-server"]
         env:
           DATABASE_URL: "sqlite:///opt/autoteam/agents/developer/collector/data.db"
-    settings:
-      # Agent settings-level MCP servers (medium priority)
-      mcp_servers:
-        filesystem:
-          command: "npx"
-          args: ["-y", "mcp-filesystem-server"]
 ```
 
 **MCP Server Properties:**
@@ -323,12 +344,16 @@ AutoTeam automatically normalizes agent names for Docker Compose services and di
 agents:
   - name: "Senior Developer"      # Original name (used in environment variables)
     prompt: "You are a senior developer"
-    github_token: "ghp_token1"
-    github_user: "senior-dev-user"
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${SENIOR_DEVELOPER_GITHUB_TOKEN}
   - name: "API Agent #1"          # Original name with special characters
     prompt: "You are an API specialist"
-    github_token: "ghp_token2"
-    github_user: "api-dev-user"
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${API_AGENT_GITHUB_TOKEN}
 ```
 
 This generates Docker Compose services with normalized names:
@@ -364,14 +389,18 @@ You can temporarily disable agents without removing their configuration:
 agents:
   - name: "developer"
     prompt: "You are a developer agent"
-    github_token: "ghp_token1"
-    github_user: "dev-user"
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${DEVELOPER_GITHUB_TOKEN}
     enabled: true  # Agent is active (default)
   
   - name: "reviewer"
     prompt: "You are a code reviewer"
-    github_token: "ghp_token2"
-    github_user: "reviewer-user"
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${REVIEWER_GITHUB_TOKEN}
     enabled: false  # Agent is disabled - won't be deployed
 ```
 

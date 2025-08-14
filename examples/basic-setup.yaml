@@ -5,17 +5,49 @@ agents:
   - name: "developer"
     prompt: |
       You are a developer agent responsible for implementing features and fixing bugs.
-    github_token: "ghp_your_developer_token_here"
-    github_user: "your-github-username"
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${DEVELOPER_GITHUB_TOKEN}
     
   - name: "reviewer"
     prompt: |
       You are a code reviewer focused on quality and best practices.
-    github_token: "ghp_your_reviewer_token_here"
-    github_user: "your-github-username"
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${REVIEWER_GITHUB_TOKEN}
 
 settings:
   check_interval: 30
   service:
     image: "node:18.17.1"
     user: "developer"
+  team_name: "basic-team"
+  install_deps: true
+  
+  # Two-Layer Architecture
+  aggregation_agent:
+    type: gemini
+    args: ["--model", "gemini-2.5-flash"]
+    prompt: |
+      You are a notification collector. Get unread GitHub notifications and list them.
+      Use GitHub MCP to get notifications in format: {NOTIFICATION URL} - {NOTIFICATION TEXT}
+      Mark all notifications as read after processing.
+      
+  execution_agent:
+    type: claude
+    args: []
+    prompt: |
+      You are the task execution agent. Execute tasks and publish your results.
+      For comments: respond publicly on GitHub
+      For PR reviews: submit review with feedback
+      For assigned issues: implement and create PR
+      
+  # MCP Server Configuration
+  mcp_servers:
+    github:
+      command: /opt/autoteam/bin/github-mcp-server
+      args: ["stdio"]
+      env:
+        GITHUB_PERSONAL_ACCESS_TOKEN: $$GITHUB_TOKEN

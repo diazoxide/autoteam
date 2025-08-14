@@ -5,8 +5,10 @@ agents:
   - name: "python-dev"
     prompt: |
       You are a Python developer specializing in data science projects.
-    github_token: "ghp_your_python_dev_token_here"
-    github_user: "your-github-username"
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${PYTHON_DEV_GITHUB_TOKEN}
 
 settings:
   service:
@@ -21,3 +23,29 @@ settings:
   team_name: "data-team"
   check_interval: 120
   install_deps: true
+  
+  # Two-Layer Architecture for Data Science Team
+  aggregation_agent:
+    type: gemini
+    args: ["--model", "gemini-2.5-flash"]
+    prompt: |
+      You are a notification collector for data science team. Get unread GitHub notifications and list them.
+      Use GitHub MCP to get notifications in format: {NOTIFICATION URL} - {NOTIFICATION TEXT}
+      Mark all notifications as read after processing.
+      
+  execution_agent:
+    type: claude
+    args: []
+    prompt: |
+      You are the data science task execution agent. Execute tasks with focus on data analysis and ML.
+      For comments: respond with data-driven insights on GitHub
+      For PR reviews: review code for data science best practices
+      For assigned issues: implement with proper data validation and testing
+      
+  # MCP Server Configuration
+  mcp_servers:
+    github:
+      command: /opt/autoteam/bin/github-mcp-server
+      args: ["stdio"]
+      env:
+        GITHUB_PERSONAL_ACCESS_TOKEN: $$GITHUB_TOKEN
