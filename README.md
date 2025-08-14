@@ -11,6 +11,7 @@ AutoTeam is a configurable system that deploys AI agents to automatically handle
 - **Multi-Repository Support**: Monitor and work across multiple repositories with pattern matching and regex support
 - **Universal Configuration**: Single YAML file to define repositories, agents, and settings
 - **Two-Layer Agent Architecture**: Clean collector/executor subdirectory structure for task separation
+- **Streaming Task Logs**: Individual log files per task with timestamped, normalized filenames
 - **Dynamic Agent Scaling**: Support for any number of specialized agents
 - **Intelligent Notification Processing**: Single notification processing with type-specific prompts and intent recognition
 - **Smart Response System**: Distinguishes between consultation requests and implementation tasks to prevent over-engineering
@@ -557,7 +558,65 @@ docker-compose -f .autoteam/compose.yaml logs agent-name | grep -E "(Notificatio
 
 # Monitor real-time notification activity
 docker-compose -f .autoteam/compose.yaml logs -f --tail=50
+
+# View streaming task logs for individual tasks
+ls .autoteam/agents/agent-name/executor/logs/
+cat .autoteam/agents/agent-name/executor/logs/20250814-121735-handle_bug_fix_in_parser.log
 ```
+
+## Streaming Task Logs
+
+AutoTeam provides detailed task-specific logging for the executor layer with individual log files for each task:
+
+### Log File Structure
+
+Each task execution creates a separate log file with the format:
+```
+.autoteam/agents/{agent-name}/executor/logs/{YYYYMMDD-HHMMSS}-{normalized_task_name}.log
+```
+
+**Examples:**
+```
+20250814-121735-handle_bug_fix_in_parser.log
+20250814-122015-review_pull_request_for_authentication.log
+20250814-122304-implement_user_dashboard_feature.log
+```
+
+### Log Features
+
+- **Timestamped Files**: Each log file starts with execution timestamp (YYYYMMDD-HHMMSS)
+- **Normalized Names**: Task descriptions converted to safe, lowercase filenames
+- **Real-time Streaming**: Logs written immediately during execution (not batched at completion)
+- **Complete Output**: Captures both stdout and stderr from agent execution
+- **Task Context**: Each log includes the original task description and execution metadata
+- **Backward Compatible**: Maintains existing `output.txt` functionality
+
+### Viewing Task Logs
+
+```bash
+# List all task logs for an agent
+ls .autoteam/agents/senior_developer/executor/logs/
+
+# View specific task execution
+cat .autoteam/agents/senior_developer/executor/logs/20250814-121735-fix_memory_leak_issue.log
+
+# Monitor latest task logs in real-time
+tail -f .autoteam/agents/senior_developer/executor/logs/*.log
+
+# Find logs for specific task types
+ls .autoteam/agents/senior_developer/executor/logs/*review*.log
+ls .autoteam/agents/senior_developer/executor/logs/*implement*.log
+```
+
+### Log Content Format
+
+Each log file contains:
+- **Header**: Task description and execution timestamp
+- **Agent Stdout**: Complete output from the AI agent
+- **Agent Stderr**: Any error messages or warnings
+- **Completion**: Task completion timestamp
+
+This detailed logging makes it easy to debug individual task executions, track agent behavior over time, and understand how specific notifications were processed.
 
 ## Contributing
 
