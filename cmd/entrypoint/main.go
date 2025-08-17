@@ -227,9 +227,9 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	)
 
 	// Execute on_init hooks
-	if err := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_init"); err != nil {
-		log.Error("Failed to execute on_init hooks", zap.Error(err))
-		return fmt.Errorf("failed to execute on_init hooks: %w", err)
+	if hookErr := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_init"); hookErr != nil {
+		log.Error("Failed to execute on_init hooks", zap.Error(hookErr))
+		return fmt.Errorf("failed to execute on_init hooks: %w", hookErr)
 	}
 
 	// Create context for graceful shutdown
@@ -244,8 +244,8 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		log.Info("Received signal, shutting down gracefully", zap.String("signal", sig.String()))
 
 		// Execute on_stop hooks
-		if err := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_stop"); err != nil {
-			log.Error("Failed to execute on_stop hooks", zap.Error(err))
+		if hookErr := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_stop"); hookErr != nil {
+			log.Error("Failed to execute on_stop hooks", zap.Error(hookErr))
 		}
 
 		cancel()
@@ -298,8 +298,8 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	// Install dependencies for both agents if needed
 	log.Debug("Installing dependencies for agents")
 	installer := deps.NewInstaller(cfg.Dependencies)
-	if err := installer.Install(ctx, taskCollectionAgent, taskExecutionAgent); err != nil {
-		log.Warn("Failed to install dependencies for agents", zap.Error(err))
+	if installErr := installer.Install(ctx, taskCollectionAgent, taskExecutionAgent); installErr != nil {
+		log.Warn("Failed to install dependencies for agents", zap.Error(installErr))
 	}
 
 	// Note: Git operations now handled via MCP servers
@@ -316,9 +316,9 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	mon.SetLayerConfigs(&firstLayerConfig, &secondLayerConfig)
 
 	// Execute on_start hooks
-	if err := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_start"); err != nil {
-		log.Error("Failed to execute on_start hooks", zap.Error(err))
-		return fmt.Errorf("failed to execute on_start hooks: %w", err)
+	if hookErr := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_start"); hookErr != nil {
+		log.Error("Failed to execute on_start hooks", zap.Error(hookErr))
+		return fmt.Errorf("failed to execute on_start hooks: %w", hookErr)
 	}
 
 	log.Info("Starting two-layer agent monitoring loop",

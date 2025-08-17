@@ -5,7 +5,6 @@ go 1.23.0
 toolchain go1.24.2
 
 require (
-	github.com/graphql-go/graphql v0.8.1
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/urfave/cli/v3 v3.3.8
