@@ -1,0 +1,629 @@
+openapi: 3.0.3
+info:
+  title: AutoTeam Agent API
+  description: HTTP API for monitoring and managing AutoTeam agents
+  version: 1.0.0
+  contact:
+    name: AutoTeam
+    url: https://github.com/your-org/auto-team
+
+servers:
+  - url: http://localhost:8080
+    description: Local agent server
+
+paths:
+  /health:
+    get:
+      summary: Agent health check
+      description: Returns the health status and availability of the agent
+      operationId: getHealth
+      responses:
+        '200':
+          description: Agent health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /status:
+    get:
+      summary: Agent status
+      description: Returns current agent operational status and mode
+      operationId: getStatus
+      responses:
+        '200':
+          description: Agent status information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /logs:
+    get:
+      summary: List agent logs
+      description: Returns list of available log files for both collector and executor
+      operationId: getLogs
+      parameters:
+        - name: role
+          in: query
+          description: Filter logs by role (collector, executor)
+          required: false
+          schema:
+            type: string
+            enum: [collector, executor]
+        - name: limit
+          in: query
+          description: Maximum number of log files to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: List of log files
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /logs/collector:
+    get:
+      summary: List collector logs
+      description: Returns list of collector-specific log files
+      operationId: getCollectorLogs
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of log files to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: List of collector log files
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /logs/executor:
+    get:
+      summary: List executor logs
+      description: Returns list of executor-specific log files
+      operationId: getExecutorLogs
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of log files to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: List of executor log files
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /logs/{filename}:
+    get:
+      summary: Download log file
+      description: Download specific log file content
+      operationId: getLogFile
+      parameters:
+        - name: filename
+          in: path
+          description: Name of the log file to download
+          required: true
+          schema:
+            type: string
+        - name: tail
+          in: query
+          description: Number of last lines to return (tail behavior)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
+      responses:
+        '200':
+          description: Log file content
+          content:
+            text/plain:
+              schema:
+                type: string
+        '404':
+          description: Log file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tasks:
+    get:
+      summary: List tasks
+      description: Returns current task queue and execution history
+      operationId: getTasks
+      parameters:
+        - name: status
+          in: query
+          description: Filter tasks by status
+          required: false
+          schema:
+            type: string
+            enum: [pending, running, completed, failed]
+        - name: type
+          in: query
+          description: Filter tasks by type
+          required: false
+          schema:
+            type: string
+        - name: platform
+          in: query
+          description: Filter tasks by platform
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of tasks to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TasksResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tasks/{id}:
+    get:
+      summary: Get task details
+      description: Returns detailed information about a specific task
+      operationId: getTask
+      parameters:
+        - name: id
+          in: path
+          description: Task ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /metrics:
+    get:
+      summary: Agent metrics
+      description: Returns performance metrics and statistics for the agent
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Agent metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /config:
+    get:
+      summary: Agent configuration
+      description: Returns sanitized agent configuration (sensitive data removed)
+      operationId: getConfig
+      responses:
+        '200':
+          description: Agent configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - agent
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+          description: Overall health status
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+        agent:
+          $ref: '#/components/schemas/AgentInfo'
+        checks:
+          type: object
+          description: Individual health check results
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [pass, fail]
+              message:
+                type: string
+
+    StatusResponse:
+      type: object
+      required:
+        - status
+        - mode
+        - timestamp
+        - agent
+      properties:
+        status:
+          type: string
+          enum: [idle, collecting, executing, error]
+          description: Current operational status
+        mode:
+          type: string
+          enum: [collector, executor, both]
+          description: Current operational mode
+        timestamp:
+          type: string
+          format: date-time
+          description: Status timestamp
+        agent:
+          $ref: '#/components/schemas/AgentInfo'
+        current_task:
+          $ref: '#/components/schemas/TaskSummary'
+        uptime:
+          type: string
+          description: Agent uptime duration
+
+    LogsResponse:
+      type: object
+      required:
+        - logs
+        - total
+        - timestamp
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogFile'
+        total:
+          type: integer
+          description: Total number of log files
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    TasksResponse:
+      type: object
+      required:
+        - tasks
+        - total
+        - timestamp
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskSummary'
+        total:
+          type: integer
+          description: Total number of tasks
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    TaskResponse:
+      type: object
+      required:
+        - task
+        - timestamp
+      properties:
+        task:
+          $ref: '#/components/schemas/Task'
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    MetricsResponse:
+      type: object
+      required:
+        - metrics
+        - timestamp
+      properties:
+        metrics:
+          type: object
+          properties:
+            uptime:
+              type: string
+              description: Agent uptime duration
+            tasks_processed:
+              type: integer
+              description: Total tasks processed
+            tasks_success:
+              type: integer
+              description: Successfully completed tasks
+            tasks_failed:
+              type: integer
+              description: Failed tasks
+            avg_execution_time:
+              type: string
+              description: Average task execution time
+            last_activity:
+              type: string
+              format: date-time
+              description: Timestamp of last activity
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    ConfigResponse:
+      type: object
+      required:
+        - config
+        - timestamp
+      properties:
+        config:
+          type: object
+          description: Sanitized agent configuration
+          properties:
+            name:
+              type: string
+            type:
+              type: string
+            enabled:
+              type: boolean
+            version:
+              type: string
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    AgentInfo:
+      type: object
+      required:
+        - name
+        - type
+        - version
+      properties:
+        name:
+          type: string
+          description: Agent name
+        type:
+          type: string
+          description: Agent type
+        version:
+          type: string
+          description: Agent version
+        available:
+          type: boolean
+          description: Agent availability status
+
+    LogFile:
+      type: object
+      required:
+        - filename
+        - size
+        - modified
+      properties:
+        filename:
+          type: string
+          description: Log file name
+        size:
+          type: integer
+          description: File size in bytes
+        modified:
+          type: string
+          format: date-time
+          description: Last modified timestamp
+        role:
+          type: string
+          enum: [collector, executor, both]
+          description: Agent role associated with log
+
+    Task:
+      type: object
+      required:
+        - id
+        - type
+        - priority
+        - title
+        - description
+        - platform
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique task identifier
+        type:
+          type: string
+          description: Task type
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: Task priority (1=critical, 4=low)
+        title:
+          type: string
+          description: Task title
+        description:
+          type: string
+          description: Task description
+        platform:
+          type: string
+          description: Source platform
+        completion_cmd:
+          type: string
+          description: Command to mark task complete
+        context:
+          type: object
+          additionalProperties:
+            type: string
+          description: Additional task context
+        created_at:
+          type: string
+          format: date-time
+          description: Task creation timestamp
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+          description: Current task status
+        started_at:
+          type: string
+          format: date-time
+          description: Task start timestamp
+        completed_at:
+          type: string
+          format: date-time
+          description: Task completion timestamp
+        output:
+          type: string
+          description: Task execution output
+        error:
+          type: string
+          description: Error message if failed
+
+    TaskSummary:
+      type: object
+      required:
+        - id
+        - type
+        - title
+        - priority
+        - platform
+        - created_at
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 4
+        platform:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - timestamp
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+security:
+  - ApiKeyAuth: []
+  - {}  # Allow unauthenticated access as fallback

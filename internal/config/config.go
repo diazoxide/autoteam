@@ -38,6 +38,7 @@ type AgentSettings struct {
 	MaxAttempts   *int                   `yaml:"max_attempts,omitempty"`
 	Service       map[string]interface{} `yaml:"service,omitempty"`
 	MCPServers    map[string]MCPServer   `yaml:"mcp_servers,omitempty"`
+	Hooks         *HookConfig            `yaml:"hooks,omitempty"`
 	// Per-agent First Layer override
 	CollectorAgent *AgentConfig `yaml:"collector_agent,omitempty"`
 	// Per-agent Second Layer override
@@ -57,6 +58,25 @@ type AgentConfig struct {
 	Args   []string          `yaml:"args,omitempty"`
 	Env    map[string]string `yaml:"env,omitempty"`
 	Prompt *string           `yaml:"prompt,omitempty"`
+}
+
+// HookConfig represents agent lifecycle hook-driven script execution configuration
+type HookConfig struct {
+	OnInit  []HookCommand `yaml:"on_init,omitempty"`  // Before agent initialization
+	OnStart []HookCommand `yaml:"on_start,omitempty"` // When agent starts monitoring
+	OnStop  []HookCommand `yaml:"on_stop,omitempty"`  // When agent stops
+	OnError []HookCommand `yaml:"on_error,omitempty"` // When agent encounters errors
+}
+
+// HookCommand represents a command to execute on an agent lifecycle hook
+type HookCommand struct {
+	Command     string            `yaml:"command"`
+	Args        []string          `yaml:"args,omitempty"`
+	Env         map[string]string `yaml:"env,omitempty"`
+	WorkingDir  *string           `yaml:"working_dir,omitempty"`
+	Timeout     *int              `yaml:"timeout,omitempty"`     // timeout in seconds
+	ContinueOn  *string           `yaml:"continue_on,omitempty"` // "success", "error", "always"
+	Description *string           `yaml:"description,omitempty"`
 }
 
 func LoadConfig(filename string) (*Config, error) {
@@ -153,6 +173,31 @@ func CreateSampleConfig(filename string) error {
 						"environment": map[string]string{
 							"PYTHON_PATH": "/app/custom",
 							"DEBUG_MODE":  "true",
+						},
+					},
+					Hooks: &HookConfig{
+						OnInit: []HookCommand{
+							{
+								Command:     "/bin/sh",
+								Args:        []string{"-c", "echo 'Agent initializing: $AGENT_NAME'"},
+								Description: StringPtr("Log agent initialization"),
+							},
+						},
+						OnStart: []HookCommand{
+							{
+								Command:     "/bin/bash",
+								Args:        []string{"-c", "pip install --upgrade pip && pip install requests"},
+								Timeout:     IntPtr(60),
+								ContinueOn:  StringPtr("always"),
+								Description: StringPtr("Install additional Python packages"),
+							},
+						},
+						OnStop: []HookCommand{
+							{
+								Command:     "/bin/sh",
+								Args:        []string{"-c", "echo 'Agent $AGENT_NAME shutting down gracefully'"},
+								Description: StringPtr("Log graceful shutdown"),
+							},
 						},
 					},
 				},
@@ -483,6 +528,83 @@ func copyAgentConfig(source *AgentConfig) *AgentConfig {
 	return copied
 }
 
+// copyHookConfig creates a deep copy of a HookConfig
+func copyHookConfig(source *HookConfig) *HookConfig {
+	if source == nil {
+		return nil
+	}
+
+	copied := &HookConfig{}
+
+	// Copy each hook command slice
+	if source.OnInit != nil {
+		copied.OnInit = copyHookCommands(source.OnInit)
+	}
+	if source.OnStart != nil {
+		copied.OnStart = copyHookCommands(source.OnStart)
+	}
+	if source.OnStop != nil {
+		copied.OnStop = copyHookCommands(source.OnStop)
+	}
+	if source.OnError != nil {
+		copied.OnError = copyHookCommands(source.OnError)
+	}
+
+	return copied
+}
+
+// copyHookCommands creates a deep copy of a slice of HookCommand
+func copyHookCommands(source []HookCommand) []HookCommand {
+	if source == nil {
+		return nil
+	}
+
+	copied := make([]HookCommand, len(source))
+	for i, cmd := range source {
+		copied[i] = HookCommand{
+			Command: cmd.Command,
+		}
+
+		// Copy args slice
+		if cmd.Args != nil {
+			copied[i].Args = make([]string, len(cmd.Args))
+			copy(copied[i].Args, cmd.Args)
+		}
+
+		// Copy env map
+		if cmd.Env != nil {
+			copied[i].Env = maps.Clone(cmd.Env)
+		}
+
+		// Copy optional fields
+		if cmd.WorkingDir != nil {
+			copied[i].WorkingDir = StringPtr(*cmd.WorkingDir)
+		}
+		if cmd.Timeout != nil {
+			copied[i].Timeout = IntPtr(*cmd.Timeout)
+		}
+		if cmd.ContinueOn != nil {
+			copied[i].ContinueOn = StringPtr(*cmd.ContinueOn)
+		}
+		if cmd.Description != nil {
+			copied[i].Description = StringPtr(*cmd.Description)
+		}
+	}
+
+	return copied
+}
+
+// mergeHookConfigs merges hook configurations with agent-level overriding global
+func mergeHookConfigs(global, agentLevel *HookConfig) *HookConfig {
+	if agentLevel != nil {
+		return copyHookConfig(agentLevel)
+	}
+	if global != nil {
+		return copyHookConfig(global)
+	}
+	return nil
+}
+
 // copyAgentSettings creates a deep copy of an AgentSettings
 func copyAgentSettings(source AgentSettings) AgentSettings {
 	copied := AgentSettings{}
@@ -515,6 +637,9 @@ func copyAgentSettings(source AgentSettings) AgentSettings {
 			copied.MCPServers[k] = copyMCPServer(v)
 		}
 	}
+
+	// Copy hooks configuration
+	copied.Hooks = copyHookConfig(source.Hooks)
 
 	// Copy agent configurations
 	copied.CollectorAgent = copyAgentConfig(source.CollectorAgent)
@@ -559,6 +684,9 @@ func (a *Agent) GetEffectiveSettings(globalSettings AgentSettings) AgentSettings
 
 	// Merge MCP server configurations
 	effective.MCPServers = mergeMCPServers(globalSettings.MCPServers, a.Settings.MCPServers, a.MCPServers)
+
+	// Merge hooks configuration
+	effective.Hooks = mergeHookConfigs(globalSettings.Hooks, a.Settings.Hooks)
 
 	// Merge layer agent configurations
 	effective.CollectorAgent = mergeAgentConfig(globalSettings.CollectorAgent, a.Settings.CollectorAgent)

@@ -10,6 +10,7 @@ import (
 	"autoteam/internal/config"
 	"autoteam/internal/generator"
 	"autoteam/internal/logger"
+	"autoteam/internal/ports"
 
 	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
@@ -113,8 +114,55 @@ func generateCommand(ctx context.Context, cmd *cli.Command) error {
 }
 
 func upCommand(ctx context.Context, cmd *cli.Command) error {
-	if err := generateCommand(ctx, cmd); err != nil {
-		return err
+	log := logger.FromContext(ctx)
+	cfg := getConfigFromContext(ctx)
+	if cfg == nil {
+		log.Error("Config not available in context")
+		return fmt.Errorf("config not available in context")
+	}
+
+	// Find free ports for enabled agents
+	enabledAgentsWithSettings := cfg.GetEnabledAgentsWithEffectiveSettings()
+	if len(enabledAgentsWithSettings) > 0 {
+		fmt.Printf("Finding free ports for %d agents...\n", len(enabledAgentsWithSettings))
+
+		portManager := ports.NewPortManager()
+		var serviceNames []string
+
+		// Get service names for enabled agents
+		for _, agentWithSettings := range enabledAgentsWithSettings {
+			serviceNames = append(serviceNames, agentWithSettings.Agent.GetNormalizedName())
+		}
+
+		// Allocate ports for all enabled agent services
+		portAllocation, err := portManager.AllocatePortsForServices(serviceNames)
+		if err != nil {
+			log.Error("Failed to allocate ports", zap.Error(err))
+			return fmt.Errorf("failed to allocate ports: %w", err)
+		}
+
+		// Display port allocations
+		fmt.Println("Port allocations:")
+		for serviceName, port := range portAllocation {
+			fmt.Printf("  %s: http://localhost:%d\n", serviceName, port)
+		}
+		fmt.Println()
+
+		// Generate compose with port allocations
+		log.Info("Generating compose.yaml with dynamic ports", zap.String("team_name", cfg.Settings.GetTeamName()))
+		gen := generator.New()
+		if err := gen.GenerateComposeWithPorts(cfg, portAllocation); err != nil {
+			log.Error("Failed to generate compose.yaml", zap.Error(err))
+			return fmt.Errorf("failed to generate compose.yaml: %w", err)
+		}
+
+		log.Info("Generated compose.yaml successfully with port mappings")
+		fmt.Println("Generated compose.yaml successfully with port mappings")
+	} else {
+		// No enabled agents, use regular generation
+		if err := generateCommand(ctx, cmd); err != nil {
+			return err
+		}
 	}
 
 	fmt.Println("Starting containers...")
