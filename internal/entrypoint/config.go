@@ -17,6 +17,7 @@ type Config struct {
 	Monitoring   MonitoringConfig
 	Dependencies DependenciesConfig
 	MCPServers   map[string]config.MCPServer
+	Hooks        *config.HookConfig
 	Debug        bool
 }
 
@@ -77,6 +78,12 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to load MCP servers: %w", err)
 	}
 
+	// Hooks configuration
+	cfg.Hooks, err = LoadHooks()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load hooks: %w", err)
+	}
+
 	// Debug configuration
 	cfg.Debug = getEnvOrDefault("DEBUG", "false") == "true"
 
@@ -118,4 +125,19 @@ func LoadMCPServers() (map[string]config.MCPServer, error) {
 	}
 
 	return mcpServers, nil
+}
+
+// LoadHooks loads hook configuration from environment variables
+func LoadHooks() (*config.HookConfig, error) {
+	hooksJSON := os.Getenv("HOOKS_CONFIG")
+	if hooksJSON == "" {
+		return nil, nil // No hooks configured
+	}
+
+	var hooks config.HookConfig
+	if err := json.Unmarshal([]byte(hooksJSON), &hooks); err != nil {
+		return nil, fmt.Errorf("failed to parse HOOKS_CONFIG JSON: %w", err)
+	}
+
+	return &hooks, nil
 }

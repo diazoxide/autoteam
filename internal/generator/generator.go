@@ -174,6 +174,15 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 			environment["MCP_SERVERS"] = string(mcpServersJSON)
 		}
 
+		// Add hooks configuration to environment
+		if settings.Hooks != nil {
+			hooksJSON, err := json.Marshal(settings.Hooks)
+			if err != nil {
+				return fmt.Errorf("failed to marshal hooks for agent %s: %w", agent.Name, err)
+			}
+			environment["HOOKS_CONFIG"] = string(hooksJSON)
+		}
+
 		// Merge with environment from service config
 		if existingEnv, ok := serviceConfig["environment"]; ok {
 			// Handle both map[string]string and map[string]interface{} cases

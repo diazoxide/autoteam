@@ -206,6 +206,14 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	}
 	cfg.MCPServers = mcpServers
 
+	// Load hooks from environment
+	hooks, hookErr := entrypoint.LoadHooks()
+	if hookErr != nil {
+		log.Error("Failed to load hooks", zap.Error(hookErr))
+		return fmt.Errorf("failed to load hooks: %w", hookErr)
+	}
+	cfg.Hooks = hooks
+
 	// Validate configuration
 	if err = cfg.Validate(); err != nil {
 		log.Error("Invalid configuration", zap.Error(err))
@@ -218,6 +226,12 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		zap.String("team_name", cfg.TeamName),
 	)
 
+	// Execute on_init hooks
+	if err := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_init"); err != nil {
+		log.Error("Failed to execute on_init hooks", zap.Error(err))
+		return fmt.Errorf("failed to execute on_init hooks: %w", err)
+	}
+
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -228,6 +242,12 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	go func() {
 		sig := <-sigChan
 		log.Info("Received signal, shutting down gracefully", zap.String("signal", sig.String()))
+
+		// Execute on_stop hooks
+		if err := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_stop"); err != nil {
+			log.Error("Failed to execute on_stop hooks", zap.Error(err))
+		}
+
 		cancel()
 	}()
 
@@ -295,12 +315,32 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	// Set layer configurations for custom prompt support
 	mon.SetLayerConfigs(&firstLayerConfig, &secondLayerConfig)
 
+	// Execute on_start hooks
+	if err := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_start"); err != nil {
+		log.Error("Failed to execute on_start hooks", zap.Error(err))
+		return fmt.Errorf("failed to execute on_start hooks: %w", err)
+	}
+
 	log.Info("Starting two-layer agent monitoring loop",
 		zap.Duration("check_interval", cfg.Monitoring.CheckInterval),
 		zap.String("collection_agent", firstLayerConfig.Type),
 		zap.String("execution_agent", secondLayerConfig.Type),
 	)
-	return mon.Start(ctx)
+
+	// Start monitoring with error handling for on_error hooks
+	err = mon.Start(ctx)
+	if err != nil {
+		log.Error("Monitoring loop failed", zap.Error(err))
+
+		// Execute on_error hooks
+		if hookErr := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_error"); hookErr != nil {
+			log.Error("Failed to execute on_error hooks", zap.Error(hookErr))
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // buildConfigFromFlags builds a Config struct from CLI flags
