@@ -11,6 +11,7 @@ func GetTemplateFunctions() template.FuncMap {
 		"indent":              indentFunction,
 		"escapeDockerCompose": escapeDockerComposeFunction,
 		"join":                joinFunction,
+		"add":                 addFunction,
 	}
 }
 
@@ -43,4 +44,9 @@ func escapeDockerComposeFunction(text string) string {
 // joinFunction joins a slice of strings with a separator
 func joinFunction(slice []string, separator string) string {
 	return strings.Join(slice, separator)
+}
+
+// addFunction adds two integers
+func addFunction(a, b int) int {
+	return a + b
 }

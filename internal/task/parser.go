@@ -60,18 +60,65 @@ func CreateEmptyTaskList() *TaskList {
 	return NewTaskList()
 }
 
-// extractTodoListFromOutput extracts tasks from TODO_LIST format using regex
+// extractTodoListFromOutput extracts tasks from TODO_LIST format using improved parsing
 func extractTodoListFromOutput(output string) ([]string, error) {
-	// Look for pattern: TODO_LIST: ["task1", "task2", ...]
-	// Use a more robust regex that handles multiline arrays and various spacing
-	todoListRegex := regexp.MustCompile(`(?i)TODO_LIST:\s*(\[(?:[^\[\]]*|"[^"]*")*\])`)
-	matches := todoListRegex.FindStringSubmatch(output)
-
-	if len(matches) < 2 {
+	// Look for the TODO_LIST marker first
+	todoStart := strings.Index(strings.ToUpper(output), "TODO_LIST:")
+	if todoStart == -1 {
 		return nil, fmt.Errorf("TODO_LIST format not found")
 	}
 
-	jsonArrayStr := strings.TrimSpace(matches[1])
+	// Find the start of the JSON array after TODO_LIST:
+	jsonStart := strings.Index(output[todoStart:], "[")
+	if jsonStart == -1 {
+		return nil, fmt.Errorf("TODO_LIST JSON array not found")
+	}
+	jsonStart += todoStart
+
+	// Use proper JSON parsing to find the end of the array
+	// Track bracket nesting and string escaping
+	depth := 0
+	inString := false
+	escaped := false
+	jsonEnd := -1
+
+	for i := jsonStart; i < len(output); i++ {
+		char := output[i]
+
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		if char == '\\' && inString {
+			escaped = true
+			continue
+		}
+
+		if char == '"' {
+			inString = !inString
+			continue
+		}
+
+		if !inString {
+			if char == '[' {
+				depth++
+			} else if char == ']' {
+				depth--
+				if depth == 0 {
+					jsonEnd = i
+					break
+				}
+			}
+		}
+	}
+
+	if jsonEnd == -1 {
+		return nil, fmt.Errorf("TODO_LIST JSON array not properly closed")
+	}
+
+	// Extract the JSON array string
+	jsonArrayStr := output[jsonStart : jsonEnd+1]
 
 	// Parse the JSON array
 	var tasks []string

@@ -14,6 +14,7 @@ import (
 	"autoteam/internal/config"
 	"autoteam/internal/entrypoint"
 	"autoteam/internal/logger"
+	"autoteam/internal/server"
 
 	"go.uber.org/zap"
 )
@@ -319,4 +320,14 @@ func (q *QwenCode) createMCPConfigFile(ctx context.Context) error {
 // SetMCPServers sets the MCP servers for this agent
 func (q *QwenCode) SetMCPServers(mcpServers map[string]config.MCPServer) {
 	q.mcpServers = mcpServers
+}
+
+// CreateHTTPServer creates an HTTP API server for this agent
+func (q *QwenCode) CreateHTTPServer(workingDir string, port int, apiKey string) HTTPServer {
+	config := server.Config{
+		Port:       port,
+		APIKey:     apiKey,
+		WorkingDir: workingDir,
+	}
+	return server.NewServer(q, config)
 }

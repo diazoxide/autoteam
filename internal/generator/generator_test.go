@@ -220,7 +220,7 @@ func TestGenerator_GenerateComposeYAML(t *testing.T) {
 		t.Fatalf("failed to create .autoteam directory: %v", err)
 	}
 
-	if err := gen.generateComposeYAML(cfg); err != nil {
+	if err := gen.generateComposeYAML(cfg, nil); err != nil {
 		t.Fatalf("generateComposeYAML() error = %v", err)
 	}
 

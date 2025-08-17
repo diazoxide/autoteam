@@ -32,6 +32,7 @@ type Monitor struct {
 	firstLayerConfig    *config.AgentConfig // First Layer configuration with custom prompt
 	secondLayerConfig   *config.AgentConfig // Second Layer configuration with custom prompt
 	taskService         *task.Service       // Service for task persistence operations
+	httpServer          agent.HTTPServer    // HTTP API server for monitoring
 }
 
 // New creates a new two-layer monitor instance
@@ -74,6 +75,11 @@ func (m *Monitor) Start(ctx context.Context) error {
 		lgr.Warn("Failed to configure agents", zap.Error(err))
 	}
 
+	// Start HTTP API server if supported
+	if err := m.startHTTPServer(ctx); err != nil {
+		lgr.Warn("Failed to start HTTP API server", zap.Error(err))
+	}
+
 	// Start continuous two-layer processing loop
 	ticker := time.NewTicker(m.config.CheckInterval)
 	defer ticker.Stop()
@@ -82,6 +88,12 @@ func (m *Monitor) Start(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			lgr.Info("Monitor shutting down due to context cancellation")
+
+			// Stop HTTP server
+			if err := m.stopHTTPServer(ctx); err != nil {
+				lgr.Warn("Failed to stop HTTP server", zap.Error(err))
+			}
+
 			return ctx.Err()
 
 		case <-ticker.C:
@@ -452,4 +464,50 @@ func (m *Monitor) executeWithStreamingLogs(ctx context.Context, prompt string, r
 	}
 
 	return output, err
+}
+
+// startHTTPServer starts the HTTP API server for agent monitoring
+func (m *Monitor) startHTTPServer(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
+
+	// Try to use execution agent first (primary agent for HTTP server)
+	if httpCapable, ok := m.taskExecutionAgent.(agent.HTTPServerCapable); ok {
+		agentNormalizedName := strings.ToLower(strings.ReplaceAll(m.globalConfig.Agent.Name, " ", "_"))
+		workingDir := fmt.Sprintf("/opt/autoteam/agents/%s", agentNormalizedName)
+
+		// Default port 8080, can be configured via environment variable if needed
+		port := 8080
+		apiKey := os.Getenv(strings.ToUpper(agentNormalizedName) + "_API_KEY")
+
+		lgr.Info("Starting HTTP API server",
+			zap.String("agent", m.taskExecutionAgent.Name()),
+			zap.Int("port", port),
+			zap.Bool("api_key_configured", apiKey != ""))
+
+		m.httpServer = httpCapable.CreateHTTPServer(workingDir, port, apiKey)
+
+		if err := m.httpServer.Start(ctx); err != nil {
+			lgr.Error("Failed to start HTTP API server", zap.Error(err))
+			return err
+		}
+
+		lgr.Info("HTTP API server started successfully",
+			zap.String("url", m.httpServer.GetURL()),
+			zap.String("docs_url", m.httpServer.GetDocsURL()))
+
+		return nil
+	}
+
+	lgr.Debug("Agent does not support HTTP server capability")
+	return nil
+}
+
+// stopHTTPServer stops the HTTP API server
+func (m *Monitor) stopHTTPServer(ctx context.Context) error {
+	if m.httpServer != nil && m.httpServer.IsRunning() {
+		lgr := logger.FromContext(ctx)
+		lgr.Info("Stopping HTTP API server")
+		return m.httpServer.Stop(ctx)
+	}
+	return nil
 }

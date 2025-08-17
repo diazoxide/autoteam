@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"autoteam/internal/config"
+	"autoteam/internal/ports"
 
 	"gopkg.in/yaml.v3"
 )
@@ -30,6 +31,10 @@ func New() *Generator {
 }
 
 func (g *Generator) GenerateCompose(cfg *config.Config) error {
+	return g.GenerateComposeWithPorts(cfg, nil)
+}
+
+func (g *Generator) GenerateComposeWithPorts(cfg *config.Config, portAllocation ports.PortAllocation) error {
 	// Ensure .autoteam directory exists
 	if err := g.fileOps.EnsureDirectory(config.AutoTeamDir, config.DirPerm); err != nil {
 		return fmt.Errorf("failed to create .autoteam directory: %w", err)
@@ -41,7 +46,7 @@ func (g *Generator) GenerateCompose(cfg *config.Config) error {
 	}
 
 	// Generate compose.yaml programmatically
-	if err := g.generateComposeYAML(cfg); err != nil {
+	if err := g.generateComposeYAML(cfg, portAllocation); err != nil {
 		return fmt.Errorf("failed to generate compose.yaml: %w", err)
 	}
 
@@ -54,7 +59,7 @@ func (g *Generator) GenerateCompose(cfg *config.Config) error {
 }
 
 // generateComposeYAML creates a Docker Compose YAML file programmatically
-func (g *Generator) generateComposeYAML(cfg *config.Config) error {
+func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports.PortAllocation) error {
 	compose := ComposeConfig{
 		Services: make(map[string]interface{}),
 	}
@@ -189,6 +194,28 @@ func (g *Generator) generateComposeYAML(cfg *config.Config) error {
 		// Set default entrypoint if not specified
 		if _, hasEntrypoint := serviceConfig["entrypoint"]; !hasEntrypoint {
 			serviceConfig["entrypoint"] = []string{"/opt/autoteam/bin/entrypoint.sh"}
+		}
+
+		// Add port mapping if ports are allocated
+		if portAllocation != nil {
+			if port, hasPort := portAllocation[serviceName]; hasPort {
+				// Add port mapping: host:container (8080 is the default container port)
+				ports := []string{fmt.Sprintf("%d:8080", port)}
+
+				// Merge with existing ports if any
+				if existingPorts, ok := serviceConfig["ports"]; ok {
+					if portSlice, ok := existingPorts.([]string); ok {
+						ports = append(ports, portSlice...)
+					} else if portInterface, ok := existingPorts.([]interface{}); ok {
+						for _, p := range portInterface {
+							if portStr, ok := p.(string); ok {
+								ports = append(ports, portStr)
+							}
+						}
+					}
+				}
+				serviceConfig["ports"] = ports
+			}
 		}
 
 		compose.Services[serviceName] = serviceConfig

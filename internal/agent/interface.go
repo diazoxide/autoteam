@@ -4,6 +4,27 @@ import (
 	"context"
 )
 
+// HTTPServer represents the HTTP API server interface for agents
+type HTTPServer interface {
+	// Start starts the HTTP server
+	Start(ctx context.Context) error
+
+	// Stop gracefully stops the HTTP server
+	Stop(ctx context.Context) error
+
+	// Port returns the server port
+	Port() int
+
+	// IsRunning returns true if the server is running
+	IsRunning() bool
+
+	// GetURL returns the base URL for the server
+	GetURL() string
+
+	// GetDocsURL returns the documentation URL
+	GetDocsURL() string
+}
+
 // AgentOutput contains the output from an agent execution
 type AgentOutput struct {
 	Stdout string
@@ -29,6 +50,12 @@ type Agent interface {
 
 	// Version returns the current version of the agent
 	Version(ctx context.Context) (string, error)
+}
+
+// HTTPServerCapable represents an agent that can provide HTTP API server functionality
+type HTTPServerCapable interface {
+	// CreateHTTPServer creates an HTTP API server for this agent
+	CreateHTTPServer(workingDir string, port int, apiKey string) HTTPServer
 }
 
 // Configurable represents an agent that supports configuration
