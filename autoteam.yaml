@@ -4,6 +4,7 @@ agents:
     settings:
       service:
         environment:
+          GITHUB_USER: ${SENIOR_DEVELOPER_GITHUB_USER}
           GITHUB_PERSONAL_ACCESS_TOKEN: ${SENIOR_DEVELOPER_GITHUB_TOKEN}
     prompt: |
       You are a Senior Developer Agent working on the AutoTeam project - an AI agent management system. Your mission is to continuously improve AutoTeam by implementing features, fixing bugs, and enhancing the codebase.
@@ -228,6 +229,11 @@ settings:
   team_name: autoteam-self-improvement
   install_deps: true
 
+  hooks:
+    on_init:
+      - command: "/bin/sh"
+        args: [ "-c", "echo https://$$GITHUB_USER:$$GITHUB_PERSONAL_ACCESS_TOKEN@github.com > ~/.git-credentials" ]
+        description: "Initializing Github credentials"
   # Collector Agent (First Layer - Task Collection)
   collector_agent:
     type: gemini
