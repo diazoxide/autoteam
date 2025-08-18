@@ -172,15 +172,24 @@
 - After modifying templates in `internal/generator/templates/`, always rebuild the main binary to update embedded templates
 - Use `autoteam generate` to generate compose.yaml and entrypoint.sh from autoteam.yaml configuration
 
-## Custom Layer Prompts Configuration
-- **NEW**: Users can now configure First Layer and Second Layer prompts directly in autoteam.yaml
-- Added `prompt` field to `AgentConfig` struct for both collector_agent and agent configurations
-- Custom prompts override hardcoded defaults in `internal/task/prompts.go`
-- Environment variables: `COLLECTOR_AGENT_PROMPT` and `EXECUTION_AGENT_PROMPT` passed to containers
-- CLI flags: `--collector-agent-prompt` and `--execution-agent-prompt` for entrypoint command
-- Layer configuration support in Monitor with fallback logic to default prompts when custom prompts not provided
-- Generator automatically extracts custom prompts from YAML config and passes as environment variables
-- All tests pass - backward compatible with existing hardcoded prompts serving as fallbacks
+## Parallel Flow Execution System
+- **NEW**: True parallel execution for flow steps based on dependency levels
+- Level-based dependency resolution groups steps by execution depth (Level 0: no dependencies, Level 1: depends on Level 0, etc.)
+- Steps within the same dependency level execute concurrently using goroutines and sync.WaitGroup
+- Single-level scenarios: All independent steps execute in parallel simultaneously
+- Multi-level scenarios: Each level executes in parallel, waits for completion before proceeding to next level
+- Thread-safe step output sharing with proper mutex synchronization for cross-step data access
+- Optimized execution: Single steps execute directly without goroutine overhead for efficiency
+- Comprehensive error handling: Collects errors from parallel executions and fails fast while preserving partial results
+- **PERFORMANCE**: Significantly improves execution time for flows with independent parallel steps
+- **BACKWARD COMPATIBLE**: Existing flow configurations work without changes
+- All dependency validation and cycle detection preserved from original implementation
+
+## Custom Layer Prompts Configuration (Legacy - Removed)
+- **REMOVED**: Two-layer architecture completely replaced with dynamic flow system
+- Custom prompts now configured per flow step in `flow.steps[].prompt` field
+- Environment variable approach replaced with YAML configuration files per agent
+- Simplified configuration: Single `CONFIG_FILE` parameter instead of multiple environment variables
 
 ## Container Directory Structure
 - Codebase is mounted at `/opt/autoteam/codebase` (standard application directory)
