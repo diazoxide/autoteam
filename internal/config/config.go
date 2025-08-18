@@ -39,10 +39,25 @@ type AgentSettings struct {
 	Service       map[string]interface{} `yaml:"service,omitempty"`
 	MCPServers    map[string]MCPServer   `yaml:"mcp_servers,omitempty"`
 	Hooks         *HookConfig            `yaml:"hooks,omitempty"`
-	// Per-agent First Layer override
-	CollectorAgent *AgentConfig `yaml:"collector_agent,omitempty"`
-	// Per-agent Second Layer override
-	ExecutionAgent *AgentConfig `yaml:"execution_agent,omitempty"`
+	// Dynamic Flow Configuration
+	Flow []FlowStep `yaml:"flow"`
+}
+
+// FlowStep represents a single step in a dynamic flow configuration
+type FlowStep struct {
+	Name         string            `yaml:"name"`                   // Unique step name
+	Type         string            `yaml:"type"`                   // Agent type (claude, gemini, qwen)
+	Args         []string          `yaml:"args,omitempty"`         // Agent-specific arguments
+	Env          map[string]string `yaml:"env,omitempty"`          // Environment variables
+	DependsOn    []string          `yaml:"depends_on,omitempty"`   // Step dependencies
+	Prompt       string            `yaml:"prompt,omitempty"`       // Step-specific prompt
+	Transformers *Transformers     `yaml:"transformers,omitempty"` // Input/output transformers
+}
+
+// Transformers defines template-based data transformation for flow steps
+type Transformers struct {
+	Input  string `yaml:"input,omitempty"`  // Input transformation template (Sprig)
+	Output string `yaml:"output,omitempty"` // Output transformation template (Sprig)
 }
 
 // MCPServer represents a Model Context Protocol server configuration
@@ -126,6 +141,54 @@ func validateConfig(config *Config) error {
 		if agent.IsEnabled() {
 			if agent.Prompt == "" {
 				return fmt.Errorf("agent[%d].prompt is required for enabled agents", i)
+			}
+
+			// Get effective settings to check flow configuration
+			settings := agent.GetEffectiveSettings(config.Settings)
+			if len(settings.Flow) == 0 {
+				return fmt.Errorf("agent[%d].flow is required for enabled agents", i)
+			}
+
+			// Validate flow steps
+			if err := validateFlow(settings.Flow); err != nil {
+				return fmt.Errorf("agent[%d].flow validation failed: %w", i, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateFlow validates flow configuration
+func validateFlow(flow []FlowStep) error {
+	if len(flow) == 0 {
+		return fmt.Errorf("flow must contain at least one step")
+	}
+
+	stepNames := make(map[string]bool)
+	for i, step := range flow {
+		if step.Name == "" {
+			return fmt.Errorf("step[%d].name is required", i)
+		}
+		if step.Type == "" {
+			return fmt.Errorf("step[%d].type is required", i)
+		}
+		if stepNames[step.Name] {
+			return fmt.Errorf("duplicate step name: %s", step.Name)
+		}
+		stepNames[step.Name] = true
+
+		// Validate dependencies exist
+		for _, dep := range step.DependsOn {
+			found := false
+			for _, otherStep := range flow {
+				if otherStep.Name == dep {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("step %s depends on non-existent step: %s", step.Name, dep)
 			}
 		}
 	}
@@ -237,6 +300,26 @@ func CreateSampleConfig(filename string) error {
 			Service: map[string]interface{}{
 				"image": "node:18.17.1",
 				"user":  "developer",
+			},
+			Flow: []FlowStep{
+				{
+					Name:   "collector",
+					Type:   "gemini",
+					Args:   []string{"--model", "gemini-2.5-flash"},
+					Prompt: "You are a notification collector. Get unread GitHub notifications and list them.\nUse GitHub MCP to get unread notifications.\nCRITICAL: Mark all notifications as read after collecting them.",
+					Transformers: &Transformers{
+						Output: "{{ .stdout | trim }}",
+					},
+				},
+				{
+					Name:      "analyzer",
+					Type:      "claude",
+					DependsOn: []string{"collector"},
+					Prompt:    "You are the GitHub Notification Handler. Process GitHub notifications exactly like a human would.\n\nFor each notification:\n1. Read the full context (issues, PRs, comments, code)\n2. Respond naturally as a project contributor\n3. Take appropriate action (comment, review, create PR, etc.)\n4. Use GitHub MCP to publish your responses\n\nAlways be professional, helpful, and maintain high quality standards.",
+					Transformers: &Transformers{
+						Input: "{{ index .inputs 0 }}",
+					},
+				},
 			},
 		},
 		MCPServers: map[string]MCPServer{
@@ -641,9 +724,11 @@ func copyAgentSettings(source AgentSettings) AgentSettings {
 	// Copy hooks configuration
 	copied.Hooks = copyHookConfig(source.Hooks)
 
-	// Copy agent configurations
-	copied.CollectorAgent = copyAgentConfig(source.CollectorAgent)
-	copied.ExecutionAgent = copyAgentConfig(source.ExecutionAgent)
+	// Copy flow configuration
+	if len(source.Flow) > 0 {
+		copied.Flow = make([]FlowStep, len(source.Flow))
+		copy(copied.Flow, source.Flow)
+	}
 
 	return copied
 }
@@ -688,9 +773,14 @@ func (a *Agent) GetEffectiveSettings(globalSettings AgentSettings) AgentSettings
 	// Merge hooks configuration
 	effective.Hooks = mergeHookConfigs(globalSettings.Hooks, a.Settings.Hooks)
 
-	// Merge layer agent configurations
-	effective.CollectorAgent = mergeAgentConfig(globalSettings.CollectorAgent, a.Settings.CollectorAgent)
-	effective.ExecutionAgent = mergeAgentConfig(globalSettings.ExecutionAgent, a.Settings.ExecutionAgent)
+	// Merge flow configuration - agent settings override global
+	if len(a.Settings.Flow) > 0 {
+		effective.Flow = make([]FlowStep, len(a.Settings.Flow))
+		copy(effective.Flow, a.Settings.Flow)
+	} else if len(globalSettings.Flow) > 0 {
+		effective.Flow = make([]FlowStep, len(globalSettings.Flow))
+		copy(effective.Flow, globalSettings.Flow)
+	}
 
 	return effective
 }
@@ -838,35 +928,4 @@ func (s *AgentSettings) GetMaxAttempts() int {
 		return *s.MaxAttempts
 	}
 	return 3 // default
-}
-
-// GetEffectiveLayers returns the effective layer configurations for an agent
-func (a *Agent) GetEffectiveLayers(globalSettings AgentSettings) (firstLayer, secondLayer *AgentConfig) {
-	effectiveSettings := a.GetEffectiveSettings(globalSettings)
-
-	// First Layer (Task Collection) - CollectorAgent field
-	firstLayer = effectiveSettings.CollectorAgent
-
-	// Second Layer (Task Execution) - ExecutionAgent field
-	secondLayer = effectiveSettings.ExecutionAgent
-
-	return firstLayer, secondLayer
-}
-
-// GetEffectiveFirstLayerPrompt returns the custom prompt for the first layer (aggregation agent) if configured
-func (a *Agent) GetEffectiveFirstLayerPrompt(globalSettings AgentSettings) *string {
-	firstLayer, _ := a.GetEffectiveLayers(globalSettings)
-	if firstLayer != nil && firstLayer.Prompt != nil {
-		return firstLayer.Prompt
-	}
-	return nil
-}
-
-// GetEffectiveSecondLayerPrompt returns the custom prompt for the second layer (execution agent) if configured
-func (a *Agent) GetEffectiveSecondLayerPrompt(globalSettings AgentSettings) *string {
-	_, secondLayer := a.GetEffectiveLayers(globalSettings)
-	if secondLayer != nil && secondLayer.Prompt != nil {
-		return secondLayer.Prompt
-	}
-	return nil
 }

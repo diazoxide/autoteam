@@ -8,35 +8,37 @@ import (
 	"time"
 
 	"autoteam/internal/config"
+	"gopkg.in/yaml.v3"
 )
 
 // Config represents the complete configuration for the entrypoint
 type Config struct {
-	Agent        AgentConfig
-	TeamName     string
-	Monitoring   MonitoringConfig
-	Dependencies DependenciesConfig
-	MCPServers   map[string]config.MCPServer
-	Hooks        *config.HookConfig
-	Debug        bool
+	Agent        AgentConfig                 `yaml:"agent"`
+	TeamName     string                      `yaml:"team_name"`
+	Monitoring   MonitoringConfig            `yaml:"monitoring"`
+	Dependencies DependenciesConfig          `yaml:"dependencies"`
+	MCPServers   map[string]config.MCPServer `yaml:"mcp_servers,omitempty"`
+	Hooks        *config.HookConfig          `yaml:"hooks,omitempty"`
+	Flow         []config.FlowStep           `yaml:"flow"`
+	Debug        bool                        `yaml:"debug"`
 }
 
 // AgentConfig contains AI agent configuration
 type AgentConfig struct {
-	Name   string
-	Type   string
-	Prompt string
+	Name   string `yaml:"name"`
+	Type   string `yaml:"type"`
+	Prompt string `yaml:"prompt"`
 }
 
 // MonitoringConfig contains monitoring loop configuration
 type MonitoringConfig struct {
-	CheckInterval time.Duration
-	MaxRetries    int
+	CheckInterval time.Duration `yaml:"check_interval"`
+	MaxRetries    int           `yaml:"max_retries"`
 }
 
 // DependenciesConfig contains dependency installation configuration
 type DependenciesConfig struct {
-	InstallDeps bool
+	InstallDeps bool `yaml:"install_deps"`
 }
 
 // Load loads configuration from environment variables
@@ -84,6 +86,12 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to load hooks: %w", err)
 	}
 
+	// Flow configuration
+	cfg.Flow, err = LoadFlow()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load flow: %w", err)
+	}
+
 	// Debug configuration
 	cfg.Debug = getEnvOrDefault("DEBUG", "false") == "true"
 
@@ -110,6 +118,21 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("max retries must be at least 1")
 	}
 	return nil
+}
+
+// LoadFromFile loads configuration from a YAML file
+func LoadFromFile(configPath string) (*Config, error) {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
+	}
+
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
+	}
+
+	return &cfg, nil
 }
 
 // LoadMCPServers loads MCP server configuration from environment variables
@@ -140,4 +163,24 @@ func LoadHooks() (*config.HookConfig, error) {
 	}
 
 	return &hooks, nil
+}
+
+// LoadFlow loads flow configuration from environment variables
+// Deprecated: Use CLI flags instead
+func LoadFlow() ([]config.FlowStep, error) {
+	flowJSON := os.Getenv("FLOW_CONFIG")
+	if flowJSON == "" {
+		return nil, fmt.Errorf("FLOW_CONFIG environment variable is not set or empty")
+	}
+
+	var flow []config.FlowStep
+	if err := json.Unmarshal([]byte(flowJSON), &flow); err != nil {
+		return nil, fmt.Errorf("failed to parse FLOW_CONFIG JSON: %w", err)
+	}
+
+	if len(flow) == 0 {
+		return nil, fmt.Errorf("flow configuration is empty")
+	}
+
+	return flow, nil
 }
