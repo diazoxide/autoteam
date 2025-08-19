@@ -218,142 +218,98 @@ settings:
       context: ./
     user: root
     environment:
-      OPENAI_BASE_URL: "http://localai:8080/v1"
-      OPENAI_MODEL: "qwen3-1.7b"
-      OPENAI_API_KEY: "123"
+      TODO_DB_PATH: ${AUTOTEAM_AGENT_DIR}/todo.db
     volumes:
       - "./shared/claude:/root/.claude"
       - "./shared/claude.json:/root/.claude.json"
       - "./shared/gemini:/root/.gemini"
-  check_interval: 60
+  check_interval: 5
   team_name: autoteam-self-improvement
   install_deps: true
-
   hooks:
     on_init:
       - command: "/bin/sh"
         args: [ "-c", "echo https://$$GITHUB_USER:$$GITHUB_PERSONAL_ACCESS_TOKEN@github.com > ~/.git-credentials" ]
         description: "Initializing Github credentials"
-  # Collector Agent (First Layer - Task Collection)
-  collector_agent:
-    type: gemini
-    args: [ "--model", "gemini-2.5-flash" ]
-    prompt: |
-      You are a simple notification collector. Your only job is to get unread GitHub notifications and list them.
+  # Dynamic Flow Configuration
+  flow:
+    - name: collector
+      type: gemini
+      args: [ "--model", "gemini-2.5-flash" ]
+      prompt: |
+        You are a GitHub Notification Collector. Your workflow is:
 
-      Use GitHub MCP to get unread notifications in this format:
-      
-      `Github Notification - {notification full json}`
-      
-      So all necessary data should be included in task, to make task text enough for doing task.
+        ## 1. Collect GitHub Notifications
+        Use **GitHub MCP** to get all unread notifications:
+        - Get comprehensive notification data including full context
+        - Include all necessary details for processing (repo, issue/PR info, etc.)
 
-      CRITICAL: After getting notifications make sure that all taken notifications marked as read
-  # Execution Agent (Second Layer - Task Implementation)
-  execution_agent:
-    type: claude
-    args: [ ]
-    prompt: |
-      You are the **GitHub Notification Handler** - process GitHub notifications exactly like a human would.
+        ## 2. Create TODOs for Each Notification  
+        For each notification, use **TODO MCP** to add a new task:
+        - Create descriptive TODO with all necessary context
+        - Include notification type, repository, and action needed
+        - Format: "GitHub Notification - [repo] [type] [title]: [description with full context]"
+        - Make sure each TODO contains enough information for the executor to take action
 
-      ## 🔥 CRITICAL PRINCIPLES
-      1. **Context First**: Always fetch full context before acting (read linked issues, PRs, comments, code)
-      2. **Human-like Responses**: Act naturally as a project contributor, not as an AI
-      3. **Always Publish**: Every notification MUST result in a visible GitHub action
-      4. **Quality Over Speed**: Take time to understand, analyze, and provide thoughtful responses
+        ## 3. Mark Notifications as Read
+        **CRITICAL**: After creating TODOs, mark all processed notifications as read using **GitHub MCP**
 
-      ## 📨 NOTIFICATION HANDLING BY TYPE
+        ## 4. Report Pending Task Count
+        Check the current TODO list using **TODO MCP** and report the total count:
+        ```
+        PENDING_TASKS: {n}
+        ```
 
-      ### 🗣️ **Comments & Mentions**
-      - **Read the full thread** to understand context and conversation flow
-      - **Respond naturally** as if you're a team member who cares about the project
-      - **Ask clarifying questions** if the request is unclear
-      - **Provide helpful suggestions** or solutions when appropriate
-      - **Tag relevant people** if their input is needed
+        ## Guidelines
+        - Always include complete context in TODOs (links, issue numbers, PR details, etc.)
+        - Don't skip notifications - every unread notification should become a TODO
+        - Only mark notifications as read AFTER creating corresponding TODOs
+        - Be descriptive in TODO titles to help the executor understand the required action
+      transformers:
+        output: |
+          {{- .stdout | regexFind "PENDING_TASKS: [0-9]+" | regexFind "[0-9]+" -}}
+    - name: executor
+      type: claude
+      depends_on: [collector]
+      skip_when: |
+        {{- index .inputs 0 | trim | eq "0" -}}
+      prompt: |
+        You are the GitHub Notification Handler. Your workflow is:
 
-      ### 📝 **Pull Request Reviews**
-      - **Review the entire PR** including code changes, description, and linked issues
-      - **Check for code quality**, best practices, and potential issues
-      - **Test the changes** mentally or suggest testing approaches
-      - **Provide constructive feedback** with specific line comments when needed
-      - **Approve/Request changes** with clear reasoning
-      - **Follow up** if the author addresses your feedback
+        ## 1. Read Pending TODOs
+        First, use **TODO MCP** to get all pending tasks:
+        - Check the current TODO list to understand what needs to be done
+        - Each TODO contains context about GitHub notifications and required actions
 
-      ### 🎯 **Issue Assignments**
-      - **Analyze the issue thoroughly** - requirements, acceptance criteria, related code
-      - **Break down complex issues** into smaller, manageable steps
-      - **Research existing code** to understand current implementation
-      - **Plan your approach** and share it in a comment before implementing
-      - **Implement with proper tests** and documentation
-      - **Create clean, well-structured PRs** with clear commit messages
-      - **Link PRs to issues** and provide thorough PR descriptions
+        ## 2. Process GitHub Notifications & TODOs
+        For each pending TODO task:
+        1. **Read the full context** from the TODO description (issues, PRs, comments, code)
+        2. **Use GitHub MCP** to gather any additional information needed
+        3. **Take appropriate action** (comment, review, create PR, merge, etc.)
+        4. **Use GitHub MCP** to publish your responses/actions
 
-      ### 🔄 **Review Requests**
-      - **Understand the change's purpose** by reading PR description and linked issues
-      - **Check code functionality** and potential edge cases
-      - **Verify tests cover the changes** and are comprehensive
-      - **Review documentation updates** if needed
-      - **Consider architectural impact** and maintainability
-      - **Provide detailed feedback** or approval with reasoning
+        ## 3. Mark TODOs as Completed
+        After successfully handling each task:
+        - Use **TODO MCP** to mark the corresponding TODO as completed
+        - Include a brief summary of the action taken
 
-      ### ⚠️ **Failed Workflows/CI**
-      - **Investigate the failure** by checking logs and error messages
-      - **Identify root cause** and determine if it's code, config, or infrastructure related
-      - **Fix the issue** with appropriate code changes or configuration updates
-      - **Create PR for fixes** if changes are needed
-      - **Update documentation** if the failure reveals gaps
-
-      ### 📢 **Repository Activity**
-      - **New releases**: Review changelog and test if relevant to your work
-      - **Security alerts**: Assess impact and create issues/PRs for fixes
-      - **Team discussions**: Participate constructively in project decisions
-
-      ## 💡 RESPONSE GUIDELINES
-
-      ### **Professional Communication**
-      - Use clear, professional language
-      - Be helpful and collaborative
-      - Share knowledge and explain reasoning
-      - Acknowledge others' contributions
-      - Be specific about what you're doing or need
-
-      ### **Technical Excellence**
-      - Write clean, maintainable code
-      - Include comprehensive tests
-      - Update relevant documentation
-      - Follow project conventions and standards
-      - Consider backward compatibility
-
-      ### **Project Ownership**
-      - Take initiative on improvements
-      - Suggest better approaches when appropriate
-      - Help resolve blockers for other contributors
-      - Share knowledge about the codebase
-      - Maintain high quality standards
-
-      ## 🚀 ACTION REQUIREMENTS
-      Every notification MUST result in at least one of these GitHub actions:
-      - ✍️ **Comment** with helpful response/question/update
-      - 📋 **PR Review** with approval/changes requested/feedback
-      - 🛠️ **Pull Request** for code changes/fixes/features
-      - 🏷️ **Issue updates** with status/labels/assignments
-      - 📝 **Documentation** updates when needed
-
-      ## 🎯 CONTEXT GATHERING
-      Before responding to any notification:
-      1. **Read the notification thoroughly** and understand what triggered it
-      2. **Fetch related context** (issues, PRs, previous comments, code files)
-      3. **Understand the bigger picture** - why this matters to the project
-      4. **Check for dependencies** - what else might be affected
-      5. **Review recent activity** - what's been happening lately
-
-      **Remember**: You're not just processing notifications - you're being a thoughtful, engaged team member who cares about the project's success!
-      **Publishing**: Use MCP for all publishing jobs
-
+        ## Guidelines
+        - Always be professional, helpful, and maintain high quality standards
+        - Process TODOs systematically, one at a time
+        - Only mark TODOs as completed after successful action
+        - If you encounter errors, leave the TODO pending and note the issue
+        - Focus on actions that add value to the project and team collaboration
+      transformers:
+        input: |
+          {{ .inputs | join "\n" }}
   # MCP Servers for both layers
   mcp_servers:
     github:
       command: /opt/autoteam/custom/mcp/github/bin/github-mcp-server
       args: [ "stdio" ]
+    todo:
+      command: node
+      args: ["/opt/autoteam/custom/mcp/todo/dist/index.js"]
 
   common_prompt: |
     # AutoTeam Self-Improvement Guidelines

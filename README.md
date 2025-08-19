@@ -240,6 +240,42 @@ agents:
 - `common_prompt`: Common instructions shared by all agents (optional)
 - `mcp_servers`: Global MCP (Model Context Protocol) servers for all agents
 
+### Configuration Variable Replacement
+
+AutoTeam supports placeholder variables in environment variable values that are automatically replaced during Docker Compose generation. This provides clean, consistent configuration management with runtime value resolution.
+
+**Supported Placeholder Variables:**
+- `${AUTOTEAM_AGENT_NAME}` → actual agent name (e.g., "Senior Developer")
+- `${AUTOTEAM_AGENT_DIR}` → agent directory path (e.g., "/opt/autoteam/agents/senior_developer")
+- `${AUTOTEAM_AGENT_NORMALIZED_NAME}` → normalized agent name (e.g., "senior_developer")
+
+**Usage Example:**
+```yaml
+settings:
+  service:
+    environment:
+      TODO_DB_PATH: ${AUTOTEAM_AGENT_DIR}/todo.db
+      LOG_FILE: ${AUTOTEAM_AGENT_DIR}/logs/${AUTOTEAM_AGENT_NORMALIZED_NAME}.log
+      WORKSPACE_NAME: ${AUTOTEAM_AGENT_NAME}
+```
+
+**Generated Result in compose.yaml:**
+```yaml
+environment:
+  TODO_DB_PATH: /opt/autoteam/agents/senior_developer/todo.db
+  LOG_FILE: /opt/autoteam/agents/senior_developer/logs/senior_developer.log
+  WORKSPACE_NAME: Senior Developer
+  AUTOTEAM_AGENT_NAME: Senior Developer
+  AUTOTEAM_AGENT_DIR: /opt/autoteam/agents/senior_developer
+  AUTOTEAM_AGENT_NORMALIZED_NAME: senior_developer
+```
+
+**Benefits:**
+- Dynamic agent-specific configuration without hardcoding paths
+- Consistent environment variable naming with `AUTOTEAM_` prefix
+- Clean configuration management with compile-time variable resolution
+- Easy to reference agent-specific directories and names in MCP servers and tools
+
 ### MCP Server Configuration
 
 AutoTeam supports Model Context Protocol (MCP) servers to enhance agent capabilities with additional context and tools. MCP servers can be configured at three levels with priority-based merging:

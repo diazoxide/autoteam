@@ -9,6 +9,7 @@ import (
 
 // Agent type constants
 const (
+	AgentTypeDebug      = "debug"
 	AgentTypeClaudeCode = "claude"
 	AgentTypeQwenCode   = "qwen"
 	AgentTypeGeminiCli  = "gemini"
@@ -19,6 +20,9 @@ func CreateAgent(agentConfig config.AgentConfig, name string, mcpServers map[str
 	switch agentConfig.Type {
 	case AgentTypeClaudeCode:
 		agent := NewClaudeCodeWithConfig(agentConfig, name, mcpServers)
+		return agent, nil
+	case AgentTypeDebug:
+		agent := NewDebugAgent(agentConfig, name, mcpServers)
 		return agent, nil
 	case AgentTypeQwenCode:
 		agent := NewQwenCodeWithConfig(agentConfig, name, mcpServers)
@@ -31,12 +35,6 @@ func CreateAgent(agentConfig config.AgentConfig, name string, mcpServers map[str
 	}
 }
 
-// CreateAgentFromEntrypointConfig creates an agent from entrypoint configuration (legacy support)
-func CreateAgentFromEntrypointConfig(cfg entrypoint.AgentConfig, mcpServers map[string]config.MCPServer) Agent {
-	// Default to Claude for backward compatibility
-	return NewClaudeCodeWithMCP(cfg, mcpServers)
-}
-
 // NewClaudeCodeWithConfig creates a Claude agent from AgentConfig
 func NewClaudeCodeWithConfig(agentConfig config.AgentConfig, name string, mcpServers map[string]config.MCPServer) Agent {
 	cfg := entrypoint.AgentConfig{Name: name}
@@ -46,20 +44,4 @@ func NewClaudeCodeWithConfig(agentConfig config.AgentConfig, name string, mcpSer
 	// This could be extended in the future if needed
 
 	return agent
-}
-
-// GetSupportedAgentTypes returns a list of supported agent types
-func GetSupportedAgentTypes() []string {
-	return []string{AgentTypeClaudeCode, AgentTypeQwenCode}
-}
-
-// IsValidAgentType checks if the given agent type is supported
-func IsValidAgentType(agentType string) bool {
-	supportedTypes := GetSupportedAgentTypes()
-	for _, supportedType := range supportedTypes {
-		if agentType == supportedType {
-			return true
-		}
-	}
-	return false
 }

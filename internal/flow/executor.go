@@ -3,6 +3,7 @@ package flow
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -332,13 +333,35 @@ func (fe *FlowExecutor) createAgents(ctx context.Context) error {
 			Env:  step.Env,
 		}
 
-		// Create agent with step name as normalized name
-		stepAgent, err := agent.CreateAgent(agentConfig, step.Name, fe.mcpServers)
+		// Create agent with working directory + step name for proper MCP config paths
+		// Extract just the directory name from workingDir (e.g., "senior_developer" from "/opt/autoteam/agents/senior_developer")
+		baseName := filepath.Base(fe.workingDir)
+		fullAgentName := fmt.Sprintf("%s/%s", baseName, step.Name)
+		stepAgent, err := agent.CreateAgent(agentConfig, fullAgentName, fe.mcpServers)
 		if err != nil {
 			return fmt.Errorf("failed to create agent for step %s: %w", step.Name, err)
 		}
 
 		fe.agents[step.Name] = stepAgent
+
+		// Configure MCP servers if the agent supports configuration
+		if configurable, ok := stepAgent.(agent.Configurable); ok {
+			lgr.Info("Configuring MCP servers for agent",
+				zap.String("step_name", step.Name),
+				zap.String("agent_type", step.Type),
+				zap.Int("mcp_servers", len(fe.mcpServers)))
+
+			if err := configurable.Configure(ctx); err != nil {
+				return fmt.Errorf("failed to configure MCP servers for step %s: %w", step.Name, err)
+			}
+
+			lgr.Info("MCP servers configured successfully for agent",
+				zap.String("step_name", step.Name))
+		} else {
+			lgr.Debug("Agent does not support MCP configuration",
+				zap.String("step_name", step.Name),
+				zap.String("agent_type", step.Type))
+		}
 
 		lgr.Info("Created agent for flow step",
 			zap.String("step_name", step.Name),
@@ -351,6 +374,25 @@ func (fe *FlowExecutor) createAgents(ctx context.Context) error {
 // executeStep executes a single flow step
 func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, previousOutputs map[string]StepOutput) (*StepOutput, error) {
 	lgr := logger.FromContext(ctx)
+
+	// Check skip condition first
+	shouldSkip, err := fe.evaluateSkipCondition(ctx, step, previousOutputs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate skip condition for step %s: %w", step.Name, err)
+	}
+
+	if shouldSkip {
+		lgr.Info("Skipping step due to skip condition",
+			zap.String("step_name", step.Name),
+			zap.String("skip_when", step.SkipWhen))
+
+		// Return empty output for skipped step
+		return &StepOutput{
+			Name:   step.Name,
+			Stdout: "",
+			Stderr: "",
+		}, nil
+	}
 
 	// Get agent for this step
 	stepAgent, exists := fe.agents[step.Name]
@@ -374,10 +416,20 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 	if step.Transformers != nil && step.Transformers.Input != "" {
 		transformedInput, err := fe.applyTemplate(step.Transformers.Input, inputData)
 		if err != nil {
-			return nil, fmt.Errorf("input transformation failed for step %s: %w", step.Name, err)
+			lgr.Warn("Input transformation failed, using original prompt",
+				zap.String("step_name", step.Name),
+				zap.String("input_template", step.Transformers.Input),
+				zap.Error(err))
+		} else {
+			prompt = transformedInput
 		}
-		prompt = transformedInput
 	}
+
+	// Log step input for debugging
+	lgr.Info("Starting step execution",
+		zap.String("step_name", step.Name),
+		zap.String("agent_type", step.Type),
+		zap.String("prompt", prompt))
 
 	// Set up run options
 	runOptions := agent.RunOptions{
@@ -392,6 +444,13 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 		return nil, fmt.Errorf("agent execution failed for step %s: %w", step.Name, err)
 	}
 
+	// Log raw agent output for debugging
+	lgr.Info("Agent execution completed",
+		zap.String("step_name", step.Name),
+		zap.String("agent_type", step.Type),
+		zap.String("raw_stdout", output.Stdout),
+		zap.String("raw_stderr", output.Stderr))
+
 	// Apply output transformer if specified
 	stdout := output.Stdout
 	if step.Transformers != nil && step.Transformers.Output != "" {
@@ -404,11 +463,21 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 		if err != nil {
 			lgr.Warn("Output transformation failed, using raw output",
 				zap.String("step_name", step.Name),
+				zap.String("output_template", step.Transformers.Output),
 				zap.Error(err))
 		} else {
 			stdout = transformedOutput
+			lgr.Info("Output transformed successfully",
+				zap.String("step_name", step.Name),
+				zap.String("transformed_output", stdout))
 		}
 	}
+
+	// Log final step output
+	lgr.Info("Step execution finished",
+		zap.String("step_name", step.Name),
+		zap.String("final_stdout", stdout),
+		zap.String("final_stderr", output.Stderr))
 
 	return &StepOutput{
 		Name:   step.Name,
@@ -430,6 +499,43 @@ func (fe *FlowExecutor) prepareInputData(step config.FlowStep, previousOutputs m
 	return map[string]interface{}{
 		"inputs": inputs,
 	}
+}
+
+// evaluateSkipCondition evaluates a skip condition template and returns true if step should be skipped
+func (fe *FlowExecutor) evaluateSkipCondition(ctx context.Context, step config.FlowStep, previousOutputs map[string]StepOutput) (bool, error) {
+	if step.SkipWhen == "" {
+		return false, nil // No skip condition defined
+	}
+
+	lgr := logger.FromContext(ctx)
+
+	// Prepare input data for skip condition evaluation (same as input transformers)
+	inputData := fe.prepareInputData(step, previousOutputs)
+
+	lgr.Debug("Evaluating skip condition",
+		zap.String("step_name", step.Name),
+		zap.String("skip_when", step.SkipWhen),
+		zap.Any("input_data", inputData))
+
+	// Evaluate the skip condition template
+	result, err := fe.applyTemplate(step.SkipWhen, inputData)
+	if err != nil {
+		lgr.Warn("Skip condition template execution failed, assuming step should not be skipped",
+			zap.String("step_name", step.Name),
+			zap.String("skip_when", step.SkipWhen),
+			zap.Error(err))
+		return false, nil // Don't skip if template fails
+	}
+
+	// Trim whitespace and check if result is "true"
+	shouldSkip := strings.TrimSpace(result) == "true"
+
+	lgr.Info("Skip condition evaluated",
+		zap.String("step_name", step.Name),
+		zap.String("condition_result", result),
+		zap.Bool("should_skip", shouldSkip))
+
+	return shouldSkip, nil
 }
 
 // applyTemplate applies a Sprig template to the given data

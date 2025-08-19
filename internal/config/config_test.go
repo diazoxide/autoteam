@@ -37,6 +37,10 @@ func TestLoadConfig_Valid(t *testing.T) {
 					TeamName:      StringPtr("test-team"),
 					InstallDeps:   BoolPtr(true),
 					CommonPrompt:  StringPtr("Follow best practices"),
+					Flow: []FlowStep{
+						{Name: "collector", Type: "gemini", Prompt: "Collect tasks"},
+						{Name: "executor", Type: "claude", DependsOn: []string{"collector"}, Prompt: "Execute tasks"},
+					},
 				},
 			},
 		},
@@ -58,6 +62,10 @@ func TestLoadConfig_Valid(t *testing.T) {
 					CheckInterval: IntPtr(60),            // default
 					TeamName:      StringPtr("autoteam"), // default
 					InstallDeps:   BoolPtr(false),        // default
+					Flow: []FlowStep{
+						{Name: "collector", Type: "gemini", Prompt: "Collect tasks"},
+						{Name: "executor", Type: "claude", DependsOn: []string{"collector"}, Prompt: "Execute tasks"},
+					},
 				},
 			},
 		},
@@ -191,6 +199,11 @@ func TestValidateConfig(t *testing.T) {
 			config: Config{
 				Agents: []Agent{
 					{Name: "dev1", Prompt: "prompt"},
+				},
+				Settings: AgentSettings{
+					Flow: []FlowStep{
+						{Name: "step1", Type: "claude", Prompt: "test"},
+					},
 				},
 			},
 			wantErr: "",
@@ -356,6 +369,9 @@ func TestGetEnabledAgentsWithEffectiveSettings(t *testing.T) {
 		Settings: AgentSettings{
 			CheckInterval: IntPtr(60),
 			TeamName:      StringPtr("test"),
+			Flow: []FlowStep{
+				{Name: "step1", Type: "claude", Prompt: "test"},
+			},
 		},
 	}
 
@@ -404,6 +420,11 @@ func TestValidateConfigWithDisabledAgents(t *testing.T) {
 						Name:    "dev2",
 						Prompt:  "prompt",
 						Enabled: BoolPtr(true),
+					},
+				},
+				Settings: AgentSettings{
+					Flow: []FlowStep{
+						{Name: "step1", Type: "claude", Prompt: "test"},
 					},
 				},
 			},

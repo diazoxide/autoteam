@@ -191,6 +191,27 @@
 - Environment variable approach replaced with YAML configuration files per agent
 - Simplified configuration: Single `CONFIG_FILE` parameter instead of multiple environment variables
 
+## Configuration Normalization System
+- **NEW**: Implemented placeholder variable replacement in environment variables during compose.yaml generation
+- **Consistent Syntax**: Single `${AUTOTEAM_VARIABLE_NAME}` format for all placeholders
+- **Supported Variables**: 
+  - `${AUTOTEAM_AGENT_NAME}` → actual agent name (e.g., "Senior Developer")
+  - `${AUTOTEAM_AGENT_DIR}` → agent directory path (e.g., "/opt/autoteam/agents/senior_developer")
+  - `${AUTOTEAM_AGENT_NORMALIZED_NAME}` → normalized agent name (e.g., "senior_developer")
+- **Implementation**: Added `normalizeEnvironmentValue()` function in generator with runtime value replacement
+- **Environment Variable Standardization**: Updated all AutoTeam variables to use consistent `AUTOTEAM_` prefix
+- **Example Usage**: In `autoteam.yaml`: `TODO_DB_PATH: ${AUTOTEAM_AGENT_DIR}/todo.db` → In `compose.yaml`: `TODO_DB_PATH: /opt/autoteam/agents/senior_developer/todo.db`
+- **Benefits**: Clean configuration management with compile-time variable resolution and consistent naming conventions
+
+## Conditional Flow Execution System
+- **NEW**: Added `skip_when` field to FlowStep for conditional step execution
+- **Template-Based Conditions**: Uses Go template syntax with Sprig functions for flexible condition evaluation
+- **Example**: `skip_when: "{{- index .inputs 0 | trim | eq \"0\" -}}"` skips step if first input is "0"
+- **Graceful Error Handling**: Template execution failures log warnings but don't fail the step (assumes should not skip)
+- **Input Context**: Skip conditions have access to step inputs from previous step outputs via `.inputs` array
+- **Enhanced Logging**: Added detailed step logging showing inputs when starting and outputs when finishing
+- **Integration**: Seamlessly works with existing dependency system and parallel execution
+
 ## Container Directory Structure
 - Codebase is mounted at `/opt/autoteam/codebase` (standard application directory)
 - Claude configuration files remain in user home directory: `/home/{user}/.claude` and `/home/{user}/.claude.json`

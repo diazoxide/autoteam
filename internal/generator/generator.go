@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"autoteam/internal/config"
@@ -28,6 +29,18 @@ func New() *Generator {
 	return &Generator{
 		fileOps: NewFileOperations(),
 	}
+}
+
+// normalizeEnvironmentValue replaces AutoTeam placeholder variables with actual runtime values.
+// Supported placeholders:
+//   - ${AUTOTEAM_AGENT_NAME} -> actual agent name (e.g., "Senior Developer")
+//   - ${AUTOTEAM_AGENT_DIR}  -> agent directory path (e.g., "/opt/autoteam/agents/senior_developer")
+//   - ${AUTOTEAM_AGENT_NORMALIZED_NAME} -> normalized agent name (e.g., "senior_developer")
+func (g *Generator) normalizeEnvironmentValue(value string, agent config.Agent) string {
+	value = strings.ReplaceAll(value, "${AUTOTEAM_AGENT_NAME}", agent.Name)
+	value = strings.ReplaceAll(value, "${AUTOTEAM_AGENT_DIR}", agent.GetAgentDir())
+	value = strings.ReplaceAll(value, "${AUTOTEAM_AGENT_NORMALIZED_NAME}", agent.GetNormalizedName())
+	return value
 }
 
 func (g *Generator) GenerateCompose(cfg *config.Config) error {
@@ -93,7 +106,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 
 		// Build volumes array
 		volumes := []string{
-			fmt.Sprintf("./agents/%s:/opt/autoteam/agents/%s", serviceName, serviceName),
+			fmt.Sprintf("./agents/%s:%s", serviceName, agent.GetAgentDir()),
 			"./bin:/opt/autoteam/bin",
 		}
 
@@ -116,24 +129,28 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 		environment := make(map[string]string)
 
 		// Set the path to the agent's config file
-		configPath := fmt.Sprintf("/opt/autoteam/agents/%s/config.yaml", serviceName)
-		environment["CONFIG_FILE"] = configPath
+		environment["CONFIG_FILE"] = fmt.Sprintf("%s/config.yaml", agent.GetAgentDir())
+
+		// Set AutoTeam agent runtime variables with consistent AUTOTEAM_ prefix
+		environment["AUTOTEAM_AGENT_NAME"] = agent.Name
+		environment["AUTOTEAM_AGENT_DIR"] = agent.GetAgentDir()
+		environment["AUTOTEAM_AGENT_NORMALIZED_NAME"] = agent.GetNormalizedName()
 
 		// Keep some optional runtime variables that can be overridden
 		environment["DEBUG"] = "${DEBUG:-false}"
 		environment["LOG_LEVEL"] = "${LOG_LEVEL:-info}"
 
-		// Merge with environment from service config
+		// Merge with environment from service config and normalize placeholder variables
 		if existingEnv, ok := serviceConfig["environment"]; ok {
 			// Handle both map[string]string and map[string]interface{} cases
 			if envMap, ok := existingEnv.(map[string]string); ok {
 				for k, v := range envMap {
-					environment[k] = v
+					environment[k] = g.normalizeEnvironmentValue(v, agent)
 				}
 			} else if envMapInterface, ok := existingEnv.(map[string]interface{}); ok {
 				for k, v := range envMapInterface {
 					if vStr, ok := v.(string); ok {
-						environment[k] = vStr
+						environment[k] = g.normalizeEnvironmentValue(vStr, agent)
 					}
 				}
 			}
@@ -149,21 +166,21 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 		if portAllocation != nil {
 			if port, hasPort := portAllocation[serviceName]; hasPort {
 				// Add port mapping: host:container (8080 is the default container port)
-				ports := []string{fmt.Sprintf("%d:8080", port)}
+				portMappings := []string{fmt.Sprintf("%d:8080", port)}
 
 				// Merge with existing ports if any
 				if existingPorts, ok := serviceConfig["ports"]; ok {
 					if portSlice, ok := existingPorts.([]string); ok {
-						ports = append(ports, portSlice...)
+						portMappings = append(portMappings, portSlice...)
 					} else if portInterface, ok := existingPorts.([]interface{}); ok {
 						for _, p := range portInterface {
 							if portStr, ok := p.(string); ok {
-								ports = append(ports, portStr)
+								portMappings = append(portMappings, portStr)
 							}
 						}
 					}
 				}
-				serviceConfig["ports"] = ports
+				serviceConfig["ports"] = portMappings
 			}
 		}
 

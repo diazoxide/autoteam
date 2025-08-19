@@ -142,6 +142,9 @@ func (q *GeminiCli) Run(ctx context.Context, prompt string, options RunOptions) 
 			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 		}
 
+		// Required for running claude in root user environment
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", "IS_SANDBOX", "1"))
+
 		if err := cmd.Run(); err != nil {
 			// Create output after command execution
 			lastOutput = &AgentOutput{

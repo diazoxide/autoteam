@@ -100,8 +100,9 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 	// Verify environment variables are set correctly
 	// The YAML unmarshaling converts environment to map[string]interface{}
 	dev1EnvInterface := dev1Service["environment"].(map[string]interface{})
-	if dev1EnvInterface["AGENT_NAME"] != "dev1" {
-		t.Errorf("dev1 environment should contain AGENT_NAME=dev1, got %v", dev1EnvInterface["AGENT_NAME"])
+	expectedConfigFile := "/opt/autoteam/agents/dev1/config.yaml"
+	if dev1EnvInterface["CONFIG_FILE"] != expectedConfigFile {
+		t.Errorf("dev1 environment should contain CONFIG_FILE=%s, got %v", expectedConfigFile, dev1EnvInterface["CONFIG_FILE"])
 	}
 	// GitHub token environment variables removed
 

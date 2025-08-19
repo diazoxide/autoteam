@@ -58,7 +58,17 @@ agents:
   - name: "dev1"
     prompt: "Test agent"
     github_token: "TEST_TOKEN"
-    github_user: "test-user"`
+    github_user: "test-user"
+
+settings:
+  flow:
+    - name: collector
+      type: gemini
+      prompt: "Collect"
+    - name: executor
+      type: claude
+      depends_on: [collector]
+      prompt: "Execute"`
 
 	testutil.CreateTempFile(t, tempDir, "autoteam.yaml", testConfig)
 

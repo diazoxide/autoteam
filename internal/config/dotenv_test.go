@@ -69,7 +69,11 @@ API_ENDPOINT=http://localhost:8080`
     prompt: "Reviewer agent"
 
 settings:
-  team_name: "custom-team"`
+  team_name: "custom-team"
+  flow:
+    - name: step1
+      type: claude
+      prompt: test`
 
 	configPath := filepath.Join(tempDir, "autoteam.yaml")
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
@@ -117,7 +121,11 @@ func TestDotenvOptional(t *testing.T) {
     prompt: "Developer agent"
 
 settings:
-  team_name: "test-team"`
+  team_name: "test-team"
+  flow:
+    - name: step1
+      type: claude
+      prompt: test`
 
 	configPath := filepath.Join(tempDir, "autoteam.yaml")
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {

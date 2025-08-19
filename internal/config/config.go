@@ -51,6 +51,7 @@ type FlowStep struct {
 	Env          map[string]string `yaml:"env,omitempty"`          // Environment variables
 	DependsOn    []string          `yaml:"depends_on,omitempty"`   // Step dependencies
 	Prompt       string            `yaml:"prompt,omitempty"`       // Step-specific prompt
+	SkipWhen     string            `yaml:"skip_when,omitempty"`    // Skip condition template (if evaluates to "true")
 	Transformers *Transformers     `yaml:"transformers,omitempty"` // Input/output transformers
 }
 
@@ -869,6 +870,19 @@ func (a *Agent) GetNormalizedNameWithVariation(variation string) string {
 		return normalizedName
 	}
 	return fmt.Sprintf("%s/%s", normalizedName, variation)
+}
+
+// GetAgentDir returns the agent directory path for use in configurations and volume mounts
+func (a *Agent) GetAgentDir() string {
+	return fmt.Sprintf("/opt/autoteam/agents/%s", a.GetNormalizedName())
+}
+
+// GetAgentSubDir returns the agent subdirectory path for a specific variation (e.g., collector, executor)
+func (a *Agent) GetAgentSubDir(variation string) string {
+	if variation == "" {
+		return a.GetAgentDir()
+	}
+	return fmt.Sprintf("%s/%s", a.GetAgentDir(), variation)
 }
 
 // IsEnabled returns true if the agent is enabled (default is true)

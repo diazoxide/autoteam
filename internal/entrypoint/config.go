@@ -46,9 +46,9 @@ func Load() (*Config, error) {
 	cfg := &Config{}
 
 	// Agent configuration
-	cfg.Agent.Name = os.Getenv("AGENT_NAME")
+	cfg.Agent.Name = os.Getenv("AUTOTEAM_AGENT_NAME")
 	if cfg.Agent.Name == "" {
-		return nil, fmt.Errorf("AGENT_NAME environment variable is required")
+		return nil, fmt.Errorf("AUTOTEAM_AGENT_NAME environment variable is required")
 	}
 
 	cfg.Agent.Type = getEnvOrDefault("AGENT_TYPE", "claude")
