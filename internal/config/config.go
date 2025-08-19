@@ -572,46 +572,6 @@ func copyMCPServer(server MCPServer) MCPServer {
 	return copied
 }
 
-// mergeAgentConfig merges agent configurations with agent-level overriding global
-func mergeAgentConfig(global, agentLevel *AgentConfig) *AgentConfig {
-	if agentLevel != nil {
-		return copyAgentConfig(agentLevel)
-	}
-	if global != nil {
-		return copyAgentConfig(global)
-	}
-	return nil
-}
-
-// copyAgentConfig creates a deep copy of an AgentConfig
-func copyAgentConfig(source *AgentConfig) *AgentConfig {
-	if source == nil {
-		return nil
-	}
-
-	copied := &AgentConfig{
-		Type: source.Type,
-	}
-
-	// Copy args slice
-	if source.Args != nil {
-		copied.Args = make([]string, len(source.Args))
-		copy(copied.Args, source.Args)
-	}
-
-	// Copy env map using maps.Clone
-	if source.Env != nil {
-		copied.Env = maps.Clone(source.Env)
-	}
-
-	// Copy prompt
-	if source.Prompt != nil {
-		copied.Prompt = StringPtr(*source.Prompt)
-	}
-
-	return copied
-}
-
 // copyHookConfig creates a deep copy of a HookConfig
 func copyHookConfig(source *HookConfig) *HookConfig {
 	if source == nil {

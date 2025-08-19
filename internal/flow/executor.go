@@ -89,9 +89,7 @@ func (fe *FlowExecutor) Execute(ctx context.Context) (*FlowResult, error) {
 		levelOutputs, err := fe.executeLevel(ctx, level, stepOutputs, &stepOutputsMutex)
 		if err != nil {
 			// Add partial results and return error
-			for _, output := range levelOutputs {
-				allStepOutputs = append(allStepOutputs, output)
-			}
+			allStepOutputs = append(allStepOutputs, levelOutputs...)
 			return &FlowResult{Steps: allStepOutputs, Success: false, Error: err}, err
 		}
 
@@ -99,8 +97,8 @@ func (fe *FlowExecutor) Execute(ctx context.Context) (*FlowResult, error) {
 		stepOutputsMutex.Lock()
 		for _, output := range levelOutputs {
 			stepOutputs[output.Name] = output
-			allStepOutputs = append(allStepOutputs, output)
 		}
+		allStepOutputs = append(allStepOutputs, levelOutputs...)
 		stepOutputsMutex.Unlock()
 
 		lgr.Info("Level execution completed",
@@ -414,12 +412,12 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 	// Apply input transformer if specified
 	prompt := step.Prompt
 	if step.Transformers != nil && step.Transformers.Input != "" {
-		transformedInput, err := fe.applyTemplate(step.Transformers.Input, inputData)
-		if err != nil {
+		transformedInput, transformErr := fe.applyTemplate(step.Transformers.Input, inputData)
+		if transformErr != nil {
 			lgr.Warn("Input transformation failed, using original prompt",
 				zap.String("step_name", step.Name),
 				zap.String("input_template", step.Transformers.Input),
-				zap.Error(err))
+				zap.Error(transformErr))
 		} else {
 			prompt = transformedInput
 		}

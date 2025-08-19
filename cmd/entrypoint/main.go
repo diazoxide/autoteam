@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"autoteam/internal/entrypoint"
@@ -179,33 +178,4 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	return nil
-}
-
-// parseCommaSeparated parses comma-separated arguments from a string
-func parseCommaSeparated(value string) []string {
-	if value == "" {
-		return []string{}
-	}
-	args := strings.Split(value, ",")
-	// Trim whitespace from each arg
-	for i, arg := range args {
-		args[i] = strings.TrimSpace(arg)
-	}
-	return args
-}
-
-// parseKeyValuePairs parses key=value pairs from a string (comma-separated)
-func parseKeyValuePairs(value string) map[string]string {
-	if value == "" {
-		return map[string]string{}
-	}
-
-	envMap := make(map[string]string)
-	pairs := strings.Split(value, ",")
-	for _, pair := range pairs {
-		if kv := strings.SplitN(strings.TrimSpace(pair), "=", 2); len(kv) == 2 {
-			envMap[kv[0]] = kv[1]
-		}
-	}
-	return envMap
 }
