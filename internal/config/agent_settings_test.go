@@ -11,7 +11,7 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 			"image": "node:18",
 			"user":  "developer",
 		},
-		CheckInterval: IntPtr(60),
+		SleepDuration: IntPtr(60),
 		TeamName:      StringPtr("global-team"),
 		InstallDeps:   BoolPtr(true),
 	}
@@ -39,7 +39,7 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 					Service: map[string]interface{}{
 						"image": "python:3.11",
 					},
-					CheckInterval: IntPtr(30),
+					SleepDuration: IntPtr(30),
 				},
 			},
 			expectedResult: AgentSettings{
@@ -47,7 +47,7 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 					"image": "python:3.11", // overridden
 					"user":  "developer",   // from global
 				},
-				CheckInterval: IntPtr(30),               // overridden
+				SleepDuration: IntPtr(30),               // overridden
 				TeamName:      StringPtr("global-team"), // from global
 				InstallDeps:   BoolPtr(true),            // from global
 			},
@@ -62,7 +62,7 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 						"image": "golang:1.21",
 						"user":  "admin",
 					},
-					CheckInterval: IntPtr(15),
+					SleepDuration: IntPtr(15),
 					TeamName:      StringPtr("custom-team"),
 					InstallDeps:   BoolPtr(false),
 				},
@@ -72,7 +72,7 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 					"image": "golang:1.21",
 					"user":  "admin",
 				},
-				CheckInterval: IntPtr(15),
+				SleepDuration: IntPtr(15),
 				TeamName:      StringPtr("custom-team"),
 				InstallDeps:   BoolPtr(false),
 			},
@@ -95,8 +95,8 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 					}
 				}
 			}
-			if result.GetCheckInterval() != tt.expectedResult.GetCheckInterval() {
-				t.Errorf("CheckInterval = %v, want %v", result.GetCheckInterval(), tt.expectedResult.GetCheckInterval())
+			if result.GetSleepDuration() != tt.expectedResult.GetSleepDuration() {
+				t.Errorf("SleepDuration = %v, want %v", result.GetSleepDuration(), tt.expectedResult.GetSleepDuration())
 			}
 			if result.GetTeamName() != tt.expectedResult.GetTeamName() {
 				t.Errorf("TeamName = %v, want %v", result.GetTeamName(), tt.expectedResult.GetTeamName())
@@ -123,7 +123,7 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 					Service: map[string]interface{}{
 						"image": "python:3.11",
 					},
-					CheckInterval: IntPtr(30),
+					SleepDuration: IntPtr(30),
 				},
 			},
 		},
@@ -132,7 +132,7 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 				"image": "node:18",
 				"user":  "developer",
 			},
-			CheckInterval: IntPtr(60),
+			SleepDuration: IntPtr(60),
 			TeamName:      StringPtr("test-team"),
 			InstallDeps:   BoolPtr(true),
 		},
@@ -152,8 +152,8 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 	if devAgent.EffectiveSettings.Service["image"] != "node:18" {
 		t.Errorf("Dev agent Service[image] = %v, want node:18", devAgent.EffectiveSettings.Service["image"])
 	}
-	if devAgent.EffectiveSettings.GetCheckInterval() != 60 {
-		t.Errorf("Dev agent CheckInterval = %v, want 60", devAgent.EffectiveSettings.GetCheckInterval())
+	if devAgent.EffectiveSettings.GetSleepDuration() != 60 {
+		t.Errorf("Dev agent SleepDuration = %v, want 60", devAgent.EffectiveSettings.GetSleepDuration())
 	}
 
 	// Second agent should have overridden settings
@@ -164,8 +164,8 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 	if archAgent.EffectiveSettings.Service["image"] != "python:3.11" {
 		t.Errorf("Arch agent Service[image] = %v, want python:3.11", archAgent.EffectiveSettings.Service["image"])
 	}
-	if archAgent.EffectiveSettings.GetCheckInterval() != 30 {
-		t.Errorf("Arch agent CheckInterval = %v, want 30", archAgent.EffectiveSettings.GetCheckInterval())
+	if archAgent.EffectiveSettings.GetSleepDuration() != 30 {
+		t.Errorf("Arch agent SleepDuration = %v, want 30", archAgent.EffectiveSettings.GetSleepDuration())
 	}
 	// Non-overridden settings should use global values
 	if archAgent.EffectiveSettings.Service["user"] != "developer" {
@@ -187,7 +187,7 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 				"SHARED_VAR": "global_shared",
 			},
 		},
-		CheckInterval: IntPtr(60),
+		SleepDuration: IntPtr(60),
 		TeamName:      StringPtr("global-team"),
 		InstallDeps:   BoolPtr(true),
 	}
@@ -221,7 +221,7 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 						"SHARED_VAR": "global_shared",
 					},
 				},
-				CheckInterval: IntPtr(60),
+				SleepDuration: IntPtr(60),
 				TeamName:      StringPtr("global-team"),
 				InstallDeps:   BoolPtr(true),
 			},
@@ -248,7 +248,7 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 						"SHARED_VAR": "global_shared",
 					},
 				},
-				CheckInterval: IntPtr(60),
+				SleepDuration: IntPtr(60),
 				TeamName:      StringPtr("global-team"),
 				InstallDeps:   BoolPtr(true),
 			},
@@ -278,7 +278,7 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 						"CUSTOM_VAR": "custom_value",
 					},
 				},
-				CheckInterval: IntPtr(60),
+				SleepDuration: IntPtr(60),
 				TeamName:      StringPtr("global-team"),
 				InstallDeps:   BoolPtr(true),
 			},
@@ -309,7 +309,7 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 						"PYTHON_ENV": "production",
 					},
 				},
-				CheckInterval: IntPtr(60),
+				SleepDuration: IntPtr(60),
 				TeamName:      StringPtr("global-team"),
 				InstallDeps:   BoolPtr(true),
 			},
@@ -359,8 +359,8 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 			}
 
 			// Check other fields
-			if result.GetCheckInterval() != tt.expectedResult.GetCheckInterval() {
-				t.Errorf("CheckInterval = %v, want %v", result.GetCheckInterval(), tt.expectedResult.GetCheckInterval())
+			if result.GetSleepDuration() != tt.expectedResult.GetSleepDuration() {
+				t.Errorf("SleepDuration = %v, want %v", result.GetSleepDuration(), tt.expectedResult.GetSleepDuration())
 			}
 			if result.GetTeamName() != tt.expectedResult.GetTeamName() {
 				t.Errorf("TeamName = %v, want %v", result.GetTeamName(), tt.expectedResult.GetTeamName())

@@ -201,16 +201,6 @@ agents:
 
       Your goal is to make AutoTeam operationally excellent and enable the team to focus on development!
 
-services: { }
-# Custom services that will be merged into the generated compose.yaml
-#  localai:
-#    image: localai/localai:latest
-#    command: ["qwen3-1.7b", "--threads", "12"]
-#    ports:
-#      - 8080:8080
-#      - 9090:9090
-#    volumes:
-#      - ./var/localai/models:/models
 settings:
   service:
     build:
@@ -223,7 +213,7 @@ settings:
       - "./shared/claude:/root/.claude"
       - "./shared/claude.json:/root/.claude.json"
       - "./shared/gemini:/root/.gemini"
-  check_interval: 5
+  sleep_duration: 30
   team_name: autoteam-self-improvement
   install_deps: true
   hooks:
@@ -231,7 +221,6 @@ settings:
       - command: "/bin/sh"
         args: [ "-c", "echo https://$$GITHUB_USER:$$GITHUB_PERSONAL_ACCESS_TOKEN@github.com > ~/.git-credentials" ]
         description: "Initializing Github credentials"
-  # Dynamic Flow Configuration
   flow:
     - name: collector
       type: gemini
@@ -248,14 +237,30 @@ settings:
         For each notification, use **TODO MCP** to add a new task:
         - Create descriptive TODO with all necessary context
         - Include notification type, repository, and action needed
-        - Format: "GitHub Notification - [repo] [type] [title]: [description with full context]"
+        - Example (This is just example, you need to design task, with all necessary technical guide)
+          * title: Answer Mentioned Comment in Github
+          * description:
+            ```
+            # Alex Mentioned You in Issue #4 comment
+            
+            Alex is asking, what we can do ... ?
+        
+            # Guidelines
+            1. Check the issue context
+            2. Analyze the comments in issue
+            3. ...
+            4. Clone repository if you need to access to codebase, or update/pull/fetch if exists in workdir
+            5. ...
+            6. Answer the mentioned comment by using Github MCP tools.
+            ```
+          * tags: [github]
         - Make sure each TODO contains enough information for the executor to take action
 
         ## 3. Mark Notifications as Read
         **CRITICAL**: After creating TODOs, mark all processed notifications as read using **GitHub MCP**
 
         ## 4. Report Pending Task Count
-        Check the current TODO list using **TODO MCP** and report the total count:
+        Check the current TODO list using **TODO MCP** and report the count of **NOT COMPLETED** tasks:
         ```
         PENDING_TASKS: {n}
         ```
@@ -281,27 +286,16 @@ settings:
         - Check the current TODO list to understand what needs to be done
         - Each TODO contains context about GitHub notifications and required actions
 
-        ## 2. Process GitHub Notifications & TODOs
-        For each pending TODO task:
-        1. **Read the full context** from the TODO description (issues, PRs, comments, code)
-        2. **Use GitHub MCP** to gather any additional information needed
-        3. **Take appropriate action** (comment, review, create PR, merge, etc.)
-        4. **Use GitHub MCP** to publish your responses/actions
-
-        ## 3. Mark TODOs as Completed
+        ## 2. Mark TODOs as Completed
         After successfully handling each task:
         - Use **TODO MCP** to mark the corresponding TODO as completed
-        - Include a brief summary of the action taken
+        - Don't create new task, but update current task as completed, add tags if necessary, Also you can add some message in description of task, about completion. 
 
         ## Guidelines
-        - Always be professional, helpful, and maintain high quality standards
         - Process TODOs systematically, one at a time
         - Only mark TODOs as completed after successful action
         - If you encounter errors, leave the TODO pending and note the issue
         - Focus on actions that add value to the project and team collaboration
-      transformers:
-        input: |
-          {{ .inputs | join "\n" }}
   # MCP Servers for both layers
   mcp_servers:
     github:
@@ -311,12 +305,6 @@ settings:
       command: node
       args: ["/opt/autoteam/custom/mcp/todo/dist/index.js"]
 
-  common_prompt: |
-    # AutoTeam Self-Improvement Guidelines
-    - You are part of a recursive AI system improving AutoTeam itself
-    - Focus on making AutoTeam more powerful, reliable, and user-friendly
-    - Collaborate effectively with your fellow agents (Developer, Architect, DevOps)
-    - Prioritize quality, maintainability, and long-term architectural health
-    - Create comprehensive, well-tested improvements
-    - Document your changes and decisions clearly
-    - Learn from each interaction to continuously improve your own capabilities
+  common_prompt: ""
+
+services: { }

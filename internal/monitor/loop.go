@@ -18,7 +18,7 @@ import (
 
 // Config contains configuration for the monitor
 type Config struct {
-	CheckInterval time.Duration
+	SleepDuration time.Duration // Sleep duration between flow execution cycles
 	TeamName      string
 }
 
@@ -55,7 +55,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
 
 	lgr.Info("Starting flow-based agent monitor",
-		zap.Duration("check_interval", m.config.CheckInterval),
+		zap.Duration("sleep_duration", m.config.SleepDuration),
 		zap.Int("flow_steps", len(m.flowSteps)))
 
 	lgr.Info("Starting flow processing loop: dynamic dependency-based execution")
@@ -65,11 +65,9 @@ func (m *Monitor) Start(ctx context.Context) error {
 		lgr.Warn("Failed to start HTTP API server", zap.Error(err))
 	}
 
-	// Start continuous flow processing loop
-	ticker := time.NewTicker(m.config.CheckInterval)
-	defer ticker.Stop()
-
+	// Start continuous flow processing loop with sleep-based intervals
 	for {
+		// Check for cancellation before starting cycle
 		select {
 		case <-ctx.Done():
 			lgr.Info("Monitor shutting down due to context cancellation")
@@ -80,12 +78,37 @@ func (m *Monitor) Start(ctx context.Context) error {
 			}
 
 			return ctx.Err()
+		default:
+		}
 
-		case <-ticker.C:
-			// Execute flow processing cycle
-			if err := m.processFlowCycle(ctx); err != nil {
-				lgr.Warn("Failed to process flow cycle", zap.Error(err))
+		// Execute flow processing cycle
+		cycleStart := time.Now()
+		if err := m.processFlowCycle(ctx); err != nil {
+			lgr.Warn("Failed to process flow cycle", zap.Error(err))
+		}
+		cycleEnd := time.Now()
+		executionDuration := cycleEnd.Sub(cycleStart)
+
+		// Log execution timing for monitoring
+		lgr.Debug("Flow cycle completed",
+			zap.Duration("execution_time", executionDuration),
+			zap.Duration("sleep_duration", m.config.SleepDuration))
+
+		// Sleep for the configured duration, with context cancellation check
+		lgr.Debug("Sleeping before next flow cycle", zap.Duration("sleep_duration", m.config.SleepDuration))
+
+		select {
+		case <-ctx.Done():
+			lgr.Info("Monitor shutting down during sleep interval")
+
+			// Stop HTTP server
+			if err := m.stopHTTPServer(ctx); err != nil {
+				lgr.Warn("Failed to stop HTTP server", zap.Error(err))
 			}
+
+			return ctx.Err()
+		case <-time.After(m.config.SleepDuration):
+			// Continue to next cycle after sleep
 		}
 	}
 }

@@ -11,14 +11,19 @@ import (
 type DebugAgent struct {
 	config     entrypoint.AgentConfig
 	mcpServers map[string]config.MCPServer
+	args       []string
+	env        map[string]string
 }
 
 // NewDebugAgent creates a new Debug agent instance
-func NewDebugAgent(agentConfig config.AgentConfig, name string, mcpServers map[string]config.MCPServer) Agent {
-	cfg := entrypoint.AgentConfig{Name: name}
+func NewDebugAgent(name string, args []string, env map[string]string, mcpServers map[string]config.MCPServer) Agent {
 	return &DebugAgent{
-		config:     cfg,
+		config: entrypoint.AgentConfig{
+			Name: name,
+		},
 		mcpServers: mcpServers,
+		args:       args,
+		env:        env,
 	}
 }
 

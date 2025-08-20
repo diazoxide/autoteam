@@ -31,7 +31,7 @@ type Agent struct {
 }
 
 type AgentSettings struct {
-	CheckInterval *int                   `yaml:"check_interval,omitempty"`
+	SleepDuration *int                   `yaml:"sleep_duration,omitempty"`
 	TeamName      *string                `yaml:"team_name,omitempty"`
 	InstallDeps   *bool                  `yaml:"install_deps,omitempty"`
 	CommonPrompt  *string                `yaml:"common_prompt,omitempty"`
@@ -198,8 +198,8 @@ func validateFlow(flow []FlowStep) error {
 }
 
 func setDefaults(config *Config) {
-	if config.Settings.CheckInterval == nil {
-		config.Settings.CheckInterval = IntPtr(60)
+	if config.Settings.SleepDuration == nil {
+		config.Settings.SleepDuration = IntPtr(60)
 	}
 	if config.Settings.TeamName == nil {
 		config.Settings.TeamName = StringPtr(DefaultTeamName)
@@ -227,7 +227,7 @@ func CreateSampleConfig(filename string) error {
 				Name:   "arch1",
 				Prompt: "You are an architecture agent responsible for system design and code reviews.",
 				Settings: &AgentSettings{
-					CheckInterval: IntPtr(30),
+					SleepDuration: IntPtr(30),
 					Service: map[string]interface{}{
 						"image": "python:3.11",
 						"volumes": []string{
@@ -293,7 +293,7 @@ func CreateSampleConfig(filename string) error {
 			},
 		},
 		Settings: AgentSettings{
-			CheckInterval: IntPtr(60),
+			SleepDuration: IntPtr(60),
 			TeamName:      StringPtr(DefaultTeamName),
 			InstallDeps:   BoolPtr(true),
 			CommonPrompt:  StringPtr("Always follow coding best practices and write comprehensive tests."),
@@ -653,8 +653,8 @@ func mergeHookConfigs(global, agentLevel *HookConfig) *HookConfig {
 func copyAgentSettings(source AgentSettings) AgentSettings {
 	copied := AgentSettings{}
 
-	if source.CheckInterval != nil {
-		copied.CheckInterval = IntPtr(*source.CheckInterval)
+	if source.SleepDuration != nil {
+		copied.SleepDuration = IntPtr(*source.SleepDuration)
 	}
 	if source.TeamName != nil {
 		copied.TeamName = StringPtr(*source.TeamName)
@@ -707,8 +707,8 @@ func (a *Agent) GetEffectiveSettings(globalSettings AgentSettings) AgentSettings
 	}
 
 	// Override with agent-specific settings where provided
-	if a.Settings.CheckInterval != nil {
-		effective.CheckInterval = a.Settings.CheckInterval
+	if a.Settings.SleepDuration != nil {
+		effective.SleepDuration = a.Settings.SleepDuration
 	}
 	if a.Settings.TeamName != nil {
 		effective.TeamName = a.Settings.TeamName
@@ -869,9 +869,9 @@ func BoolPtr(b bool) *bool {
 }
 
 // Helper methods to get values with defaults for AgentSettings
-func (s *AgentSettings) GetCheckInterval() int {
-	if s.CheckInterval != nil {
-		return *s.CheckInterval
+func (s *AgentSettings) GetSleepDuration() int {
+	if s.SleepDuration != nil {
+		return *s.SleepDuration
 	}
 	return 60 // default
 }

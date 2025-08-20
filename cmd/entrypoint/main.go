@@ -147,7 +147,7 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 
 	// Initialize flow-based monitor
 	monitorConfig := monitor.Config{
-		CheckInterval: cfg.Monitoring.CheckInterval,
+		SleepDuration: cfg.Monitoring.SleepDuration,
 		TeamName:      cfg.TeamName,
 	}
 
@@ -161,7 +161,7 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	log.Info("Starting flow-based agent monitoring loop",
-		zap.Duration("check_interval", cfg.Monitoring.CheckInterval),
+		zap.Duration("sleep_duration", cfg.Monitoring.SleepDuration),
 		zap.Int("flow_steps", len(cfg.Flow)))
 
 	// Start monitoring with error handling for on_error hooks

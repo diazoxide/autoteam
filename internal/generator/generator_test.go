@@ -50,7 +50,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 				"user":    "testuser",
 				"volumes": []string{"./shared:/app/shared"},
 			},
-			CheckInterval: config.IntPtr(30),
+			SleepDuration: config.IntPtr(30),
 			TeamName:      config.StringPtr("test-team"),
 			InstallDeps:   config.BoolPtr(false),
 		},

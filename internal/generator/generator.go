@@ -353,7 +353,7 @@ func (g *Generator) generateAgentConfigFiles(cfg *config.Config) error {
 			},
 			TeamName: settings.GetTeamName(),
 			Monitoring: entrypoint.MonitoringConfig{
-				CheckInterval: time.Duration(settings.GetCheckInterval()) * time.Second,
+				SleepDuration: time.Duration(settings.GetSleepDuration()) * time.Second,
 				MaxRetries:    100, // Default value
 			},
 			Dependencies: entrypoint.DependenciesConfig{

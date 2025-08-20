@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"autoteam/internal/config"
-	"autoteam/internal/entrypoint"
 )
 
 // Agent type constants
@@ -19,29 +18,18 @@ const (
 func CreateAgent(agentConfig config.AgentConfig, name string, mcpServers map[string]config.MCPServer) (Agent, error) {
 	switch agentConfig.Type {
 	case AgentTypeClaudeCode:
-		agent := NewClaudeCodeWithConfig(agentConfig, name, mcpServers)
+		agent := NewClaudeCode(name, agentConfig.Args, agentConfig.Env, mcpServers)
 		return agent, nil
 	case AgentTypeDebug:
-		agent := NewDebugAgent(agentConfig, name, mcpServers)
+		agent := NewDebugAgent(name, agentConfig.Args, agentConfig.Env, mcpServers)
 		return agent, nil
 	case AgentTypeQwenCode:
-		agent := NewQwenCodeWithConfig(agentConfig, name, mcpServers)
+		agent := NewQwenCode(name, agentConfig.Args, agentConfig.Env, mcpServers)
 		return agent, nil
 	case AgentTypeGeminiCli:
-		agent := NewGeminiCliWithConfig(agentConfig, name, mcpServers)
+		agent := NewGeminiCli(name, agentConfig.Args, agentConfig.Env, mcpServers)
 		return agent, nil
 	default:
 		return nil, fmt.Errorf("unsupported agent type: %s", agentConfig.Type)
 	}
-}
-
-// NewClaudeCodeWithConfig creates a Claude agent from AgentConfig
-func NewClaudeCodeWithConfig(agentConfig config.AgentConfig, name string, mcpServers map[string]config.MCPServer) Agent {
-	cfg := entrypoint.AgentConfig{Name: name}
-	agent := NewClaudeCodeWithMCP(cfg, mcpServers)
-
-	// Claude agent doesn't currently use custom args/env from AgentConfig
-	// This could be extended in the future if needed
-
-	return agent
 }

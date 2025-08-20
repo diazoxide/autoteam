@@ -33,7 +33,7 @@ type AgentConfig struct {
 
 // MonitoringConfig contains monitoring loop configuration
 type MonitoringConfig struct {
-	CheckInterval time.Duration `yaml:"check_interval"`
+	SleepDuration time.Duration `yaml:"sleep_duration"`
 	MaxRetries    int           `yaml:"max_retries"`
 }
 
@@ -64,7 +64,7 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid CHECK_INTERVAL: %w", err)
 	}
-	cfg.Monitoring.CheckInterval = time.Duration(interval) * time.Second
+	cfg.Monitoring.SleepDuration = time.Duration(interval) * time.Second
 
 	maxRetries := getEnvOrDefault("MAX_RETRIES", "100")
 	cfg.Monitoring.MaxRetries, err = strconv.Atoi(maxRetries)
@@ -112,8 +112,8 @@ func (c *Config) Validate() error {
 	if c.Agent.Name == "" {
 		return fmt.Errorf("agent name is required")
 	}
-	if c.Monitoring.CheckInterval < time.Second {
-		return fmt.Errorf("check interval must be at least 1 second")
+	if c.Monitoring.SleepDuration < time.Second {
+		return fmt.Errorf("sleep duration must be at least 1 second")
 	}
 	if c.Monitoring.MaxRetries < 1 {
 		return fmt.Errorf("max retries must be at least 1")

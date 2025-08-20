@@ -496,6 +496,8 @@ func (fe *FlowExecutor) prepareInputData(step config.FlowStep, previousOutputs m
 
 	return map[string]interface{}{
 		"inputs": inputs,
+		"step":   step,
+		"flow":   fe,
 	}
 }
 

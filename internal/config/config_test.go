@@ -33,7 +33,7 @@ func TestLoadConfig_Valid(t *testing.T) {
 						"image": "node:18.17.1",
 						"user":  "developer",
 					},
-					CheckInterval: IntPtr(60),
+					SleepDuration: IntPtr(60),
 					TeamName:      StringPtr("test-team"),
 					InstallDeps:   BoolPtr(true),
 					CommonPrompt:  StringPtr("Follow best practices"),
@@ -59,7 +59,7 @@ func TestLoadConfig_Valid(t *testing.T) {
 						"image": "node:18.17.1", // default
 						"user":  "developer",    // default
 					},
-					CheckInterval: IntPtr(60),            // default
+					SleepDuration: IntPtr(60),            // default
 					TeamName:      StringPtr("autoteam"), // default
 					InstallDeps:   BoolPtr(false),        // default
 					Flow: []FlowStep{
@@ -98,8 +98,8 @@ func TestLoadConfig_Valid(t *testing.T) {
 			if got.Settings.Service["user"] != tt.want.Settings.Service["user"] {
 				t.Errorf("Settings.Service[user] = %v, want %v", got.Settings.Service["user"], tt.want.Settings.Service["user"])
 			}
-			if got.Settings.GetCheckInterval() != tt.want.Settings.GetCheckInterval() {
-				t.Errorf("Settings.CheckInterval = %v, want %v", got.Settings.GetCheckInterval(), tt.want.Settings.GetCheckInterval())
+			if got.Settings.GetSleepDuration() != tt.want.Settings.GetSleepDuration() {
+				t.Errorf("Settings.CheckInterval = %v, want %v", got.Settings.GetSleepDuration(), tt.want.Settings.GetSleepDuration())
 			}
 			if got.Settings.GetTeamName() != tt.want.Settings.GetTeamName() {
 				t.Errorf("Settings.TeamName = %v, want %v", got.Settings.GetTeamName(), tt.want.Settings.GetTeamName())
@@ -268,8 +268,8 @@ func TestSetDefaults(t *testing.T) {
 	if config.Settings.Service["user"] != "developer" {
 		t.Errorf("Service[user] = %v, want developer", config.Settings.Service["user"])
 	}
-	if config.Settings.GetCheckInterval() != 60 {
-		t.Errorf("CheckInterval = %v, want 60", config.Settings.GetCheckInterval())
+	if config.Settings.GetSleepDuration() != 60 {
+		t.Errorf("CheckInterval = %v, want 60", config.Settings.GetSleepDuration())
 	}
 	if config.Settings.GetTeamName() != "autoteam" {
 		t.Errorf("TeamName = %v, want autoteam", config.Settings.GetTeamName())
@@ -286,7 +286,7 @@ func TestSetDefaults(t *testing.T) {
 				"image": "custom:latest",
 				"user":  "custom-user",
 			},
-			CheckInterval: IntPtr(120),
+			SleepDuration: IntPtr(120),
 			TeamName:      StringPtr("custom-team"),
 		},
 	}
@@ -299,8 +299,8 @@ func TestSetDefaults(t *testing.T) {
 	if config2.Settings.Service["user"] != "custom-user" {
 		t.Errorf("Service[user] should not be overridden, got %v", config2.Settings.Service["user"])
 	}
-	if config2.Settings.GetCheckInterval() != 120 {
-		t.Errorf("CheckInterval should not be overridden, got %v", config2.Settings.GetCheckInterval())
+	if config2.Settings.GetSleepDuration() != 120 {
+		t.Errorf("CheckInterval should not be overridden, got %v", config2.Settings.GetSleepDuration())
 	}
 	if config2.Settings.GetTeamName() != "custom-team" {
 		t.Errorf("TeamName should not be overridden, got %v", config2.Settings.GetTeamName())
@@ -367,7 +367,7 @@ func TestGetEnabledAgentsWithEffectiveSettings(t *testing.T) {
 			},
 		},
 		Settings: AgentSettings{
-			CheckInterval: IntPtr(60),
+			SleepDuration: IntPtr(60),
 			TeamName:      StringPtr("test"),
 			Flow: []FlowStep{
 				{Name: "step1", Type: "claude", Prompt: "test"},
