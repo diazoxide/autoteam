@@ -1,19 +1,25 @@
 agents:
   - name: "dev1"
     prompt: "You are a developer agent"
-    github_token: "DEV1_TOKEN"
-    github_user: "dev-user"
     enabled: true
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: "${DEV1_GITHUB_TOKEN}"
   - name: "dev2"
     prompt: "You are another developer agent"
-    github_token: "DEV2_TOKEN"
-    github_user: "dev-user2"
     enabled: false
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: "${DEV2_GITHUB_TOKEN}"
   - name: "arch1"
     prompt: "You are an architect agent"
-    github_token: "ARCH1_TOKEN"
-    github_user: "arch-user"
     # enabled not set, defaults to true
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: "${ARCH1_GITHUB_TOKEN}"
 
 settings:
   service:
@@ -22,3 +28,11 @@ settings:
   check_interval: 60
   team_name: "test-team"
   install_deps: true
+  flow:
+    - name: collector
+      type: gemini
+      prompt: "Collect tasks"
+    - name: executor
+      type: claude
+      depends_on: [collector]
+      prompt: "Execute tasks"

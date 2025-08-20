@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"autoteam/internal/config"
 	"autoteam/internal/entrypoint"
@@ -29,47 +28,16 @@ type QwenCode struct {
 }
 
 // NewQwenCode creates a new Qwen agent instance
-func NewQwenCode(cfg entrypoint.AgentConfig) *QwenCode {
+func NewQwenCode(name string, args []string, env map[string]string, mcpServers map[string]config.MCPServer) *QwenCode {
 	return &QwenCode{
-		config:     cfg,
-		binaryPath: "qwen", // Will be found in PATH after npm installation
-		mcpServers: make(map[string]config.MCPServer),
-		agentArgs:  []string{},
-		agentEnv:   make(map[string]string),
-	}
-}
-
-// NewQwenCodeWithMCP creates a new Qwen agent instance with MCP servers
-func NewQwenCodeWithMCP(cfg entrypoint.AgentConfig, mcpServers map[string]config.MCPServer) *QwenCode {
-	return &QwenCode{
-		config:     cfg,
+		config: entrypoint.AgentConfig{
+			Name: name,
+		},
 		binaryPath: "qwen", // Will be found in PATH after npm installation
 		mcpServers: mcpServers,
-		agentArgs:  []string{},
-		agentEnv:   make(map[string]string),
+		agentArgs:  args,
+		agentEnv:   env,
 	}
-}
-
-// NewQwenCodeWithConfig creates a new Qwen agent instance with full configuration
-func NewQwenCodeWithConfig(agentConfig config.AgentConfig, name string, mcpServers map[string]config.MCPServer) *QwenCode {
-	cfg := entrypoint.AgentConfig{Name: name}
-	agent := &QwenCode{
-		config:     cfg,
-		binaryPath: "qwen", // Will be found in PATH after npm installation
-		mcpServers: mcpServers,
-		agentArgs:  make([]string, len(agentConfig.Args)),
-		agentEnv:   make(map[string]string),
-	}
-
-	// Copy args
-	copy(agent.agentArgs, agentConfig.Args)
-
-	// Copy env
-	for k, v := range agentConfig.Env {
-		agent.agentEnv[k] = v
-	}
-
-	return agent
 }
 
 // Name returns the agent name
@@ -87,94 +55,55 @@ func (q *QwenCode) Run(ctx context.Context, prompt string, options RunOptions) (
 	lgr := logger.FromContext(ctx)
 
 	// Build the command arguments
-	args := q.buildArgs(options)
+	args := q.buildArgs()
 
-	var lastErr error
-	var lastOutput *AgentOutput
-	maxRetries := options.MaxRetries
-	if maxRetries <= 0 {
-		maxRetries = 1
+	// Add continue flag when requested
+	if options.ContinueMode {
+		args = append(args, "--continue")
 	}
 
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		lgr.Info("Qwen execution attempt", zap.Int("attempt", attempt), zap.Int("max_retries", maxRetries))
+	// Prepare output capture buffers
+	var stdout, stderr bytes.Buffer
 
-		// Add continue flag when requested or for retry attempts
-		currentArgs := args
-		if options.ContinueMode || attempt > 1 {
-			currentArgs = append(args, "--continue")
-		}
+	// Execute Qwen
+	cmd := exec.CommandContext(ctx, q.binaryPath, args...)
 
-		// Prepare output capture buffers
-		var stdout, stderr bytes.Buffer
-
-		// Execute Qwen
-		cmd := exec.CommandContext(ctx, q.binaryPath, currentArgs...)
-
-		// Set working directory to agent's directory so Qwen can find .qwen/settings.json
-		// If user specified a working directory, use that; otherwise use agent directory
-		if options.WorkingDirectory != "" {
-			cmd.Dir = options.WorkingDirectory
-		} else {
-			// Get agent directory where .qwen/settings.json is located
-			configAgent := &config.Agent{Name: q.config.Name}
-			normalizedAgentName := configAgent.GetNormalizedName()
-			cmd.Dir = fmt.Sprintf("/opt/autoteam/agents/%s", normalizedAgentName)
-		}
-
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
-		cmd.Stdin = strings.NewReader(prompt)
-
-		// Set environment variables
-		cmd.Env = os.Environ()
-		// Add custom environment variables from agent config
-		for k, v := range q.agentEnv {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
-		}
-
-		if err := cmd.Run(); err != nil {
-			// Create output after command execution
-			lastOutput = &AgentOutput{
-				Stdout: stdout.String(),
-				Stderr: stderr.String(),
-			}
-			lastErr = fmt.Errorf("qwen execution failed (attempt %d): %w", attempt, err)
-			lgr.Warn("Attempt failed",
-				zap.Int("attempt", attempt),
-				zap.Error(err),
-				zap.String("stderr", stderr.String()))
-
-			// Don't retry on context cancellation
-			if ctx.Err() != nil {
-				return lastOutput, ctx.Err()
-			}
-
-			// Wait before retry (exponential backoff)
-			if attempt < maxRetries {
-				backoff := time.Duration(attempt) * time.Second
-				lgr.Info("Retrying", zap.Duration("backoff", backoff))
-				select {
-				case <-ctx.Done():
-					return lastOutput, ctx.Err()
-				case <-time.After(backoff):
-					continue
-				}
-			}
-		} else {
-			// Create output after successful execution
-			lastOutput = &AgentOutput{
-				Stdout: stdout.String(),
-				Stderr: stderr.String(),
-			}
-			lgr.Info("Qwen execution succeeded",
-				zap.Int("attempt", attempt),
-				zap.Int("stdout_length", len(stdout.String())))
-			return lastOutput, nil
-		}
+	// Set working directory
+	if options.WorkingDirectory != "" {
+		cmd.Dir = options.WorkingDirectory
+	} else {
+		// Use agent directory where .qwen/settings.json is located
+		cmd.Dir = fmt.Sprintf("/opt/autoteam/agents/%s", q.config.Name)
 	}
 
-	return lastOutput, fmt.Errorf("all %d attempts failed, last error: %w", maxRetries, lastErr)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	cmd.Stdin = strings.NewReader(prompt)
+
+	// Set environment variables
+	cmd.Env = os.Environ()
+	// Add custom environment variables from agent config
+	for k, v := range q.agentEnv {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	lgr.Debug("Executing Qwen command",
+		zap.String("binary", q.binaryPath),
+		zap.Strings("args", args),
+		zap.String("working_dir", cmd.Dir),
+		zap.Int("prompt_length", len(prompt)))
+
+	if err := cmd.Run(); err != nil {
+		return &AgentOutput{
+			Stdout: stdout.String(),
+			Stderr: stderr.String(),
+		}, fmt.Errorf("qwen execution failed: %w", err)
+	}
+
+	return &AgentOutput{
+		Stdout: stdout.String(),
+		Stderr: stderr.String(),
+	}, nil
 }
 
 // IsAvailable checks if Qwen is available
@@ -207,11 +136,8 @@ func (q *QwenCode) Version(ctx context.Context) (string, error) {
 }
 
 // buildArgs builds the command line arguments for Qwen
-func (q *QwenCode) buildArgs(options RunOptions) []string {
-	args := make([]string, 0)
-
-	// Add default yolo parameter for non-interactive execution
-	args = append(args, "--yolo")
+func (q *QwenCode) buildArgs() []string {
+	args := []string{"--yolo"} // Add default yolo parameter for non-interactive execution
 
 	// Add custom args from agent configuration
 	args = append(args, q.agentArgs...)

@@ -13,7 +13,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_current.x | bash - && \
     apt-get install -y nodejs
 
 
-RUN npm install -g @anthropic-ai/claude-code@1.0.83 && \
+RUN npm install -g @anthropic-ai/claude-code@1.0.85 && \
     npm install -g @qwen-code/qwen-code@latest && \
     npm install -g @google/gemini-cli
 
@@ -35,4 +35,10 @@ RUN set -eux; \
     curl -fsSL -o "${file}" "${url}"; \
     tar -xzf "${file}"; \
     rm -f "${file}"
+
+RUN mkdir -p /opt/autoteam/custom/mcp/todo && \
+    cd /opt/autoteam/custom/mcp/todo && \
+    git clone https://github.com/Xczer/todo-mcp-server . && \
+    npm ci && \
+    npm run build
 

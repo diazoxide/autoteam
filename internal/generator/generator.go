@@ -1,14 +1,15 @@
 package generator
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"autoteam/internal/config"
+	"autoteam/internal/entrypoint"
 	"autoteam/internal/ports"
 
 	"gopkg.in/yaml.v3"
@@ -30,6 +31,18 @@ func New() *Generator {
 	}
 }
 
+// normalizeEnvironmentValue replaces AutoTeam placeholder variables with actual runtime values.
+// Supported placeholders:
+//   - ${AUTOTEAM_AGENT_NAME} -> actual agent name (e.g., "Senior Developer")
+//   - ${AUTOTEAM_AGENT_DIR}  -> agent directory path (e.g., "/opt/autoteam/agents/senior_developer")
+//   - ${AUTOTEAM_AGENT_NORMALIZED_NAME} -> normalized agent name (e.g., "senior_developer")
+func (g *Generator) normalizeEnvironmentValue(value string, agent config.Agent) string {
+	value = strings.ReplaceAll(value, "${AUTOTEAM_AGENT_NAME}", agent.Name)
+	value = strings.ReplaceAll(value, "${AUTOTEAM_AGENT_DIR}", agent.GetAgentDir())
+	value = strings.ReplaceAll(value, "${AUTOTEAM_AGENT_NORMALIZED_NAME}", agent.GetNormalizedName())
+	return value
+}
+
 func (g *Generator) GenerateCompose(cfg *config.Config) error {
 	return g.GenerateComposeWithPorts(cfg, nil)
 }
@@ -43,6 +56,11 @@ func (g *Generator) GenerateComposeWithPorts(cfg *config.Config, portAllocation 
 	// Ensure agents directories exist
 	if err := g.createAgentDirectories(cfg); err != nil {
 		return fmt.Errorf("failed to create agent directories: %w", err)
+	}
+
+	// Generate agent config files
+	if err := g.generateAgentConfigFiles(cfg); err != nil {
+		return fmt.Errorf("failed to generate agent config files: %w", err)
 	}
 
 	// Generate compose.yaml programmatically
@@ -88,7 +106,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 
 		// Build volumes array
 		volumes := []string{
-			fmt.Sprintf("./agents/%s:/opt/autoteam/agents/%s", serviceName, serviceName),
+			fmt.Sprintf("./agents/%s:%s", serviceName, agent.GetAgentDir()),
 			"./bin:/opt/autoteam/bin",
 		}
 
@@ -107,93 +125,32 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 		}
 		serviceConfig["volumes"] = volumes
 
-		// Build environment variables
+		// Build environment variables - now we only need the config file path
 		environment := make(map[string]string)
 
-		// Add standard environment variables
-		environment["IS_SANDBOX"] = "1"
-		environment["AGENT_NAME"] = agent.Name
-		environment["AGENT_NORMALIZED_NAME"] = serviceName
-		environment["AGENT_TYPE"] = "claude"
-		environment["AGENT_PROMPT"] = agentWithSettings.GetConsolidatedPrompt(cfg)
-		environment["TEAM_NAME"] = settings.GetTeamName()
-		environment["CHECK_INTERVAL"] = fmt.Sprintf("%d", settings.GetCheckInterval())
-		environment["INSTALL_DEPS"] = fmt.Sprintf("%t", settings.GetInstallDeps())
+		// Set the path to the agent's config file
+		environment["CONFIG_FILE"] = fmt.Sprintf("%s/config.yaml", agent.GetAgentDir())
 
-		// Two-Layer Agent Architecture Configuration
-		if settings.CollectorAgent != nil {
-			environment["COLLECTOR_AGENT_TYPE"] = settings.CollectorAgent.Type
-			if len(settings.CollectorAgent.Args) > 0 {
-				environment["COLLECTOR_AGENT_ARGS"] = strings.Join(settings.CollectorAgent.Args, ",")
-			}
-			if len(settings.CollectorAgent.Env) > 0 {
-				var envPairs []string
-				for k, v := range settings.CollectorAgent.Env {
-					envPairs = append(envPairs, k+"="+v)
-				}
-				environment["COLLECTOR_AGENT_ENV"] = strings.Join(envPairs, ",")
-			}
-			if settings.CollectorAgent.Prompt != nil {
-				environment["COLLECTOR_AGENT_PROMPT"] = *settings.CollectorAgent.Prompt
-			}
-		}
-		if settings.ExecutionAgent != nil {
-			environment["EXECUTION_AGENT_TYPE"] = settings.ExecutionAgent.Type
-			if len(settings.ExecutionAgent.Args) > 0 {
-				environment["EXECUTION_AGENT_ARGS"] = strings.Join(settings.ExecutionAgent.Args, ",")
-			}
-			if len(settings.ExecutionAgent.Env) > 0 {
-				var envPairs []string
-				for k, v := range settings.ExecutionAgent.Env {
-					envPairs = append(envPairs, k+"="+v)
-				}
-				environment["EXECUTION_AGENT_ENV"] = strings.Join(envPairs, ",")
-			}
-			if settings.ExecutionAgent.Prompt != nil {
-				environment["EXECUTION_AGENT_PROMPT"] = *settings.ExecutionAgent.Prompt
-			}
-		}
-		environment["ENTRYPOINT_VERSION"] = "${ENTRYPOINT_VERSION:-latest}"
-		environment["MAX_RETRIES"] = "${MAX_RETRIES:-100}"
+		// Set AutoTeam agent runtime variables with consistent AUTOTEAM_ prefix
+		environment["AUTOTEAM_AGENT_NAME"] = agent.Name
+		environment["AUTOTEAM_AGENT_DIR"] = agent.GetAgentDir()
+		environment["AUTOTEAM_AGENT_NORMALIZED_NAME"] = agent.GetNormalizedName()
+
+		// Keep some optional runtime variables that can be overridden
 		environment["DEBUG"] = "${DEBUG:-false}"
+		environment["LOG_LEVEL"] = "${LOG_LEVEL:-info}"
 
-		// Auto-inject GitHub MCP server for all agents and add any configured MCP servers
-		finalMCPServers := make(map[string]config.MCPServer)
-
-		// Add configured MCP servers
-		for name, server := range settings.MCPServers {
-			finalMCPServers[name] = server
-		}
-
-		// Add MCP servers configuration to environment
-		if len(finalMCPServers) > 0 {
-			mcpServersJSON, err := json.Marshal(finalMCPServers)
-			if err != nil {
-				return fmt.Errorf("failed to marshal MCP servers for agent %s: %w", agent.Name, err)
-			}
-			environment["MCP_SERVERS"] = string(mcpServersJSON)
-		}
-
-		// Add hooks configuration to environment
-		if settings.Hooks != nil {
-			hooksJSON, err := json.Marshal(settings.Hooks)
-			if err != nil {
-				return fmt.Errorf("failed to marshal hooks for agent %s: %w", agent.Name, err)
-			}
-			environment["HOOKS_CONFIG"] = string(hooksJSON)
-		}
-
-		// Merge with environment from service config
+		// Merge with environment from service config and normalize placeholder variables
 		if existingEnv, ok := serviceConfig["environment"]; ok {
 			// Handle both map[string]string and map[string]interface{} cases
 			if envMap, ok := existingEnv.(map[string]string); ok {
 				for k, v := range envMap {
-					environment[k] = v
+					environment[k] = g.normalizeEnvironmentValue(v, agent)
 				}
 			} else if envMapInterface, ok := existingEnv.(map[string]interface{}); ok {
 				for k, v := range envMapInterface {
 					if vStr, ok := v.(string); ok {
-						environment[k] = vStr
+						environment[k] = g.normalizeEnvironmentValue(vStr, agent)
 					}
 				}
 			}
@@ -209,21 +166,21 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 		if portAllocation != nil {
 			if port, hasPort := portAllocation[serviceName]; hasPort {
 				// Add port mapping: host:container (8080 is the default container port)
-				ports := []string{fmt.Sprintf("%d:8080", port)}
+				portMappings := []string{fmt.Sprintf("%d:8080", port)}
 
 				// Merge with existing ports if any
 				if existingPorts, ok := serviceConfig["ports"]; ok {
 					if portSlice, ok := existingPorts.([]string); ok {
-						ports = append(ports, portSlice...)
+						portMappings = append(portMappings, portSlice...)
 					} else if portInterface, ok := existingPorts.([]interface{}); ok {
 						for _, p := range portInterface {
 							if portStr, ok := p.(string); ok {
-								ports = append(ports, portStr)
+								portMappings = append(portMappings, portStr)
 							}
 						}
 					}
 				}
-				serviceConfig["ports"] = ports
+				serviceConfig["ports"] = portMappings
 			}
 		}
 
@@ -373,4 +330,58 @@ func (g *Generator) detectNamedVolumes(services map[string]interface{}) map[stri
 	}
 
 	return namedVolumes
+}
+
+// generateAgentConfigFiles creates YAML config files for each enabled agent
+func (g *Generator) generateAgentConfigFiles(cfg *config.Config) error {
+	for _, agent := range cfg.Agents {
+		// Skip disabled agents
+		if !agent.IsEnabled() {
+			continue
+		}
+
+		settings := agent.GetEffectiveSettings(cfg.Settings)
+		agentWithSettings := &config.AgentWithSettings{Agent: agent, EffectiveSettings: settings}
+		serviceName := agent.GetNormalizedName()
+
+		// Build the entrypoint config
+		entrypointConfig := &entrypoint.Config{
+			Agent: entrypoint.AgentConfig{
+				Name:   agent.Name,
+				Type:   "flow",
+				Prompt: agentWithSettings.GetConsolidatedPrompt(cfg),
+			},
+			TeamName: settings.GetTeamName(),
+			Monitoring: entrypoint.MonitoringConfig{
+				SleepDuration: time.Duration(settings.GetSleepDuration()) * time.Second,
+				MaxRetries:    100, // Default value
+			},
+			Dependencies: entrypoint.DependenciesConfig{
+				InstallDeps: true, // Default value
+			},
+			MCPServers: settings.MCPServers,
+			Hooks:      settings.Hooks,
+			Flow:       settings.Flow,
+			Debug:      false, // Default value
+		}
+
+		// Create agent config directory
+		agentDir := filepath.Join(config.AgentsDir, serviceName)
+		if err := os.MkdirAll(agentDir, 0755); err != nil {
+			return fmt.Errorf("failed to create agent config directory %s: %w", agentDir, err)
+		}
+
+		// Write config file
+		configPath := filepath.Join(agentDir, "config.yaml")
+		configData, err := yaml.Marshal(entrypointConfig)
+		if err != nil {
+			return fmt.Errorf("failed to marshal config for agent %s: %w", agent.Name, err)
+		}
+
+		if err := os.WriteFile(configPath, configData, 0644); err != nil {
+			return fmt.Errorf("failed to write config file %s: %w", configPath, err)
+		}
+	}
+
+	return nil
 }

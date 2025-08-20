@@ -1,5 +1,13 @@
 agents:
   - name: "dev1"
     prompt: "Developer"
-    github_token: "TOKEN"
-    github_user: "dev-user"
+
+settings:
+  flow:
+    - name: collector
+      type: gemini
+      prompt: "Collect tasks"
+    - name: executor
+      type: claude
+      depends_on: [collector]
+      prompt: "Execute tasks"

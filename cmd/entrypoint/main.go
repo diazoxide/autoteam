@@ -6,13 +6,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
-	"time"
 
-	"autoteam/internal/agent"
-	"autoteam/internal/config"
-	"autoteam/internal/deps"
 	"autoteam/internal/entrypoint"
 	"autoteam/internal/logger"
 	"autoteam/internal/monitor"
@@ -39,110 +34,16 @@ func main() {
 		Version: fmt.Sprintf("%s (built %s, commit %s)", Version, BuildTime, GitCommit),
 		Action:  runEntrypoint,
 		Flags: []cli.Flag{
-
-			// Agent Configuration
+			// Primary configuration file
 			&cli.StringFlag{
-				Name:     "agent-name",
-				Usage:    "Name of the agent",
+				Name:     "config-file",
+				Aliases:  []string{"c"},
+				Usage:    "Path to agent configuration file (YAML)",
 				Required: true,
-				Sources:  cli.EnvVars("AGENT_NAME"),
-			},
-			&cli.StringFlag{
-				Name:    "agent-type",
-				Value:   "claude",
-				Usage:   "Type of agent to use",
-				Sources: cli.EnvVars("AGENT_TYPE"),
-			},
-			&cli.StringFlag{
-				Name:    "agent-prompt",
-				Usage:   "Primary prompt for the agent",
-				Sources: cli.EnvVars("AGENT_PROMPT"),
-			},
-
-			// Two-Layer Agent Architecture Configuration
-			&cli.StringFlag{
-				Name:    "collector-agent-type",
-				Value:   "qwen",
-				Usage:   "Type of agent for task collection (first layer)",
-				Sources: cli.EnvVars("COLLECTOR_AGENT_TYPE"),
-			},
-			&cli.StringFlag{
-				Name:    "collector-agent-args",
-				Usage:   "Comma-separated arguments for collector agent",
-				Sources: cli.EnvVars("COLLECTOR_AGENT_ARGS"),
-			},
-			&cli.StringFlag{
-				Name:    "collector-agent-env",
-				Usage:   "Comma-separated key=value environment variables for collector agent",
-				Sources: cli.EnvVars("COLLECTOR_AGENT_ENV"),
-			},
-			&cli.StringFlag{
-				Name:    "execution-agent-type",
-				Value:   "claude",
-				Usage:   "Type of agent for task execution (second layer)",
-				Sources: cli.EnvVars("EXECUTION_AGENT_TYPE"),
-			},
-			&cli.StringFlag{
-				Name:    "execution-agent-args",
-				Usage:   "Comma-separated arguments for execution agent",
-				Sources: cli.EnvVars("EXECUTION_AGENT_ARGS"),
-			},
-			&cli.StringFlag{
-				Name:    "execution-agent-env",
-				Usage:   "Comma-separated key=value environment variables for execution agent",
-				Sources: cli.EnvVars("EXECUTION_AGENT_ENV"),
-			},
-			&cli.StringFlag{
-				Name:    "collector-agent-prompt",
-				Usage:   "Custom prompt for the collector agent (first layer)",
-				Sources: cli.EnvVars("COLLECTOR_AGENT_PROMPT"),
-			},
-			&cli.StringFlag{
-				Name:    "execution-agent-prompt",
-				Usage:   "Custom prompt for the execution agent (second layer)",
-				Sources: cli.EnvVars("EXECUTION_AGENT_PROMPT"),
-			},
-
-			&cli.StringFlag{
-				Name:    "team-name",
-				Value:   "autoteam",
-				Usage:   "Team name for directory structure",
-				Sources: cli.EnvVars("TEAM_NAME"),
-			},
-
-			// Monitoring Configuration
-			&cli.IntFlag{
-				Name:    "check-interval",
-				Value:   60,
-				Usage:   "Check interval in seconds",
-				Sources: cli.EnvVars("CHECK_INTERVAL"),
-			},
-			&cli.IntFlag{
-				Name:    "max-retries",
-				Value:   100,
-				Usage:   "Maximum number of retries for operations",
-				Sources: cli.EnvVars("MAX_RETRIES"),
-			},
-			&cli.IntFlag{
-				Name:    "max-attempts",
-				Value:   3,
-				Usage:   "Maximum number of attempts per item before moving to cooldown",
-				Sources: cli.EnvVars("MAX_ATTEMPTS"),
-			},
-
-			// Dependencies Configuration
-			&cli.BoolFlag{
-				Name:    "install-deps",
-				Usage:   "Install dependencies on startup",
-				Sources: cli.EnvVars("INSTALL_DEPS"),
+				Sources:  cli.EnvVars("CONFIG_FILE"),
 			},
 
 			// Runtime Configuration
-			&cli.BoolFlag{
-				Name:    "debug",
-				Usage:   "Enable debug logging",
-				Sources: cli.EnvVars("DEBUG"),
-			},
 			&cli.BoolFlag{
 				Name:  "verbose",
 				Usage: "Enable verbose logging",
@@ -191,28 +92,13 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		zap.String("log_level", string(logLevel)),
 	)
 
-	// Build configuration from CLI flags and environment variables
-	cfg, err := buildConfigFromFlags(cmd)
+	// Load configuration from file
+	configPath := cmd.String("config-file")
+	cfg, err := entrypoint.LoadFromFile(configPath)
 	if err != nil {
-		log.Error("Failed to build configuration", zap.Error(err))
-		return fmt.Errorf("failed to build configuration: %w", err)
+		log.Error("Failed to load configuration from file", zap.String("config_path", configPath), zap.Error(err))
+		return fmt.Errorf("failed to load configuration from file %s: %w", configPath, err)
 	}
-
-	// Load MCP servers from environment
-	mcpServers, mcpErr := entrypoint.LoadMCPServers()
-	if mcpErr != nil {
-		log.Error("Failed to load MCP servers", zap.Error(mcpErr))
-		return fmt.Errorf("failed to load MCP servers: %w", mcpErr)
-	}
-	cfg.MCPServers = mcpServers
-
-	// Load hooks from environment
-	hooks, hookErr := entrypoint.LoadHooks()
-	if hookErr != nil {
-		log.Error("Failed to load hooks", zap.Error(hookErr))
-		return fmt.Errorf("failed to load hooks: %w", hookErr)
-	}
-	cfg.Hooks = hooks
 
 	// Validate configuration
 	if err = cfg.Validate(); err != nil {
@@ -251,69 +137,22 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		cancel()
 	}()
 
-	// Create layer agent configurations from CLI flags
-	// First Layer (Task Collection) - CollectorAgent
-	firstLayerConfig := config.AgentConfig{
-		Type: cmd.String("collector-agent-type"),
-		Args: parseCommaSeparated(cmd.String("collector-agent-args")),
-		Env:  parseKeyValuePairs(cmd.String("collector-agent-env")),
-	}
-	if collectorPrompt := cmd.String("collector-agent-prompt"); collectorPrompt != "" {
-		firstLayerConfig.Prompt = &collectorPrompt
-	}
-
-	// Second Layer (Task Execution) - Agent
-	secondLayerConfig := config.AgentConfig{
-		Type: cmd.String("execution-agent-type"),
-		Args: parseCommaSeparated(cmd.String("execution-agent-args")),
-		Env:  parseKeyValuePairs(cmd.String("execution-agent-env")),
-	}
-	if executionPrompt := cmd.String("execution-agent-prompt"); executionPrompt != "" {
-		secondLayerConfig.Prompt = &executionPrompt
-	}
-
-	// Create agent helper for consistent naming
-	baseAgent := &config.Agent{Name: cfg.Agent.Name}
-
-	// Create First Layer agent (Task Collection)
-	log.Debug("Creating task collection agent", zap.String("agent_type", firstLayerConfig.Type))
-	collectorAgentName := baseAgent.GetNormalizedNameWithVariation("collector")
-	taskCollectionAgent, err := agent.CreateAgent(firstLayerConfig, collectorAgentName, cfg.MCPServers)
-	if err != nil {
-		log.Error("Failed to create task collection agent", zap.Error(err))
-		return fmt.Errorf("failed to create task collection agent: %w", err)
-	}
-	log.Info("Task collection agent initialized successfully", zap.String("agent_type", firstLayerConfig.Type))
-
-	// Create Second Layer agent (Task Execution)
-	log.Debug("Creating task execution agent", zap.String("agent_type", secondLayerConfig.Type))
-	executorAgentName := baseAgent.GetNormalizedNameWithVariation("executor")
-	taskExecutionAgent, err := agent.CreateAgent(secondLayerConfig, executorAgentName, cfg.MCPServers)
-	if err != nil {
-		log.Error("Failed to create task execution agent", zap.Error(err))
-		return fmt.Errorf("failed to create task execution agent: %w", err)
-	}
-	log.Info("Task execution agent initialized successfully", zap.String("agent_type", secondLayerConfig.Type))
-
-	// Install dependencies for both agents if needed
-	log.Debug("Installing dependencies for agents")
-	installer := deps.NewInstaller(cfg.Dependencies)
-	if installErr := installer.Install(ctx, taskCollectionAgent, taskExecutionAgent); installErr != nil {
-		log.Warn("Failed to install dependencies for agents", zap.Error(installErr))
+	// Flow configuration is required
+	if len(cfg.Flow) == 0 {
+		log.Error("No flow configuration found")
+		return fmt.Errorf("flow configuration is required")
 	}
 
 	// Note: Git operations now handled via MCP servers
 
-	// Initialize and start monitor with two-layer config
+	// Initialize flow-based monitor
 	monitorConfig := monitor.Config{
-		CheckInterval: cfg.Monitoring.CheckInterval,
+		SleepDuration: cfg.Monitoring.SleepDuration,
 		TeamName:      cfg.TeamName,
 	}
 
-	mon := monitor.New(taskCollectionAgent, taskExecutionAgent, monitorConfig, cfg)
-
-	// Set layer configurations for custom prompt support
-	mon.SetLayerConfigs(&firstLayerConfig, &secondLayerConfig)
+	log.Info("Creating flow-based monitor", zap.Int("flow_steps", len(cfg.Flow)))
+	mon := monitor.New(cfg.Flow, monitorConfig, cfg)
 
 	// Execute on_start hooks
 	if hookErr := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_start"); hookErr != nil {
@@ -321,11 +160,9 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("failed to execute on_start hooks: %w", hookErr)
 	}
 
-	log.Info("Starting two-layer agent monitoring loop",
-		zap.Duration("check_interval", cfg.Monitoring.CheckInterval),
-		zap.String("collection_agent", firstLayerConfig.Type),
-		zap.String("execution_agent", secondLayerConfig.Type),
-	)
+	log.Info("Starting flow-based agent monitoring loop",
+		zap.Duration("sleep_duration", cfg.Monitoring.SleepDuration),
+		zap.Int("flow_steps", len(cfg.Flow)))
 
 	// Start monitoring with error handling for on_error hooks
 	err = mon.Start(ctx)
@@ -341,59 +178,4 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	return nil
-}
-
-// buildConfigFromFlags builds a Config struct from CLI flags
-func buildConfigFromFlags(cmd *cli.Command) (*entrypoint.Config, error) {
-	cfg := &entrypoint.Config{}
-
-	// Agent configuration
-	cfg.Agent.Name = cmd.String("agent-name")
-	cfg.Agent.Type = cmd.String("agent-type")
-	cfg.Agent.Prompt = cmd.String("agent-prompt")
-
-	// Team configuration
-	cfg.TeamName = cmd.String("team-name")
-
-	// Monitoring configuration
-	checkInterval := cmd.Int("check-interval")
-	cfg.Monitoring.CheckInterval = time.Duration(checkInterval) * time.Second
-	cfg.Monitoring.MaxRetries = cmd.Int("max-retries")
-
-	// Dependencies configuration
-	cfg.Dependencies.InstallDeps = cmd.Bool("install-deps")
-
-	// Debug configuration
-	cfg.Debug = cmd.Bool("debug")
-
-	return cfg, nil
-}
-
-// parseCommaSeparated parses comma-separated arguments from a string
-func parseCommaSeparated(value string) []string {
-	if value == "" {
-		return []string{}
-	}
-	args := strings.Split(value, ",")
-	// Trim whitespace from each arg
-	for i, arg := range args {
-		args[i] = strings.TrimSpace(arg)
-	}
-	return args
-}
-
-// parseKeyValuePairs parses key=value pairs from a string (comma-separated)
-func parseKeyValuePairs(value string) map[string]string {
-	if value == "" {
-		return map[string]string{}
-	}
-
-	envMap := make(map[string]string)
-	pairs := strings.Split(value, ",")
-	for _, pair := range pairs {
-		if kv := strings.SplitN(strings.TrimSpace(pair), "=", 2); len(kv) == 2 {
-			envMap[kv[0]] = kv[1]
-		}
-	}
-	return envMap
 }

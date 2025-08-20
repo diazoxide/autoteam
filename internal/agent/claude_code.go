@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"autoteam/internal/config"
 	"autoteam/internal/entrypoint"
@@ -24,23 +23,20 @@ type ClaudeCode struct {
 	config     entrypoint.AgentConfig
 	binaryPath string
 	mcpServers map[string]config.MCPServer
+	args       []string
+	env        map[string]string
 }
 
 // NewClaudeCode creates a new Claude Code agent instance
-func NewClaudeCode(cfg entrypoint.AgentConfig) *ClaudeCode {
+func NewClaudeCode(name string, args []string, env map[string]string, mcpServers map[string]config.MCPServer) *ClaudeCode {
 	return &ClaudeCode{
-		config:     cfg,
-		binaryPath: "claude", // Will be found in PATH after installation
-		mcpServers: make(map[string]config.MCPServer),
-	}
-}
-
-// NewClaudeCodeWithMCP creates a new Claude Code agent instance with MCP servers
-func NewClaudeCodeWithMCP(cfg entrypoint.AgentConfig, mcpServers map[string]config.MCPServer) *ClaudeCode {
-	return &ClaudeCode{
-		config:     cfg,
+		config: entrypoint.AgentConfig{
+			Name: name,
+		},
 		binaryPath: "claude", // Will be found in PATH after installation
 		mcpServers: mcpServers,
+		args:       args,
+		env:        env,
 	}
 }
 
@@ -58,91 +54,59 @@ func (c *ClaudeCode) Type() string {
 func (c *ClaudeCode) Run(ctx context.Context, prompt string, options RunOptions) (*AgentOutput, error) {
 	lgr := logger.FromContext(ctx)
 
+	lgr.Info("Running Claude", zap.String("agent", c.config.Name), zap.String("prompt", prompt))
+
 	// Update Claude before running
 	if err := c.update(ctx); err != nil {
 		lgr.Warn("Failed to update Claude", zap.Error(err))
 	}
 
 	// Build the command arguments
-	args := c.buildArgs(options)
+	args := c.buildArgs()
 
-	var lastErr error
-	var lastOutput *AgentOutput
-	maxRetries := options.MaxRetries
-	if maxRetries <= 0 {
-		maxRetries = 1
+	// Add continue flag when requested
+	if options.ContinueMode {
+		args = append(args, "--continue")
 	}
 
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		lgr.Info("Claude execution attempt", zap.Int("attempt", attempt), zap.Int("max_retries", maxRetries))
+	// Prepare output capture buffers
+	var stdout, stderr bytes.Buffer
 
-		// Add continue flag when requested or for retry attempts
-		currentArgs := args
-		if options.ContinueMode || attempt > 1 {
-			currentArgs = append(args, "--continue")
-		}
+	// Execute Claude
+	cmd := exec.CommandContext(ctx, c.binaryPath, args...)
+	cmd.Dir = options.WorkingDirectory
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	cmd.Stdin = strings.NewReader(prompt)
 
-		// Prepare output capture buffers
-		var stdout, stderr bytes.Buffer
+	// Set environment variables
+	cmd.Env = os.Environ()
 
-		// Execute Claude
-		cmd := exec.CommandContext(ctx, c.binaryPath, currentArgs...)
-		cmd.Dir = options.WorkingDirectory
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
-		cmd.Stdin = strings.NewReader(prompt)
+	// Add Claude-specific environment
+	cmd.Env = append(cmd.Env, "IS_SANDBOX=1")
 
-		// Set environment variables
-		cmd.Env = os.Environ()
-
-		lgr.Debug("Executing Claude command",
-			zap.String("binary", c.binaryPath),
-			zap.Strings("args", currentArgs),
-			zap.String("working_dir", options.WorkingDirectory),
-			zap.Int("prompt_length", len(prompt)))
-
-		if err := cmd.Run(); err != nil {
-			// Create output after command execution
-			lastOutput = &AgentOutput{
-				Stdout: stdout.String(),
-				Stderr: stderr.String(),
-			}
-			lastErr = fmt.Errorf("claude execution failed (attempt %d): %w", attempt, err)
-			lgr.Warn("Attempt failed",
-				zap.Int("attempt", attempt),
-				zap.Error(err),
-				zap.String("stderr", stderr.String()))
-
-			// Don't retry on context cancellation
-			if ctx.Err() != nil {
-				return lastOutput, ctx.Err()
-			}
-
-			// Wait before retry (exponential backoff)
-			if attempt < maxRetries {
-				backoff := time.Duration(attempt) * time.Second
-				lgr.Info("Retrying", zap.Duration("backoff", backoff))
-				select {
-				case <-ctx.Done():
-					return lastOutput, ctx.Err()
-				case <-time.After(backoff):
-					continue
-				}
-			}
-		} else {
-			// Create output after successful execution
-			lastOutput = &AgentOutput{
-				Stdout: stdout.String(),
-				Stderr: stderr.String(),
-			}
-			lgr.Info("Claude execution succeeded",
-				zap.Int("attempt", attempt),
-				zap.Int("stdout_length", len(stdout.String())))
-			return lastOutput, nil
-		}
+	// Add custom environment variables
+	for k, v := range c.env {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	return lastOutput, fmt.Errorf("all %d attempts failed, last error: %w", maxRetries, lastErr)
+	lgr.Debug("Executing Claude command",
+		zap.String("binary", c.binaryPath),
+		zap.Strings("args", args),
+		zap.String("working_dir", options.WorkingDirectory),
+		zap.Int("prompt_length", len(prompt)))
+
+	if err := cmd.Run(); err != nil {
+		return &AgentOutput{
+			Stdout: stdout.String(),
+			Stderr: stderr.String(),
+		}, fmt.Errorf("claude execution failed: %w", err)
+	}
+
+	return &AgentOutput{
+		Stdout: stdout.String(),
+		Stderr: stderr.String(),
+	}, nil
 }
 
 // IsAvailable checks if Claude is available
@@ -183,13 +147,13 @@ func (c *ClaudeCode) update(ctx context.Context) error {
 }
 
 // buildArgs builds the command line arguments for Claude
-func (c *ClaudeCode) buildArgs(options RunOptions) []string {
+func (c *ClaudeCode) buildArgs() []string {
 	args := []string{
 		"--dangerously-skip-permissions",
-		"--output-format", "stream-json",
-		"--verbose",
-		"--print",
 	}
+
+	// Add custom args from agent configuration
+	args = append(args, c.args...)
 
 	// Add MCP config file if MCP servers are configured
 	if len(c.mcpServers) > 0 {

@@ -1,6 +1,10 @@
 package agent
 
 import (
+	"autoteam/internal/config"
+	"autoteam/internal/entrypoint"
+	"autoteam/internal/logger"
+	"autoteam/internal/server"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -9,12 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
-
-	"autoteam/internal/config"
-	"autoteam/internal/entrypoint"
-	"autoteam/internal/logger"
-	"autoteam/internal/server"
 
 	"go.uber.org/zap"
 )
@@ -29,47 +27,16 @@ type GeminiCli struct {
 }
 
 // NewGeminiCli creates a new Gemini agent instance
-func NewGeminiCli(cfg entrypoint.AgentConfig) *GeminiCli {
+func NewGeminiCli(name string, args []string, env map[string]string, mcpServers map[string]config.MCPServer) *GeminiCli {
 	return &GeminiCli{
-		config:     cfg,
-		binaryPath: "gemini", // Will be found in PATH after npm installation
-		mcpServers: make(map[string]config.MCPServer),
-		agentArgs:  []string{},
-		agentEnv:   make(map[string]string),
-	}
-}
-
-// NewGeminiCliWithMCP creates a new Gemini agent instance with MCP servers
-func NewGeminiCliWithMCP(cfg entrypoint.AgentConfig, mcpServers map[string]config.MCPServer) *GeminiCli {
-	return &GeminiCli{
-		config:     cfg,
+		config: entrypoint.AgentConfig{
+			Name: name,
+		},
 		binaryPath: "gemini", // Will be found in PATH after npm installation
 		mcpServers: mcpServers,
-		agentArgs:  []string{},
-		agentEnv:   make(map[string]string),
+		agentArgs:  args,
+		agentEnv:   env,
 	}
-}
-
-// NewGeminiCliWithConfig creates a new Gemini agent instance with full configuration
-func NewGeminiCliWithConfig(agentConfig config.AgentConfig, name string, mcpServers map[string]config.MCPServer) *GeminiCli {
-	cfg := entrypoint.AgentConfig{Name: name}
-	agent := &GeminiCli{
-		config:     cfg,
-		binaryPath: "gemini", // Will be found in PATH after npm installation
-		mcpServers: mcpServers,
-		agentArgs:  make([]string, len(agentConfig.Args)),
-		agentEnv:   make(map[string]string),
-	}
-
-	// Copy args
-	copy(agent.agentArgs, agentConfig.Args)
-
-	// Copy env
-	for k, v := range agentConfig.Env {
-		agent.agentEnv[k] = v
-	}
-
-	return agent
 }
 
 // Name returns the agent name
@@ -87,103 +54,60 @@ func (q *GeminiCli) Run(ctx context.Context, prompt string, options RunOptions) 
 	lgr := logger.FromContext(ctx)
 
 	// Build the command arguments
-	args := q.buildArgs(options)
+	args := q.buildArgs()
 
-	var lastErr error
-	var lastOutput *AgentOutput
-	maxRetries := options.MaxRetries
-	if maxRetries <= 0 {
-		maxRetries = 1
+	// Add continue flag when requested
+	if options.ContinueMode {
+		args = append(args, "--continue")
 	}
 
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		lgr.Info("Gemini execution attempt", zap.Int("attempt", attempt), zap.Int("max_retries", maxRetries))
+	// Log the full prompt being sent for debugging
+	lgr.Info("Sending full prompt to Gemini",
+		zap.String("prompt_length", fmt.Sprintf("%d chars", len(prompt))),
+		zap.String("full_prompt", prompt))
 
-		// Log the full prompt being sent for debugging
-		lgr.Info("Sending full prompt to Gemini",
-			zap.String("prompt_length", fmt.Sprintf("%d chars", len(prompt))),
-			zap.String("full_prompt", prompt))
+	// Prepare output capture buffers
+	var stdout, stderr bytes.Buffer
 
-		// Add continue flag when requested or for retry attempts
-		currentArgs := args
-		if options.ContinueMode || attempt > 1 {
-			currentArgs = append(args, "--continue")
-		}
+	// Execute Gemini
+	cmd := exec.CommandContext(ctx, q.binaryPath, args...)
 
-		// Prepare output capture buffers
-		var stdout, stderr bytes.Buffer
-
-		// Execute Gemini
-		cmd := exec.CommandContext(ctx, q.binaryPath, currentArgs...)
-
-		// Set working directory to agent's directory so Gemini can find .gemini/settings.json
-		// If user specified a working directory, use that; otherwise use agent directory
-		if options.WorkingDirectory != "" {
-			cmd.Dir = options.WorkingDirectory
-		} else {
-			// Use the agent name as passed (already normalized with variations)
-			cmd.Dir = fmt.Sprintf("/opt/autoteam/agents/%s", q.config.Name)
-		}
-
-		// Log execution details for debugging
-		lgr.Info("Executing Gemini CLI",
-			zap.String("binary_path", q.binaryPath),
-			zap.Strings("args", currentArgs),
-			zap.String("working_dir", cmd.Dir))
-
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
-		cmd.Stdin = strings.NewReader(prompt)
-
-		// Set environment variables
-		cmd.Env = os.Environ()
-		// Add custom environment variables from agent config
-		for k, v := range q.agentEnv {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
-		}
-
-		if err := cmd.Run(); err != nil {
-			// Create output after command execution
-			lastOutput = &AgentOutput{
-				Stdout: stdout.String(),
-				Stderr: stderr.String(),
-			}
-			lastErr = fmt.Errorf("gemini execution failed (attempt %d): %w", attempt, err)
-			lgr.Warn("Attempt failed",
-				zap.Int("attempt", attempt),
-				zap.Error(err),
-				zap.String("stderr", stderr.String()))
-
-			// Don't retry on context cancellation
-			if ctx.Err() != nil {
-				return lastOutput, ctx.Err()
-			}
-
-			// Wait before retry (exponential backoff)
-			if attempt < maxRetries {
-				backoff := time.Duration(attempt) * time.Second
-				lgr.Info("Retrying", zap.Duration("backoff", backoff))
-				select {
-				case <-ctx.Done():
-					return lastOutput, ctx.Err()
-				case <-time.After(backoff):
-					continue
-				}
-			}
-		} else {
-			// Create output after successful execution
-			lastOutput = &AgentOutput{
-				Stdout: stdout.String(),
-				Stderr: stderr.String(),
-			}
-			lgr.Info("Gemini execution succeeded",
-				zap.Int("attempt", attempt),
-				zap.Int("stdout_length", len(stdout.String())))
-			return lastOutput, nil
-		}
+	// Set working directory
+	if options.WorkingDirectory != "" {
+		cmd.Dir = options.WorkingDirectory
+	} else {
+		// Use the agent name as passed (already normalized with variations)
+		cmd.Dir = fmt.Sprintf("/opt/autoteam/agents/%s", q.config.Name)
 	}
 
-	return lastOutput, fmt.Errorf("all %d attempts failed, last error: %w", maxRetries, lastErr)
+	// Log execution details for debugging
+	lgr.Info("Executing Gemini CLI",
+		zap.String("binary_path", q.binaryPath),
+		zap.Strings("args", args),
+		zap.String("working_dir", cmd.Dir))
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	cmd.Stdin = strings.NewReader(prompt)
+
+	// Set environment variables
+	cmd.Env = os.Environ()
+	// Add custom environment variables from agent config
+	for k, v := range q.agentEnv {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	if err := cmd.Run(); err != nil {
+		return &AgentOutput{
+			Stdout: stdout.String(),
+			Stderr: stderr.String(),
+		}, fmt.Errorf("gemini execution failed: %w", err)
+	}
+
+	return &AgentOutput{
+		Stdout: stdout.String(),
+		Stderr: stderr.String(),
+	}, nil
 }
 
 // IsAvailable checks if Gemini is available
@@ -216,11 +140,8 @@ func (q *GeminiCli) Version(ctx context.Context) (string, error) {
 }
 
 // buildArgs builds the command line arguments for Gemini
-func (q *GeminiCli) buildArgs(options RunOptions) []string {
-	args := make([]string, 0)
-
-	// Add default yolo parameter for non-interactive execution
-	args = append(args, "--yolo")
+func (q *GeminiCli) buildArgs() []string {
+	args := []string{"--yolo"} // Add default yolo parameter for non-interactive execution
 
 	// Add custom args from agent configuration
 	args = append(args, q.agentArgs...)
