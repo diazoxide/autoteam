@@ -141,7 +141,7 @@ func TestAgentGetEffectiveSettings_WithHooks(t *testing.T) {
 		},
 	}
 
-	agent := Agent{
+	worker := Worker{
 		Name:   "test-agent",
 		Prompt: "test prompt",
 		Settings: &AgentSettings{
@@ -153,7 +153,7 @@ func TestAgentGetEffectiveSettings_WithHooks(t *testing.T) {
 		},
 	}
 
-	effective := agent.GetEffectiveSettings(globalSettings)
+	effective := worker.GetEffectiveSettings(globalSettings)
 
 	// Agent-level hooks should override global hooks
 	if effective.Hooks == nil {
@@ -179,13 +179,13 @@ func TestAgentGetEffectiveSettings_InheritGlobalHooks(t *testing.T) {
 		},
 	}
 
-	agent := Agent{
+	worker := Worker{
 		Name:     "test-agent",
 		Prompt:   "test prompt",
 		Settings: nil, // No agent-specific settings
 	}
 
-	effective := agent.GetEffectiveSettings(globalSettings)
+	effective := worker.GetEffectiveSettings(globalSettings)
 
 	// Should inherit global hooks
 	if effective.Hooks == nil {

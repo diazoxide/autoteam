@@ -28,7 +28,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 
 	// Create test config with new service structure
 	cfg := &config.Config{
-		Agents: []config.Agent{
+		Workers: []config.Worker{
 			{
 				Name:   "dev1",
 				Prompt: "You are a developer agent",
@@ -110,21 +110,21 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 	// The YAML unmarshaling converts volumes to []interface{}
 	dev1VolumesInterface := dev1Service["volumes"].([]interface{})
 	hasSharedVolume := false
-	hasAgentVolume := false
+	hasWorkerVolume := false
 	for _, vol := range dev1VolumesInterface {
 		volStr := vol.(string)
 		if strings.Contains(volStr, "./shared:/app/shared") {
 			hasSharedVolume = true
 		}
 		if strings.Contains(volStr, "dev1:/opt/autoteam/agents/dev1") {
-			hasAgentVolume = true
+			hasWorkerVolume = true
 		}
 	}
 	if !hasSharedVolume {
 		t.Errorf("dev1 should have shared volume from global settings")
 	}
-	if !hasAgentVolume {
-		t.Errorf("dev1 should have full agent directory volume")
+	if !hasWorkerVolume {
+		t.Errorf("dev1 should have full worker directory volume")
 	}
 
 	// Verify .autoteam/bin directory was created
@@ -132,7 +132,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 		t.Errorf(".autoteam/bin directory should be created")
 	}
 
-	// Verify agent directories were created
+	// Verify worker directories were created
 	agentDirs := []string{
 		".autoteam/agents/dev1",
 		".autoteam/agents/arch1",
@@ -145,7 +145,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 	}
 }
 
-func TestGenerator_CreateAgentDirectories(t *testing.T) {
+func TestGenerator_CreateWorkerDirectories(t *testing.T) {
 	tempDir := testutil.CreateTempDir(t)
 
 	// Change to temp directory
@@ -160,15 +160,15 @@ func TestGenerator_CreateAgentDirectories(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Agents: []config.Agent{
+		Workers: []config.Worker{
 			{Name: "test1"},
 			{Name: "test2"},
 		},
 	}
 
 	gen := New()
-	if err := gen.createAgentDirectories(cfg); err != nil {
-		t.Fatalf("createAgentDirectories() error = %v", err)
+	if err := gen.createWorkerDirectories(cfg); err != nil {
+		t.Fatalf("createWorkerDirectories() error = %v", err)
 	}
 
 	// Verify directories were created
@@ -206,7 +206,7 @@ func TestGenerator_GenerateComposeYAML(t *testing.T) {
 			},
 			TeamName: config.StringPtr("test-team"),
 		},
-		Agents: []config.Agent{
+		Workers: []config.Worker{
 			{
 				Name:   "dev1",
 				Prompt: "Developer agent",

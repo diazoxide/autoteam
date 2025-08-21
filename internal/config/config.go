@@ -16,13 +16,13 @@ const (
 )
 
 type Config struct {
-	Agents     []Agent                           `yaml:"agents"`
+	Workers    []Worker                          `yaml:"workers"`
 	Services   map[string]map[string]interface{} `yaml:"services,omitempty"`
 	Settings   AgentSettings                     `yaml:"settings"`
 	MCPServers map[string]MCPServer              `yaml:"mcp_servers,omitempty"`
 }
 
-type Agent struct {
+type Worker struct {
 	Name       string               `yaml:"name"`
 	Prompt     string               `yaml:"prompt"`
 	Enabled    *bool                `yaml:"enabled,omitempty"`
@@ -118,36 +118,36 @@ func LoadConfig(filename string) (*Config, error) {
 }
 
 func validateConfig(config *Config) error {
-	if len(config.Agents) == 0 {
-		return fmt.Errorf("at least one agent must be configured")
+	if len(config.Workers) == 0 {
+		return fmt.Errorf("at least one worker must be configured")
 	}
 
-	// Count enabled agents
+	// Count enabled workers
 	enabledCount := 0
-	for _, agent := range config.Agents {
-		if agent.IsEnabled() {
+	for _, worker := range config.Workers {
+		if worker.IsEnabled() {
 			enabledCount++
 		}
 	}
 
 	if enabledCount == 0 {
-		return fmt.Errorf("at least one agent must be enabled")
+		return fmt.Errorf("at least one worker must be enabled")
 	}
 
-	for i, agent := range config.Agents {
-		if agent.Name == "" {
-			return fmt.Errorf("agent[%d].name is required", i)
+	for i, worker := range config.Workers {
+		if worker.Name == "" {
+			return fmt.Errorf("worker[%d].name is required", i)
 		}
-		// Only validate required fields for enabled agents
-		if agent.IsEnabled() {
-			if agent.Prompt == "" {
-				return fmt.Errorf("agent[%d].prompt is required for enabled agents", i)
+		// Only validate required fields for enabled workers
+		if worker.IsEnabled() {
+			if worker.Prompt == "" {
+				return fmt.Errorf("worker[%d].prompt is required for enabled workers", i)
 			}
 
 			// Get effective settings to check flow configuration
-			settings := agent.GetEffectiveSettings(config.Settings)
+			settings := worker.GetEffectiveSettings(config.Settings)
 			if len(settings.Flow) == 0 {
-				return fmt.Errorf("agent[%d].flow is required for enabled agents", i)
+				return fmt.Errorf("worker[%d].flow is required for enabled workers", i)
 			}
 
 			// Validate flow steps
@@ -218,7 +218,7 @@ func setDefaults(config *Config) {
 
 func CreateSampleConfig(filename string) error {
 	sampleConfig := Config{
-		Agents: []Agent{
+		Workers: []Worker{
 			{
 				Name:   "dev1",
 				Prompt: "You are a developer agent responsible for implementing features and fixing bugs.",
@@ -696,48 +696,48 @@ func copyAgentSettings(source AgentSettings) AgentSettings {
 
 // GetEffectiveSettings returns the effective settings for an agent,
 // merging global settings with agent-specific overrides
-func (a *Agent) GetEffectiveSettings(globalSettings AgentSettings) AgentSettings {
+func (w *Worker) GetEffectiveSettings(globalSettings AgentSettings) AgentSettings {
 	effective := copyAgentSettings(globalSettings) // Start with copy of global settings
 
 	// Always merge MCP servers, even if agent settings is nil
-	effective.MCPServers = mergeMCPServers(globalSettings.MCPServers, nil, a.MCPServers)
+	effective.MCPServers = mergeMCPServers(globalSettings.MCPServers, nil, w.MCPServers)
 
-	if a.Settings == nil {
+	if w.Settings == nil {
 		return effective
 	}
 
-	// Override with agent-specific settings where provided
-	if a.Settings.SleepDuration != nil {
-		effective.SleepDuration = a.Settings.SleepDuration
+	// Override with worker-specific settings where provided
+	if w.Settings.SleepDuration != nil {
+		effective.SleepDuration = w.Settings.SleepDuration
 	}
-	if a.Settings.TeamName != nil {
-		effective.TeamName = a.Settings.TeamName
+	if w.Settings.TeamName != nil {
+		effective.TeamName = w.Settings.TeamName
 	}
-	if a.Settings.InstallDeps != nil {
-		effective.InstallDeps = a.Settings.InstallDeps
+	if w.Settings.InstallDeps != nil {
+		effective.InstallDeps = w.Settings.InstallDeps
 	}
-	if a.Settings.CommonPrompt != nil {
-		effective.CommonPrompt = a.Settings.CommonPrompt
+	if w.Settings.CommonPrompt != nil {
+		effective.CommonPrompt = w.Settings.CommonPrompt
 	}
-	if a.Settings.MaxAttempts != nil {
-		effective.MaxAttempts = a.Settings.MaxAttempts
+	if w.Settings.MaxAttempts != nil {
+		effective.MaxAttempts = w.Settings.MaxAttempts
 	}
 
 	// Merge service configurations
-	if len(a.Settings.Service) > 0 {
-		effective.Service = mergeServiceConfigs(globalSettings.Service, a.Settings.Service)
+	if len(w.Settings.Service) > 0 {
+		effective.Service = mergeServiceConfigs(globalSettings.Service, w.Settings.Service)
 	}
 
 	// Merge MCP server configurations
-	effective.MCPServers = mergeMCPServers(globalSettings.MCPServers, a.Settings.MCPServers, a.MCPServers)
+	effective.MCPServers = mergeMCPServers(globalSettings.MCPServers, w.Settings.MCPServers, w.MCPServers)
 
 	// Merge hooks configuration
-	effective.Hooks = mergeHookConfigs(globalSettings.Hooks, a.Settings.Hooks)
+	effective.Hooks = mergeHookConfigs(globalSettings.Hooks, w.Settings.Hooks)
 
 	// Merge flow configuration - agent settings override global
-	if len(a.Settings.Flow) > 0 {
-		effective.Flow = make([]FlowStep, len(a.Settings.Flow))
-		copy(effective.Flow, a.Settings.Flow)
+	if len(w.Settings.Flow) > 0 {
+		effective.Flow = make([]FlowStep, len(w.Settings.Flow))
+		copy(effective.Flow, w.Settings.Flow)
 	} else if len(globalSettings.Flow) > 0 {
 		effective.Flow = make([]FlowStep, len(globalSettings.Flow))
 		copy(effective.Flow, globalSettings.Flow)
@@ -746,49 +746,49 @@ func (a *Agent) GetEffectiveSettings(globalSettings AgentSettings) AgentSettings
 	return effective
 }
 
-// GetAllAgentsWithEffectiveSettings returns a slice of agents with their effective settings
-func (c *Config) GetAllAgentsWithEffectiveSettings() []AgentWithSettings {
-	var agents []AgentWithSettings
-	for _, agent := range c.Agents {
-		agents = append(agents, AgentWithSettings{
-			Agent:             agent,
-			EffectiveSettings: agent.GetEffectiveSettings(c.Settings),
+// GetAllWorkersWithEffectiveSettings returns a slice of workers with their effective settings
+func (c *Config) GetAllWorkersWithEffectiveSettings() []WorkerWithSettings {
+	var workers []WorkerWithSettings
+	for _, worker := range c.Workers {
+		workers = append(workers, WorkerWithSettings{
+			Worker:   worker,
+			Settings: worker.GetEffectiveSettings(c.Settings),
 		})
 	}
-	return agents
+	return workers
 }
 
-// GetEnabledAgentsWithEffectiveSettings returns only enabled agents with their effective settings
-func (c *Config) GetEnabledAgentsWithEffectiveSettings() []AgentWithSettings {
-	var agents []AgentWithSettings
-	for _, agent := range c.Agents {
-		if agent.IsEnabled() {
-			agents = append(agents, AgentWithSettings{
-				Agent:             agent,
-				EffectiveSettings: agent.GetEffectiveSettings(c.Settings),
+// GetEnabledWorkersWithEffectiveSettings returns only enabled workers with their effective settings
+func (c *Config) GetEnabledWorkersWithEffectiveSettings() []WorkerWithSettings {
+	var workers []WorkerWithSettings
+	for _, worker := range c.Workers {
+		if worker.IsEnabled() {
+			workers = append(workers, WorkerWithSettings{
+				Worker:   worker,
+				Settings: worker.GetEffectiveSettings(c.Settings),
 			})
 		}
 	}
-	return agents
+	return workers
 }
 
-type AgentWithSettings struct {
-	Agent             Agent
-	EffectiveSettings AgentSettings
+type WorkerWithSettings struct {
+	Worker   Worker
+	Settings AgentSettings
 }
 
-// GetConsolidatedPrompt returns the agent prompt combined with common prompt
-func (aws *AgentWithSettings) GetConsolidatedPrompt(cfg *Config) string {
+// GetConsolidatedPrompt returns the worker prompt combined with common prompt
+func (wws *WorkerWithSettings) GetConsolidatedPrompt(cfg *Config) string {
 	var promptParts []string
 
-	// Add agent-specific prompt
-	if aws.Agent.Prompt != "" {
-		promptParts = append(promptParts, aws.Agent.Prompt)
+	// Add worker-specific prompt
+	if wws.Worker.Prompt != "" {
+		promptParts = append(promptParts, wws.Worker.Prompt)
 	}
 
 	// Add common prompt
-	if aws.EffectiveSettings.CommonPrompt != nil && *aws.EffectiveSettings.CommonPrompt != "" {
-		promptParts = append(promptParts, *aws.EffectiveSettings.CommonPrompt)
+	if wws.Settings.CommonPrompt != nil && *wws.Settings.CommonPrompt != "" {
+		promptParts = append(promptParts, *wws.Settings.CommonPrompt)
 	}
 
 	if len(promptParts) == 0 {
@@ -799,7 +799,7 @@ func (aws *AgentWithSettings) GetConsolidatedPrompt(cfg *Config) string {
 }
 
 // normalizeAgentName converts agent names to snake_case for use in service names and paths
-func normalizeAgentName(name string) string {
+func normalizeWorkerName(name string) string {
 	// Replace any non-alphanumeric characters with underscores
 	reg := regexp.MustCompile(`[^a-zA-Z0-9]+`)
 	normalized := reg.ReplaceAllString(name, "_")
@@ -818,14 +818,14 @@ func normalizeAgentName(name string) string {
 }
 
 // GetNormalizedName returns the normalized agent name suitable for service names and paths
-func (a *Agent) GetNormalizedName() string {
-	return normalizeAgentName(a.Name)
+func (w *Worker) GetNormalizedName() string {
+	return normalizeWorkerName(w.Name)
 }
 
 // GetNormalizedNameWithVariation returns the normalized agent name with a variation (e.g., collector, executor)
 // for two-layer architecture using subdirectory structure
-func (a *Agent) GetNormalizedNameWithVariation(variation string) string {
-	normalizedName := normalizeAgentName(a.Name)
+func (w *Worker) GetNormalizedNameWithVariation(variation string) string {
+	normalizedName := normalizeWorkerName(w.Name)
 	if variation == "" {
 		return normalizedName
 	}
@@ -833,24 +833,24 @@ func (a *Agent) GetNormalizedNameWithVariation(variation string) string {
 }
 
 // GetAgentDir returns the agent directory path for use in configurations and volume mounts
-func (a *Agent) GetAgentDir() string {
-	return fmt.Sprintf("/opt/autoteam/agents/%s", a.GetNormalizedName())
+func (w *Worker) GetWorkerDir() string {
+	return fmt.Sprintf("/opt/autoteam/agents/%s", w.GetNormalizedName())
 }
 
-// GetAgentSubDir returns the agent subdirectory path for a specific variation (e.g., collector, executor)
-func (a *Agent) GetAgentSubDir(variation string) string {
+// GetWorkerSubDir returns the worker subdirectory path for a specific variation (e.g., collector, executor)
+func (w *Worker) GetWorkerSubDir(variation string) string {
 	if variation == "" {
-		return a.GetAgentDir()
+		return w.GetWorkerDir()
 	}
-	return fmt.Sprintf("%s/%s", a.GetAgentDir(), variation)
+	return fmt.Sprintf("%s/%s", w.GetWorkerDir(), variation)
 }
 
-// IsEnabled returns true if the agent is enabled (default is true)
-func (a *Agent) IsEnabled() bool {
-	if a.Enabled == nil {
+// IsEnabled returns true if the worker is enabled (default is true)
+func (w *Worker) IsEnabled() bool {
+	if w.Enabled == nil {
 		return true
 	}
-	return *a.Enabled
+	return *w.Enabled
 }
 
 // StringPtr returns a pointer to the given string value. Suitable for optional string parameters or configurations.

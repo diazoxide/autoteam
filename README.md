@@ -82,7 +82,7 @@ This creates a sample `autoteam.yaml` with basic configuration.
 Edit `autoteam.yaml` to define your AI agents and dynamic workflows:
 
 ```yaml
-agents:
+workers:
   - name: "Platform Specialist"
     enabled: true
     prompt: |
@@ -349,7 +349,7 @@ flow:
 
 **Example Agent Configuration:**
 ```yaml
-agents:
+workers:
   - name: "Senior Developer"
     enabled: true
     prompt: |
@@ -448,7 +448,7 @@ settings:
       command: "npx"
       args: ["-y", "mcp-memory-service"]
 
-agents:
+workers:
   - name: "developer"
     prompt: |
       You are a developer agent responsible for implementing features.
@@ -547,7 +547,7 @@ autoteam init      # Create sample autoteam.yaml
 autoteam generate  # Generate compose.yaml from config
 autoteam up        # Generate and start containers
 autoteam down      # Stop containers
-autoteam agents     # List all agents and their states
+autoteam workers    # List all workers and their states
 ```
 
 All generated files are organized in the `.autoteam/` directory for better project organization.
@@ -557,7 +557,7 @@ All generated files are organized in the `.autoteam/` directory for better proje
 AutoTeam automatically normalizes agent names for Docker Compose services and directory paths while preserving the original names for identification:
 
 ```yaml
-agents:
+workers:
   - name: "Senior Developer"      # Original name (used in environment variables)
     prompt: "You are a senior developer"
     settings:
@@ -605,7 +605,7 @@ Directory structure uses normalized names with flow-based architecture:
 You can temporarily disable agents without removing their configuration:
 
 ```yaml
-agents:
+workers:
   - name: "developer"
     prompt: "You are a developer agent"
     settings:
@@ -629,7 +629,7 @@ Benefits:
 - Test with specific agent combinations
 - Preserve tokens and settings when not actively needed
 
-Use `autoteam agents` to list all agents and their states.
+Use `autoteam workers` to list all workers and their states.
 
 ## Architecture
 

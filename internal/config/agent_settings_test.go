@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestAgentGetEffectiveSettings(t *testing.T) {
+func TestAgentGetSettings(t *testing.T) {
 	globalSettings := AgentSettings{
 		Service: map[string]interface{}{
 			"image": "node:18",
@@ -18,12 +18,12 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		agent          Agent
+		worker         Worker
 		expectedResult AgentSettings
 	}{
 		{
 			name: "no agent settings - should use global",
-			agent: Agent{
+			worker: Worker{
 				Name:     "test1",
 				Prompt:   "test prompt",
 				Settings: nil,
@@ -32,7 +32,7 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 		},
 		{
 			name: "partial agent settings - should override only specified",
-			agent: Agent{
+			worker: Worker{
 				Name:   "test2",
 				Prompt: "test prompt",
 				Settings: &AgentSettings{
@@ -54,7 +54,7 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 		},
 		{
 			name: "full agent settings - should override all",
-			agent: Agent{
+			worker: Worker{
 				Name:   "test3",
 				Prompt: "test prompt",
 				Settings: &AgentSettings{
@@ -81,7 +81,7 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.agent.GetEffectiveSettings(globalSettings)
+			result := tt.worker.GetEffectiveSettings(globalSettings)
 
 			// Check service configuration
 			if len(result.Service) != len(tt.expectedResult.Service) {
@@ -108,9 +108,9 @@ func TestAgentGetEffectiveSettings(t *testing.T) {
 	}
 }
 
-func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
+func TestConfigGetAllWorkersWithSettings(t *testing.T) {
 	cfg := &Config{
-		Agents: []Agent{
+		Workers: []Worker{
 			{
 				Name:     "dev",
 				Prompt:   "developer prompt",
@@ -138,45 +138,45 @@ func TestConfigGetAllAgentsWithEffectiveSettings(t *testing.T) {
 		},
 	}
 
-	result := cfg.GetAllAgentsWithEffectiveSettings()
+	result := cfg.GetAllWorkersWithEffectiveSettings()
 
 	if len(result) != 2 {
-		t.Fatalf("Expected 2 agents, got %d", len(result))
+		t.Fatalf("Expected 2 workers, got %d", len(result))
 	}
 
 	// First agent should use global settings
-	devAgent := result[0]
-	if devAgent.Agent.Name != "dev" {
-		t.Errorf("First agent name = %v, want dev", devAgent.Agent.Name)
+	devWorker := result[0]
+	if devWorker.Worker.Name != "dev" {
+		t.Errorf("First agent name = %v, want dev", devWorker.Worker.Name)
 	}
-	if devAgent.EffectiveSettings.Service["image"] != "node:18" {
-		t.Errorf("Dev agent Service[image] = %v, want node:18", devAgent.EffectiveSettings.Service["image"])
+	if devWorker.Settings.Service["image"] != "node:18" {
+		t.Errorf("Dev agent Service[image] = %v, want node:18", devWorker.Settings.Service["image"])
 	}
-	if devAgent.EffectiveSettings.GetSleepDuration() != 60 {
-		t.Errorf("Dev agent SleepDuration = %v, want 60", devAgent.EffectiveSettings.GetSleepDuration())
+	if devWorker.Settings.GetSleepDuration() != 60 {
+		t.Errorf("Dev agent SleepDuration = %v, want 60", devWorker.Settings.GetSleepDuration())
 	}
 
 	// Second agent should have overridden settings
-	archAgent := result[1]
-	if archAgent.Agent.Name != "arch" {
-		t.Errorf("Second agent name = %v, want arch", archAgent.Agent.Name)
+	archWorker := result[1]
+	if archWorker.Worker.Name != "arch" {
+		t.Errorf("Second agent name = %v, want arch", archWorker.Worker.Name)
 	}
-	if archAgent.EffectiveSettings.Service["image"] != "python:3.11" {
-		t.Errorf("Arch agent Service[image] = %v, want python:3.11", archAgent.EffectiveSettings.Service["image"])
+	if archWorker.Settings.Service["image"] != "python:3.11" {
+		t.Errorf("Arch agent Service[image] = %v, want python:3.11", archWorker.Settings.Service["image"])
 	}
-	if archAgent.EffectiveSettings.GetSleepDuration() != 30 {
-		t.Errorf("Arch agent SleepDuration = %v, want 30", archAgent.EffectiveSettings.GetSleepDuration())
+	if archWorker.Settings.GetSleepDuration() != 30 {
+		t.Errorf("Arch agent SleepDuration = %v, want 30", archWorker.Settings.GetSleepDuration())
 	}
 	// Non-overridden settings should use global values
-	if archAgent.EffectiveSettings.Service["user"] != "developer" {
-		t.Errorf("Arch agent Service[user] = %v, want developer", archAgent.EffectiveSettings.Service["user"])
+	if archWorker.Settings.Service["user"] != "developer" {
+		t.Errorf("Arch agent Service[user] = %v, want developer", archWorker.Settings.Service["user"])
 	}
-	if archAgent.EffectiveSettings.GetTeamName() != "test-team" {
-		t.Errorf("Arch agent TeamName = %v, want test-team", archAgent.EffectiveSettings.GetTeamName())
+	if archWorker.Settings.GetTeamName() != "test-team" {
+		t.Errorf("Arch agent TeamName = %v, want test-team", archWorker.Settings.GetTeamName())
 	}
 }
 
-func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
+func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 	globalSettings := AgentSettings{
 		Service: map[string]interface{}{
 			"image":   "node:18",
@@ -194,12 +194,12 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		agent          Agent
+		worker         Worker
 		expectedResult AgentSettings
 	}{
 		{
 			name: "custom volumes should replace global",
-			agent: Agent{
+			worker: Worker{
 				Name:   "test1",
 				Prompt: "test prompt",
 				Settings: &AgentSettings{
@@ -228,7 +228,7 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 		},
 		{
 			name: "custom entrypoint should override global",
-			agent: Agent{
+			worker: Worker{
 				Name:   "test2",
 				Prompt: "test prompt",
 				Settings: &AgentSettings{
@@ -255,7 +255,7 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 		},
 		{
 			name: "custom environment should merge with global",
-			agent: Agent{
+			worker: Worker{
 				Name:   "test3",
 				Prompt: "test prompt",
 				Settings: &AgentSettings{
@@ -285,7 +285,7 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 		},
 		{
 			name: "all custom service fields combined",
-			agent: Agent{
+			worker: Worker{
 				Name:   "test4",
 				Prompt: "test prompt",
 				Settings: &AgentSettings{
@@ -318,7 +318,7 @@ func TestAgentGetEffectiveSettingsWithServiceMerging(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.agent.GetEffectiveSettings(globalSettings)
+			result := tt.worker.GetEffectiveSettings(globalSettings)
 
 			// Check service configuration
 			if len(result.Service) != len(tt.expectedResult.Service) {

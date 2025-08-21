@@ -1,7 +1,7 @@
 # Example configuration with a disabled agent
 # This shows how to temporarily disable agents without removing their configuration
 
-agents:
+workers:
   # Active developer agent
   - name: "Developer"
     prompt: |
@@ -39,7 +39,7 @@ settings:
   service:
     image: "node:18.17.1"
     user: "developer"
-  check_interval: 60
+  sleep_duration: 60
   team_name: "my-team"
   install_deps: true
   common_prompt: |

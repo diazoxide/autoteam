@@ -158,13 +158,13 @@ func (f *FileOperations) ValidatePath(path string) error {
 	return nil
 }
 
-// CreateAgentDirectoryStructure creates the complete directory structure for an agent
-func (f *FileOperations) CreateAgentDirectoryStructure(agentName string) error {
-	agentDir := filepath.Join(config.AgentsDir, agentName)
+// CreateWorkerDirectoryStructure creates the complete directory structure for a worker
+func (f *FileOperations) CreateWorkerDirectoryStructure(workerName string) error {
+	workerDir := filepath.Join(config.AgentsDir, workerName)
 
-	// Create main agent directory - subdirectories will be created as needed by individual layers
-	if err := f.EnsureDirectory(agentDir, config.DirPerm); err != nil {
-		return fmt.Errorf("failed to create agent directory for agent %s: %w", agentName, err)
+	// Create main worker directory - subdirectories will be created as needed by individual layers
+	if err := f.EnsureDirectory(workerDir, config.DirPerm); err != nil {
+		return fmt.Errorf("failed to create worker directory for worker %s: %w", workerName, err)
 	}
 
 	return nil

@@ -1,4 +1,4 @@
-agents:
+workers:
   - name: "dev1"
     prompt: "Developer"
 

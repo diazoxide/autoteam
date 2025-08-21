@@ -1,7 +1,7 @@
 # Basic AutoTeam Configuration
 # Flow-based setup with parallel task collection and processing
 
-agents:
+workers:
   - name: "developer"
     prompt: |
       You are a developer agent responsible for implementing features and fixing bugs.

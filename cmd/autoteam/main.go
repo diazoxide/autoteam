@@ -76,9 +76,9 @@ func main() {
 				Action: initCommand,
 			},
 			{
-				Name:   "agents",
-				Usage:  "List all agents and their states",
-				Action: agentsCommand,
+				Name:   "workers",
+				Usage:  "List all workers and their states",
+				Action: workersCommand,
 			},
 		},
 	}
@@ -121,20 +121,20 @@ func upCommand(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("config not available in context")
 	}
 
-	// Find free ports for enabled agents
-	enabledAgentsWithSettings := cfg.GetEnabledAgentsWithEffectiveSettings()
-	if len(enabledAgentsWithSettings) > 0 {
-		fmt.Printf("Finding free ports for %d agents...\n", len(enabledAgentsWithSettings))
+	// Find free ports for enabled workers
+	enabledWorkersWithSettings := cfg.GetEnabledWorkersWithEffectiveSettings()
+	if len(enabledWorkersWithSettings) > 0 {
+		fmt.Printf("Finding free ports for %d workers...\n", len(enabledWorkersWithSettings))
 
 		portManager := ports.NewPortManager()
 		var serviceNames []string
 
-		// Get service names for enabled agents
-		for _, agentWithSettings := range enabledAgentsWithSettings {
-			serviceNames = append(serviceNames, agentWithSettings.Agent.GetNormalizedName())
+		// Get service names for enabled workers
+		for _, workerWithSettings := range enabledWorkersWithSettings {
+			serviceNames = append(serviceNames, workerWithSettings.Worker.GetNormalizedName())
 		}
 
-		// Allocate ports for all enabled agent services
+		// Allocate ports for all enabled worker services
 		portAllocation, err := portManager.AllocatePortsForServices(serviceNames)
 		if err != nil {
 			log.Error("Failed to allocate ports", zap.Error(err))
@@ -204,7 +204,7 @@ func initCommand(ctx context.Context, cmd *cli.Command) error {
 	return nil
 }
 
-func agentsCommand(ctx context.Context, cmd *cli.Command) error {
+func workersCommand(ctx context.Context, cmd *cli.Command) error {
 	log := logger.FromContext(ctx)
 	cfg := getConfigFromContext(ctx)
 	if cfg == nil {
@@ -212,19 +212,19 @@ func agentsCommand(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("config not available in context")
 	}
 
-	fmt.Println("Agents configuration:")
+	fmt.Println("Workers configuration:")
 	fmt.Println()
 
-	for i, agent := range cfg.Agents {
+	for i, worker := range cfg.Workers {
 		status := "enabled"
-		if !agent.IsEnabled() {
+		if !worker.IsEnabled() {
 			status = "disabled"
 		}
 
-		fmt.Printf("%d. %s (%s)\n", i+1, agent.Name, status)
-		if agent.Prompt != "" {
+		fmt.Printf("%d. %s (%s)\n", i+1, worker.Name, status)
+		if worker.Prompt != "" {
 			// Show first line of prompt
-			lines := strings.Split(agent.Prompt, "\n")
+			lines := strings.Split(worker.Prompt, "\n")
 			if len(lines) > 0 && lines[0] != "" {
 				prompt := lines[0]
 				if len(prompt) > 80 {
@@ -238,13 +238,13 @@ func agentsCommand(ctx context.Context, cmd *cli.Command) error {
 
 	// Summary
 	enabledCount := 0
-	for _, agent := range cfg.Agents {
-		if agent.IsEnabled() {
+	for _, worker := range cfg.Workers {
+		if worker.IsEnabled() {
 			enabledCount++
 		}
 	}
-	fmt.Printf("Total agents: %d (enabled: %d, disabled: %d)\n",
-		len(cfg.Agents), enabledCount, len(cfg.Agents)-enabledCount)
+	fmt.Printf("Total workers: %d (enabled: %d, disabled: %d)\n",
+		len(cfg.Workers), enabledCount, len(cfg.Workers)-enabledCount)
 
 	return nil
 }
