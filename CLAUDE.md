@@ -185,6 +185,18 @@
 - **BACKWARD COMPATIBLE**: Existing flow configurations work without changes
 - All dependency validation and cycle detection preserved from original implementation
 
+## Agent Architecture Cleanup and Sleep-Based Monitoring
+- **SIMPLIFIED**: Agent constructors now use consistent parameter patterns (name, args, env, mcpServers)
+- **REMOVED**: Eliminated confusing multiple config types (config.AgentConfig vs entrypoint.AgentConfig dependency)
+- **CLEANUP**: Removed retry logic from individual agents - moved to flow execution level for better control
+- **CONFIGURATION**: Sleep-based monitoring replaces ticker-based intervals to prevent execution overlap
+- **RENAMED**: Changed `check_interval` to `sleep_duration` throughout codebase for better semantic clarity
+- **PERFORMANCE**: Sleep-based approach ensures proper execution spacing without resource waste
+- **NET REDUCTION**: Removed 186 lines of code through agent simplification and cleanup
+- **CONSISTENCY**: All agent implementations (Claude, Gemini, Qwen) now follow identical constructor patterns
+- **DEBUGGING**: Enhanced logging shows execution timing and sleep duration for monitoring
+- All tests pass with simplified architecture - no functionality changes to core workflows
+
 ## Custom Layer Prompts Configuration (Legacy - Removed)
 - **REMOVED**: Two-layer architecture completely replaced with dynamic flow system
 - Custom prompts now configured per flow step in `flow.steps[].prompt` field

@@ -1,5 +1,5 @@
 # Basic AutoTeam Configuration
-# Two-agent setup with developer and reviewer roles
+# Flow-based setup with parallel task collection and processing
 
 agents:
   - name: "developer"
@@ -19,30 +19,51 @@ agents:
           GITHUB_TOKEN: ${REVIEWER_GITHUB_TOKEN}
 
 settings:
-  check_interval: 30
+  sleep_duration: 30
   service:
     image: "node:18.17.1"
     user: "developer"
   team_name: "basic-team"
   install_deps: true
   
-  # Two-Layer Architecture
-  collector_agent:
-    type: gemini
-    args: ["--model", "gemini-2.5-flash"]
-    prompt: |
-      You are a notification collector. Get unread GitHub notifications and list them.
-      Use GitHub MCP to get notifications in format: {NOTIFICATION URL} - {NOTIFICATION TEXT}
-      Mark all notifications as read after processing.
-      
-  execution_agent:
-    type: claude
-    args: []
-    prompt: |
-      You are the task execution agent. Execute tasks and publish your results.
-      For comments: respond publicly on GitHub
-      For PR reviews: submit review with feedback
-      For assigned issues: implement and create PR
+  # Dynamic Flow Configuration
+  flow:
+    # Parallel task collection from different sources
+    - name: collect_notifications
+      type: gemini
+      args: ["--model", "gemini-2.5-flash"]
+      prompt: |
+        You are a notification collector. Get unread GitHub notifications and list them.
+        Use GitHub MCP to get notifications in format: {NOTIFICATION URL} - {NOTIFICATION TEXT}
+        Output: List of notifications that need attention.
+        
+    - name: collect_assigned_tasks
+      type: gemini
+      args: ["--model", "gemini-2.5-flash"]
+      prompt: |
+        Collect assigned issues and PRs that need attention.
+        Use GitHub MCP to find assigned work.
+        Output: List of assigned tasks with priority.
+        
+    # Unified task processing after collection
+    - name: process_tasks
+      type: claude
+      depends_on: [collect_notifications, collect_assigned_tasks]
+      prompt: |
+        Process all collected tasks from previous steps.
+        For comments: respond publicly on GitHub
+        For PR reviews: submit review with feedback  
+        For assigned issues: implement and create PR
+        Prioritize based on urgency and context.
+        
+    # Optional summary step (runs only if tasks were processed)
+    - name: send_summary
+      type: claude
+      depends_on: [process_tasks]
+      skip_when: "{{- index .inputs 0 | trim | eq \"No tasks processed\" -}}"
+      prompt: |
+        Send a summary of completed work to the team.
+        Use GitHub to comment on processed items or create status updates.
       
   # MCP Server Configuration
   mcp_servers:
