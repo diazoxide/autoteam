@@ -428,7 +428,7 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 	lgr.Info("Executing step",
 		zap.String("step_name", step.Name),
 		zap.String("agent_type", step.Type))
-	
+
 	lgr.Debug("Step prompt details",
 		zap.String("step_name", step.Name),
 		zap.String("prompt", prompt))
