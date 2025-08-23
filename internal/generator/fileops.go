@@ -169,3 +169,24 @@ func (f *FileOperations) CreateWorkerDirectoryStructure(workerName string) error
 
 	return nil
 }
+
+// FileExists checks if a file exists
+func (f *FileOperations) FileExists(path string) bool {
+	if _, err := os.Stat(path); err == nil {
+		return true
+	}
+	return false
+}
+
+// SetPermissions sets the permissions on a file or directory
+func (f *FileOperations) SetPermissions(path string, perm os.FileMode) error {
+	if err := f.ValidatePath(path); err != nil {
+		return fmt.Errorf("invalid path %s: %w", path, err)
+	}
+	
+	if err := os.Chmod(path, perm); err != nil {
+		return fmt.Errorf("failed to set permissions on %s: %w", path, err)
+	}
+	
+	return nil
+}

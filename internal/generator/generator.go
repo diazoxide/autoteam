@@ -241,33 +241,37 @@ func (g *Generator) copyBinDirectory() error {
 		if g.fileOps.DirectoryExists(oldEntrypointsDir) {
 			sourceDir = oldEntrypointsDir
 		} else {
-			// Neither directory exists - create a temporary directory with a helpful message
+			// Neither directory exists - copy from project scripts directory
 			if err := g.fileOps.EnsureDirectory(config.LocalBinPath, config.DirPerm); err != nil {
-				return fmt.Errorf("failed to create temporary bin directory: %w", err)
+				return fmt.Errorf("failed to create bin directory: %w", err)
+			}
+
+			// Copy entrypoint.sh from scripts directory
+			scriptsEntrypoint := filepath.Join("scripts", config.EntrypointScript)
+			localEntrypoint := filepath.Join(config.LocalBinPath, config.EntrypointScript)
+			
+			if g.fileOps.FileExists(scriptsEntrypoint) {
+				if err := g.fileOps.CopyFile(scriptsEntrypoint, localEntrypoint); err != nil {
+					return fmt.Errorf("failed to copy entrypoint script: %w", err)
+				}
+				// Make it executable
+				if err := g.fileOps.SetPermissions(localEntrypoint, config.ExecutablePerm); err != nil {
+					return fmt.Errorf("failed to set entrypoint script permissions: %w", err)
+				}
 			}
 
 			readmePath := filepath.Join(config.LocalBinPath, config.ReadmeFile)
 			readmeContent := `# AutoTeam Binary Directory
 
-This directory should contain all AutoTeam binaries including:
-- Entrypoint scripts for different platforms
-- MCP servers (github-mcp-server, etc.)
-- Other runtime binaries
+This directory contains:
+- entrypoint.sh: Main container entrypoint script (copied from project scripts/)
 
-To install the binaries system-wide, run:
+For system-wide installation with all platform binaries, run:
 ` + "```bash" + `
 make install
 ` + "```" + `
 
-This will:
-1. Install all binaries for supported platforms to ` + config.SystemBinDir + `
-2. Copy the binaries to this local directory during generation
-
-Supported platforms:
-- linux-amd64
-- linux-arm64  
-- darwin-amd64
-- darwin-arm64
+Supported platforms: linux-amd64, linux-arm64, darwin-amd64, darwin-arm64
 `
 
 			if err := g.fileOps.WriteFileIfNotExists(readmePath, []byte(readmeContent), config.ReadmePerm); err != nil {
