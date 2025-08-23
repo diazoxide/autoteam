@@ -13,7 +13,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_current.x | bash - && \
     apt-get install -y nodejs
 
 
-RUN npm install -g @anthropic-ai/claude-code@1.0.86 && \
+RUN npm install -g @anthropic-ai/claude-code@1.0.89 && \
     npm install -g @qwen-code/qwen-code@latest && \
     npm install -g @google/gemini-cli
 
