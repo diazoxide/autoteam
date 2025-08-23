@@ -1,7 +1,7 @@
 # Custom Docker Configuration
 # Example with custom Docker image and settings
 
-agents:
+workers:
   - name: "python-dev"
     prompt: |
       You are a Python developer specializing in data science projects.
@@ -21,7 +21,7 @@ settings:
       PYTHONPATH: "/app/custom"
       DATA_PATH: "/app/data"
   team_name: "data-team"
-  check_interval: 120
+  sleep_duration: 120
   install_deps: true
   
   # Two-Layer Architecture for Data Science Team

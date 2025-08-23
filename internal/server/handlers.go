@@ -17,18 +17,18 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Handlers contains the HTTP handlers for the agent API
+// Handlers contains the HTTP handlers for the worker API
 type Handlers struct {
-	agent       AgentInterface
+	worker      WorkerInterface
 	workingDir  string
 	startTime   time.Time
 	taskService *task.Service
 }
 
 // NewHandlers creates a new handlers instance
-func NewHandlers(ag AgentInterface, workingDir string, startTime time.Time) *Handlers {
+func NewHandlers(wk WorkerInterface, workingDir string, startTime time.Time) *Handlers {
 	return &Handlers{
-		agent:       ag,
+		worker:      wk,
 		workingDir:  workingDir,
 		startTime:   startTime,
 		taskService: task.NewService(workingDir),
@@ -40,19 +40,19 @@ func (h *Handlers) GetHealth(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get agent info
-	agentInfo := AgentInfo{
-		Name:    h.agent.Name(),
-		Type:    h.agent.Type(),
+	agentInfo := WorkerInfo{
+		Name:    h.worker.Name(),
+		Type:    h.worker.Type(),
 		Version: "unknown",
 	}
 
 	// Get agent version
-	if version, err := h.agent.Version(ctx); err == nil {
+	if version, err := h.worker.Version(ctx); err == nil {
 		agentInfo.Version = version
 	}
 
 	// Check agent availability
-	available := h.agent.IsAvailable(ctx)
+	available := h.worker.IsAvailable(ctx)
 	agentInfo.Available = &available
 
 	// Perform health checks
@@ -108,19 +108,19 @@ func (h *Handlers) GetStatus(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get agent info
-	agentInfo := AgentInfo{
-		Name:    h.agent.Name(),
-		Type:    h.agent.Type(),
+	agentInfo := WorkerInfo{
+		Name:    h.worker.Name(),
+		Type:    h.worker.Type(),
 		Version: "unknown",
 	}
 
 	// Get agent version
-	if version, err := h.agent.Version(ctx); err == nil {
+	if version, err := h.worker.Version(ctx); err == nil {
 		agentInfo.Version = version
 	}
 
 	// Check availability
-	available := h.agent.IsAvailable(ctx)
+	available := h.worker.IsAvailable(ctx)
 	agentInfo.Available = &available
 
 	// Calculate uptime
@@ -283,7 +283,7 @@ func (h *Handlers) GetTask(c echo.Context) error {
 func (h *Handlers) GetMetrics(c echo.Context) error {
 	uptime := time.Since(h.startTime).String()
 
-	metrics := AgentMetrics{
+	metrics := WorkerMetrics{
 		Uptime: &uptime,
 		// In real implementation, these would be tracked
 		TasksProcessed:   intPtr(0),
@@ -307,13 +307,13 @@ func (h *Handlers) GetConfig(c echo.Context) error {
 
 	// Get agent version
 	version := "unknown"
-	if v, err := h.agent.Version(ctx); err == nil {
+	if v, err := h.worker.Version(ctx); err == nil {
 		version = v
 	}
 
-	config := AgentConfig{
-		Name:    stringPtr(h.agent.Name()),
-		Type:    stringPtr(h.agent.Type()),
+	config := WorkerConfig{
+		Name:    stringPtr(h.worker.Name()),
+		Type:    stringPtr(h.worker.Type()),
 		Enabled: boolPtr(true),
 		Version: stringPtr(version),
 	}

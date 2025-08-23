@@ -67,6 +67,14 @@ type Configurable interface {
 	ConfigureForProject(ctx context.Context, projectPath string) error
 }
 
+// AgentConfig represents configuration for creating AI agents
+type AgentConfig struct {
+	Type   string            `yaml:"type"`
+	Args   []string          `yaml:"args,omitempty"`
+	Env    map[string]string `yaml:"env,omitempty"`
+	Prompt *string           `yaml:"prompt,omitempty"`
+}
+
 // RunOptions contains options for running an agent
 type RunOptions struct {
 	// MaxRetries is the maximum number of retry attempts

@@ -1,7 +1,7 @@
 # Minimal AutoTeam Configuration
 # This example shows the absolute minimum required configuration
 
-agents:
+workers:
   - name: "bot"
     prompt: "You are an AI assistant that helps with general development tasks."
     settings:

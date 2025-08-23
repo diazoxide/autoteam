@@ -1,4 +1,4 @@
-agents:
+workers:
   - name: Senior Developer
     enabled: true
     settings:
@@ -201,6 +201,7 @@ agents:
 
       Your goal is to make AutoTeam operationally excellent and enable the team to focus on development!
 
+
 settings:
   service:
     build:
@@ -208,7 +209,7 @@ settings:
       context: ./
     user: root
     environment:
-      TODO_DB_PATH: ${AUTOTEAM_AGENT_DIR}/todo.db
+      TODO_DB_PATH: ${AUTOTEAM_WORKER_DIR}/todo.db
     volumes:
       - "./shared/claude:/root/.claude"
       - "./shared/claude.json:/root/.claude.json"
@@ -225,7 +226,7 @@ settings:
     - name: collector
       type: gemini
       args: [ "--model", "gemini-2.5-flash" ]
-      prompt: |
+      input: |
         You are a GitHub Notification Collector. Your workflow is:
 
         ## 1. Collect GitHub Notifications
@@ -270,16 +271,17 @@ settings:
         - Don't skip notifications - every unread notification should become a TODO
         - Only mark notifications as read AFTER creating corresponding TODOs
         - Be descriptive in TODO titles to help the executor understand the required action
-      transformers:
-        output: |
-          {{- .stdout | regexFind "PENDING_TASKS: [0-9]+" | regexFind "[0-9]+" -}}
+      output: |
+        {{- .stdout | regexFind "PENDING_TASKS: [0-9]+" | regexFind "[0-9]+" -}}
     - name: executor
       type: claude
       depends_on: [collector]
       skip_when: |
         {{- index .inputs 0 | trim | eq "0" -}}
-      prompt: |
-        You are the GitHub Notification Handler. Your workflow is:
+      input: |
+        {{ .flow.worker.Prompt }}
+        
+        Your workflow is:
 
         ## 1. Read Pending TODOs
         First, use **TODO MCP** to get all pending tasks:
@@ -291,6 +293,10 @@ settings:
         - Use **TODO MCP** to mark the corresponding TODO as completed
         - Don't create new task, but update current task as completed, add tags if necessary, Also you can add some message in description of task, about completion. 
 
+        ## 3. Execution progress
+        - You can clone repo if you want, if its already exists just fetch/pull/merge.
+        - You can create branch, create PR, commit, push if needed.
+        
         ## Guidelines
         - Process TODOs systematically, one at a time
         - Only mark TODOs as completed after successful action

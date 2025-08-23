@@ -64,16 +64,16 @@ func TestNormalizeAgentName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := normalizeAgentName(tt.input)
+			result := normalizeWorkerName(tt.input)
 			if result != tt.expected {
-				t.Errorf("normalizeAgentName(%q) = %q, want %q", tt.input, result, tt.expected)
+				t.Errorf("normalizeWorkerName(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
 	}
 }
 
 func TestAgentGetNormalizedName(t *testing.T) {
-	agent := Agent{
+	agent := Worker{
 		Name:   "Senior Developer Agent",
 		Prompt: "You are a senior developer",
 	}
@@ -87,7 +87,7 @@ func TestAgentGetNormalizedName(t *testing.T) {
 }
 
 func TestAgentGetNormalizedNameWithVariation(t *testing.T) {
-	agent := Agent{
+	agent := Worker{
 		Name:   "Senior Developer Agent",
 		Prompt: "You are a senior developer",
 	}

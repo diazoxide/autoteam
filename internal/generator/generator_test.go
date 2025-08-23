@@ -28,7 +28,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 
 	// Create test config with new service structure
 	cfg := &config.Config{
-		Agents: []config.Agent{
+		Workers: []config.Worker{
 			{
 				Name:   "dev1",
 				Prompt: "You are a developer agent",
@@ -36,7 +36,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 			{
 				Name:   "arch1",
 				Prompt: "You are an architect agent",
-				Settings: &config.AgentSettings{
+				Settings: &config.WorkerSettings{
 					Service: map[string]interface{}{
 						"image":   "python:3.11",
 						"volumes": []string{"./custom-vol:/app/custom"},
@@ -44,7 +44,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 				},
 			},
 		},
-		Settings: config.AgentSettings{
+		Settings: config.WorkerSettings{
 			Service: map[string]interface{}{
 				"image":   "node:18",
 				"user":    "testuser",
@@ -100,7 +100,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 	// Verify environment variables are set correctly
 	// The YAML unmarshaling converts environment to map[string]interface{}
 	dev1EnvInterface := dev1Service["environment"].(map[string]interface{})
-	expectedConfigFile := "/opt/autoteam/agents/dev1/config.yaml"
+	expectedConfigFile := "/opt/autoteam/workers/dev1/config.yaml"
 	if dev1EnvInterface["CONFIG_FILE"] != expectedConfigFile {
 		t.Errorf("dev1 environment should contain CONFIG_FILE=%s, got %v", expectedConfigFile, dev1EnvInterface["CONFIG_FILE"])
 	}
@@ -110,21 +110,21 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 	// The YAML unmarshaling converts volumes to []interface{}
 	dev1VolumesInterface := dev1Service["volumes"].([]interface{})
 	hasSharedVolume := false
-	hasAgentVolume := false
+	hasWorkerVolume := false
 	for _, vol := range dev1VolumesInterface {
 		volStr := vol.(string)
 		if strings.Contains(volStr, "./shared:/app/shared") {
 			hasSharedVolume = true
 		}
-		if strings.Contains(volStr, "dev1:/opt/autoteam/agents/dev1") {
-			hasAgentVolume = true
+		if strings.Contains(volStr, "dev1:/opt/autoteam/workers/dev1") {
+			hasWorkerVolume = true
 		}
 	}
 	if !hasSharedVolume {
 		t.Errorf("dev1 should have shared volume from global settings")
 	}
-	if !hasAgentVolume {
-		t.Errorf("dev1 should have full agent directory volume")
+	if !hasWorkerVolume {
+		t.Errorf("dev1 should have full worker directory volume")
 	}
 
 	// Verify .autoteam/bin directory was created
@@ -132,10 +132,10 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 		t.Errorf(".autoteam/bin directory should be created")
 	}
 
-	// Verify agent directories were created
+	// Verify worker directories were created
 	agentDirs := []string{
-		".autoteam/agents/dev1",
-		".autoteam/agents/arch1",
+		".autoteam/workers/dev1",
+		".autoteam/workers/arch1",
 	}
 
 	for _, dir := range agentDirs {
@@ -145,7 +145,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 	}
 }
 
-func TestGenerator_CreateAgentDirectories(t *testing.T) {
+func TestGenerator_CreateWorkerDirectories(t *testing.T) {
 	tempDir := testutil.CreateTempDir(t)
 
 	// Change to temp directory
@@ -160,21 +160,21 @@ func TestGenerator_CreateAgentDirectories(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Agents: []config.Agent{
+		Workers: []config.Worker{
 			{Name: "test1"},
 			{Name: "test2"},
 		},
 	}
 
 	gen := New()
-	if err := gen.createAgentDirectories(cfg); err != nil {
-		t.Fatalf("createAgentDirectories() error = %v", err)
+	if err := gen.createWorkerDirectories(cfg); err != nil {
+		t.Fatalf("createWorkerDirectories() error = %v", err)
 	}
 
 	// Verify directories were created
 	expectedDirs := []string{
-		".autoteam/agents/test1",
-		".autoteam/agents/test2",
+		".autoteam/workers/test1",
+		".autoteam/workers/test2",
 	}
 
 	for _, dir := range expectedDirs {
@@ -199,14 +199,14 @@ func TestGenerator_GenerateComposeYAML(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Settings: config.AgentSettings{
+		Settings: config.WorkerSettings{
 			Service: map[string]interface{}{
 				"image": "node:18",
 				"user":  "developer",
 			},
 			TeamName: config.StringPtr("test-team"),
 		},
-		Agents: []config.Agent{
+		Workers: []config.Worker{
 			{
 				Name:   "dev1",
 				Prompt: "Developer agent",

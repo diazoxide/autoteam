@@ -23,6 +23,7 @@ type FlowExecutor struct {
 	agents     map[string]agent.Agent
 	mcpServers map[string]config.MCPServer
 	workingDir string
+	worker     *config.Worker // Worker configuration for template context
 }
 
 // StepOutput represents the output of a flow step
@@ -39,13 +40,14 @@ type FlowResult struct {
 	Error   error
 }
 
-// New creates a new FlowExecutor with the given steps
-func New(steps []config.FlowStep, mcpServers map[string]config.MCPServer, workingDir string) *FlowExecutor {
+// New creates a new FlowExecutor with the given steps and worker configuration
+func New(steps []config.FlowStep, mcpServers map[string]config.MCPServer, workingDir string, worker *config.Worker) *FlowExecutor {
 	return &FlowExecutor{
 		steps:      steps,
 		agents:     make(map[string]agent.Agent),
 		mcpServers: mcpServers,
 		workingDir: workingDir,
+		worker:     worker,
 	}
 }
 
@@ -325,14 +327,14 @@ func (fe *FlowExecutor) createAgents(ctx context.Context) error {
 
 	for _, step := range fe.steps {
 		// Create agent config from step
-		agentConfig := config.AgentConfig{
+		agentConfig := agent.AgentConfig{
 			Type: step.Type,
 			Args: step.Args,
 			Env:  step.Env,
 		}
 
 		// Create agent with working directory + step name for proper MCP config paths
-		// Extract just the directory name from workingDir (e.g., "senior_developer" from "/opt/autoteam/agents/senior_developer")
+		// Extract just the directory name from workingDir (e.g., "senior_developer" from "/opt/autoteam/workers/senior_developer")
 		baseName := filepath.Base(fe.workingDir)
 		fullAgentName := fmt.Sprintf("%s/%s", baseName, step.Name)
 		stepAgent, err := agent.CreateAgent(agentConfig, fullAgentName, fe.mcpServers)
@@ -406,17 +408,17 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 		return nil, fmt.Errorf("agent not found for step: %s", step.Name)
 	}
 
-	// Prepare input data for transformers
+	// Prepare input data for template processing
 	inputData := fe.prepareInputData(step, previousOutputs)
 
-	// Apply input transformer if specified
-	prompt := step.Prompt
-	if step.Transformers != nil && step.Transformers.Input != "" {
-		transformedInput, transformErr := fe.applyTemplate(step.Transformers.Input, inputData)
+	// Process input field as template if it contains template syntax
+	prompt := step.Input
+	if step.Input != "" {
+		transformedInput, transformErr := fe.applyTemplate(step.Input, inputData)
 		if transformErr != nil {
-			lgr.Warn("Input transformation failed, using original prompt",
+			lgr.Warn("Input template processing failed, using original input",
 				zap.String("step_name", step.Name),
-				zap.String("input_template", step.Transformers.Input),
+				zap.String("input_template", step.Input),
 				zap.Error(transformErr))
 		} else {
 			prompt = transformedInput
@@ -449,19 +451,19 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 		zap.String("raw_stdout", output.Stdout),
 		zap.String("raw_stderr", output.Stderr))
 
-	// Apply output transformer if specified
+	// Apply output transformation if specified
 	stdout := output.Stdout
-	if step.Transformers != nil && step.Transformers.Output != "" {
+	if step.Output != "" {
 		templateData := map[string]interface{}{
 			"stdout": output.Stdout,
 			"stderr": output.Stderr,
 		}
 
-		transformedOutput, err := fe.applyTemplate(step.Transformers.Output, templateData)
+		transformedOutput, err := fe.applyTemplate(step.Output, templateData)
 		if err != nil {
 			lgr.Warn("Output transformation failed, using raw output",
 				zap.String("step_name", step.Name),
-				zap.String("output_template", step.Transformers.Output),
+				zap.String("output_template", step.Output),
 				zap.Error(err))
 		} else {
 			stdout = transformedOutput
@@ -497,7 +499,9 @@ func (fe *FlowExecutor) prepareInputData(step config.FlowStep, previousOutputs m
 	return map[string]interface{}{
 		"inputs": inputs,
 		"step":   step,
-		"flow":   fe,
+		"flow": map[string]interface{}{
+			"worker": fe.worker,
+		},
 	}
 }
 

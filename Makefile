@@ -9,9 +9,9 @@ GO_VERSION := $(shell go version | awk '{print $$3}')
 
 # Build configuration
 BINARY_NAME := autoteam
-ENTRYPOINT_BINARY_NAME := autoteam-entrypoint
+WORKER_BINARY_NAME := autoteam-worker
 MAIN_PATH := ./cmd/autoteam
-ENTRYPOINT_MAIN_PATH := ./cmd/entrypoint
+WORKER_MAIN_PATH := ./cmd/worker
 BUILD_DIR := build
 DIST_DIR := dist
 
@@ -32,7 +32,7 @@ endif
 # Source files for dependency tracking
 GO_SOURCES := $(shell find . -name "*.go" -not -path "./vendor/*" -not -path "./.git/*")
 MAIN_SOURCES := $(shell find $(MAIN_PATH) -name "*.go")
-ENTRYPOINT_SOURCES := $(shell find $(ENTRYPOINT_MAIN_PATH) -name "*.go")
+WORKER_SOURCES := $(shell find $(WORKER_MAIN_PATH) -name "*.go")
 
 # Platform and architecture combinations
 PLATFORMS := \
@@ -53,7 +53,7 @@ CYAN := \033[0;36m
 NC := \033[0m # No Color
 
 .PHONY: all build clean test install dev help
-.PHONY: build-all build-darwin build-linux build-entrypoint build-entrypoint-all
+.PHONY: build-all build-darwin build-linux build-worker build-worker-all
 .PHONY: package package-all release checksums verify
 .PHONY: install-darwin install-linux dev-mode prod-mode
 
@@ -79,28 +79,28 @@ $(BUILD_DIR)/$(BINARY_NAME): $(GO_SOURCES) $(MAIN_SOURCES) | $(BUILD_DIR)
 	$(GO_BUILD) -o $@ $(MAIN_PATH)
 	@echo "$(GREEN)✓ Built: $@$(NC)"
 
-# Build entrypoint binary (current platform) - with dependency tracking
-$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME): $(GO_SOURCES) $(ENTRYPOINT_SOURCES) | $(BUILD_DIR)
-	@echo "$(BLUE)Building $(ENTRYPOINT_BINARY_NAME) for current platform...$(NC)"
-	$(GO_BUILD) -o $@ $(ENTRYPOINT_MAIN_PATH)
+# Build worker binary (current platform) - with dependency tracking
+$(BUILD_DIR)/$(WORKER_BINARY_NAME): $(GO_SOURCES) $(WORKER_SOURCES) | $(BUILD_DIR)
+	@echo "$(BLUE)Building $(WORKER_BINARY_NAME) for current platform...$(NC)"
+	$(GO_BUILD) -o $@ $(WORKER_MAIN_PATH)
 	@echo "$(GREEN)✓ Built: $@$(NC)"
 
 # Convenience targets
 build: $(BUILD_DIR)/$(BINARY_NAME) ## Build binary for current platform
-build-entrypoint: $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME) ## Build entrypoint binary for current platform
+build-worker: $(BUILD_DIR)/$(WORKER_BINARY_NAME) ## Build worker binary for current platform
 
 # Ensure build directory exists
 $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
 
-# Build entrypoint binaries for all platforms
-build-entrypoint-all: $(PLATFORMS:=/entrypoint) ## Build entrypoint binaries for all platforms
-	@echo "$(GREEN)✓ All entrypoint builds completed in $(BUILD_DIR)/$(NC)"
+# Build worker binaries for all platforms
+build-worker-all: $(PLATFORMS:=/worker) ## Build worker binaries for all platforms
+	@echo "$(GREEN)✓ All worker builds completed in $(BUILD_DIR)/$(NC)"
 
-# Build for all platforms (main + entrypoint binaries) - with parallel execution
-build-all: clean-build ## Build main and entrypoint binaries for all supported platforms
+# Build for all platforms (main + worker binaries) - with parallel execution
+build-all: clean-build ## Build main and worker binaries for all supported platforms
 	@echo "$(BLUE)Building all platforms in parallel...$(NC)"
-	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) $(PLATFORMS) $(PLATFORMS:=/entrypoint)
+	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) $(PLATFORMS) $(PLATFORMS:=/worker)
 	@echo "$(GREEN)✓ All builds completed in $(BUILD_DIR)/$(NC)"
 
 # Build for macOS platforms - with parallel execution
@@ -109,10 +109,10 @@ build-darwin: clean-build ## Build binaries for macOS (Intel + Apple Silicon)
 	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 2) darwin/amd64 darwin/arm64
 	@echo "$(GREEN)✓ macOS builds completed$(NC)"
 
-# Build for Linux platforms (main + entrypoint binaries) - with parallel execution
-build-linux: clean-build ## Build main and entrypoint binaries for Linux (all architectures)
+# Build for Linux platforms (main + worker binaries) - with parallel execution
+build-linux: clean-build ## Build main and worker binaries for Linux (all architectures)
 	@echo "$(BLUE)Building Linux platforms in parallel...$(NC)"
-	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) linux/amd64 linux/arm64 linux/386 linux/arm linux/amd64/entrypoint linux/arm64/entrypoint
+	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) linux/amd64 linux/arm64 linux/386 linux/arm linux/amd64/worker linux/arm64/worker
 	@echo "$(GREEN)✓ Linux builds completed$(NC)"
 
 # Individual platform targets
@@ -126,14 +126,14 @@ $(PLATFORMS):
 	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o $(BINARY)$(BINARY_EXT) $(MAIN_PATH)
 	@echo "$(GREEN)  ✓ $(BINARY)$(BINARY_EXT)$(NC)"
 
-# Individual entrypoint platform targets
-$(PLATFORMS:=/entrypoint):
-	$(eval GOOS := $(word 1,$(subst /, ,$(subst /entrypoint,,$@))))
-	$(eval GOARCH := $(word 2,$(subst /, ,$(subst /entrypoint,,$@))))
-	$(eval BINARY := $(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)-$(GOOS)-$(GOARCH))
-	@echo "$(PURPLE)Building entrypoint for $(GOOS)/$(GOARCH)...$(NC)"
+# Individual worker platform targets
+$(PLATFORMS:=/worker):
+	$(eval GOOS := $(word 1,$(subst /, ,$(subst /worker,,$@))))
+	$(eval GOARCH := $(word 2,$(subst /, ,$(subst /worker,,$@))))
+	$(eval BINARY := $(BUILD_DIR)/$(WORKER_BINARY_NAME)-$(GOOS)-$(GOARCH))
+	@echo "$(PURPLE)Building worker for $(GOOS)/$(GOARCH)...$(NC)"
 	@mkdir -p $(BUILD_DIR)
-	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o $(BINARY) $(ENTRYPOINT_MAIN_PATH)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o $(BINARY) $(WORKER_MAIN_PATH)
 	@echo "$(GREEN)  ✓ $(BINARY)$(NC)"
 
 # Development mode builds
@@ -192,8 +192,8 @@ package: build-all ## Create distribution packages for all platforms
 	@echo "$(GREEN)✓ All packages created in $(DIST_DIR)/$(NC)"
 
 # Installation targets
-install: build build-entrypoint-all ## Install binaries to system (current platform + all entrypoint platforms)
-	@echo "$(BLUE)Installing $(BINARY_NAME) and entrypoint binaries...$(NC)"
+install: build build-worker-all ## Install binaries to system (current platform + all worker platforms)
+	@echo "$(BLUE)Installing $(BINARY_NAME) and worker binaries...$(NC)"
 	@if [ "$$(uname)" = "Darwin" ]; then \
 		$(MAKE) install-darwin; \
 	elif [ "$$(uname)" = "Linux" ]; then \
@@ -202,7 +202,7 @@ install: build build-entrypoint-all ## Install binaries to system (current platf
 		echo "$(RED)✗ Unsupported platform: $$(uname)$(NC)"; \
 		exit 1; \
 	fi
-	@$(MAKE) install-entrypoints
+	@$(MAKE) install-workers
 
 install-darwin: ## Install on macOS
 	@if [ "$$(uname -m)" = "arm64" ]; then \
@@ -224,17 +224,17 @@ install-darwin: ## Install on macOS
 	sudo chmod +x /usr/local/bin/$(BINARY_NAME); \
 	echo "$(GREEN)✓ Installed $(BINARY_NAME) to /usr/local/bin/$(BINARY_NAME)$(NC)"; \
 	\
-	if [ -f "$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)" ]; then \
-		sudo cp "$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)" /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
-		sudo chmod +x /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
-		echo "$(GREEN)✓ Installed $(ENTRYPOINT_BINARY_NAME) to /usr/local/bin/$(ENTRYPOINT_BINARY_NAME)$(NC)"; \
+	if [ -f "$(BUILD_DIR)/$(WORKER_BINARY_NAME)" ]; then \
+		sudo cp "$(BUILD_DIR)/$(WORKER_BINARY_NAME)" /usr/local/bin/$(WORKER_BINARY_NAME); \
+		sudo chmod +x /usr/local/bin/$(WORKER_BINARY_NAME); \
+		echo "$(GREEN)✓ Installed $(WORKER_BINARY_NAME) to /usr/local/bin/$(WORKER_BINARY_NAME)$(NC)"; \
 	else \
 		CURRENT_ARCH=$$(uname -m | sed 's/x86_64/amd64/'); \
-		PLATFORM_BINARY="$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)-darwin-$$CURRENT_ARCH"; \
+		PLATFORM_BINARY="$(BUILD_DIR)/$(WORKER_BINARY_NAME)-darwin-$$CURRENT_ARCH"; \
 		if [ -f "$$PLATFORM_BINARY" ]; then \
-			sudo cp "$$PLATFORM_BINARY" /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
-			sudo chmod +x /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
-			echo "$(GREEN)✓ Installed $(ENTRYPOINT_BINARY_NAME) to /usr/local/bin/$(ENTRYPOINT_BINARY_NAME)$(NC)"; \
+			sudo cp "$$PLATFORM_BINARY" /usr/local/bin/$(WORKER_BINARY_NAME); \
+			sudo chmod +x /usr/local/bin/$(WORKER_BINARY_NAME); \
+			echo "$(GREEN)✓ Installed $(WORKER_BINARY_NAME) to /usr/local/bin/$(WORKER_BINARY_NAME)$(NC)"; \
 		else \
 			echo "$(YELLOW)⚠ No entrypoint binary found, run 'make build-entrypoint' or 'make build-entrypoint-all' first$(NC)"; \
 		fi; \
@@ -264,21 +264,21 @@ install-linux: ## Install on Linux
 	sudo chmod +x /usr/local/bin/$(BINARY_NAME); \
 	echo "$(GREEN)✓ Installed $(BINARY_NAME) to /usr/local/bin/$(BINARY_NAME)$(NC)"; \
 	\
-	ENTRYPOINT_BINARY="$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)-linux-$$GOARCH"; \
+	ENTRYPOINT_BINARY="$(BUILD_DIR)/$(WORKER_BINARY_NAME)-linux-$$GOARCH"; \
 	if [ -f "$$ENTRYPOINT_BINARY" ]; then \
-		sudo cp "$$ENTRYPOINT_BINARY" /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
-		sudo chmod +x /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
-		echo "$(GREEN)✓ Installed $(ENTRYPOINT_BINARY_NAME) to /usr/local/bin/$(ENTRYPOINT_BINARY_NAME)$(NC)"; \
-	elif [ -f "$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)" ]; then \
-		sudo cp "$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)" /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
-		sudo chmod +x /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
-		echo "$(GREEN)✓ Installed $(ENTRYPOINT_BINARY_NAME) to /usr/local/bin/$(ENTRYPOINT_BINARY_NAME)$(NC)"; \
+		sudo cp "$$ENTRYPOINT_BINARY" /usr/local/bin/$(WORKER_BINARY_NAME); \
+		sudo chmod +x /usr/local/bin/$(WORKER_BINARY_NAME); \
+		echo "$(GREEN)✓ Installed $(WORKER_BINARY_NAME) to /usr/local/bin/$(WORKER_BINARY_NAME)$(NC)"; \
+	elif [ -f "$(BUILD_DIR)/$(WORKER_BINARY_NAME)" ]; then \
+		sudo cp "$(BUILD_DIR)/$(WORKER_BINARY_NAME)" /usr/local/bin/$(WORKER_BINARY_NAME); \
+		sudo chmod +x /usr/local/bin/$(WORKER_BINARY_NAME); \
+		echo "$(GREEN)✓ Installed $(WORKER_BINARY_NAME) to /usr/local/bin/$(WORKER_BINARY_NAME)$(NC)"; \
 	else \
 		echo "$(YELLOW)⚠ No entrypoint binary found, run 'make build-entrypoint' or 'make build-entrypoint-all' first$(NC)"; \
 	fi
 
-install-entrypoints: ## Install entrypoint binaries for all platforms to /opt/autoteam/bin
-	@echo "$(BLUE)Installing entrypoint binaries for all platforms...$(NC)"
+install-workers: ## Install worker binaries for all platforms to /opt/autoteam/bin
+	@echo "$(BLUE)Installing worker binaries for all platforms...$(NC)"
 	@sudo mkdir -p /opt/autoteam/bin
 	@echo "$(BLUE)Installing entrypoint.sh script...$(NC)"
 	@sudo cp scripts/entrypoint.sh /opt/autoteam/bin/entrypoint.sh
@@ -287,8 +287,8 @@ install-entrypoints: ## Install entrypoint binaries for all platforms to /opt/au
 	@for platform in $(PLATFORMS); do \
 		GOOS=$$(echo $$platform | cut -d'/' -f1); \
 		GOARCH=$$(echo $$platform | cut -d'/' -f2); \
-		BINARY="$(BUILD_DIR)/$(ENTRYPOINT_BINARY_NAME)-$$GOOS-$$GOARCH"; \
-		TARGET="/opt/autoteam/bin/$(ENTRYPOINT_BINARY_NAME)-$$GOOS-$$GOARCH"; \
+		BINARY="$(BUILD_DIR)/$(WORKER_BINARY_NAME)-$$GOOS-$$GOARCH"; \
+		TARGET="/opt/autoteam/bin/$(WORKER_BINARY_NAME)-$$GOOS-$$GOARCH"; \
 		if [ -f "$$BINARY" ]; then \
 			sudo cp "$$BINARY" "$$TARGET"; \
 			sudo chmod +x "$$TARGET"; \
@@ -301,18 +301,18 @@ install-entrypoints: ## Install entrypoint binaries for all platforms to /opt/au
 
 # Uninstall target
 uninstall: ## Uninstall binaries from system
-	@echo "$(BLUE)Uninstalling $(BINARY_NAME) and $(ENTRYPOINT_BINARY_NAME)...$(NC)"
+	@echo "$(BLUE)Uninstalling $(BINARY_NAME) and $(WORKER_BINARY_NAME)...$(NC)"
 	@if [ -f "/usr/local/bin/$(BINARY_NAME)" ]; then \
 		sudo rm /usr/local/bin/$(BINARY_NAME); \
 		echo "$(GREEN)✓ Uninstalled $(BINARY_NAME) from /usr/local/bin/$(NC)"; \
 	else \
 		echo "$(YELLOW)! $(BINARY_NAME) not found in /usr/local/bin/$(NC)"; \
 	fi
-	@if [ -f "/usr/local/bin/$(ENTRYPOINT_BINARY_NAME)" ]; then \
-		sudo rm /usr/local/bin/$(ENTRYPOINT_BINARY_NAME); \
-		echo "$(GREEN)✓ Uninstalled $(ENTRYPOINT_BINARY_NAME) from /usr/local/bin/$(NC)"; \
+	@if [ -f "/usr/local/bin/$(WORKER_BINARY_NAME)" ]; then \
+		sudo rm /usr/local/bin/$(WORKER_BINARY_NAME); \
+		echo "$(GREEN)✓ Uninstalled $(WORKER_BINARY_NAME) from /usr/local/bin/$(NC)"; \
 	else \
-		echo "$(YELLOW)! $(ENTRYPOINT_BINARY_NAME) not found in /usr/local/bin/$(NC)"; \
+		echo "$(YELLOW)! $(WORKER_BINARY_NAME) not found in /usr/local/bin/$(NC)"; \
 	fi
 	@if [ -d "/opt/autoteam/bin" ]; then \
 		sudo rm -rf /opt/autoteam/bin; \
@@ -324,7 +324,7 @@ uninstall: ## Uninstall binaries from system
 # Generate checksums for build artifacts
 checksums: build-all ## Generate SHA256 checksums for all build artifacts
 	@echo "$(BLUE)Generating checksums...$(NC)"
-	@cd $(BUILD_DIR) && find . -name "$(BINARY_NAME)*" -o -name "$(ENTRYPOINT_BINARY_NAME)*" | xargs shasum -a 256 > checksums.txt
+	@cd $(BUILD_DIR) && find . -name "$(BINARY_NAME)*" -o -name "$(WORKER_BINARY_NAME)*" | xargs shasum -a 256 > checksums.txt
 	@echo "$(GREEN)✓ Checksums generated in $(BUILD_DIR)/checksums.txt$(NC)"
 
 # Verify build artifacts

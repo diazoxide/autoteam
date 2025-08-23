@@ -1,7 +1,7 @@
 # Multi-Role Team Configuration
 # Comprehensive example with multiple specialized agents
 
-agents:
+workers:
   - name: "developer"
     prompt: |
       You are a senior developer responsible for feature implementation.
@@ -49,7 +49,7 @@ settings:
     volumes:
       - "./shared-configs:/app/configs"
   team_name: "enterprise-team"
-  check_interval: 45
+  sleep_duration: 45
   install_deps: true
   
   # Two-Layer Architecture

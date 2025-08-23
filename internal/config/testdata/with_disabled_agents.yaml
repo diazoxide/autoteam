@@ -1,4 +1,4 @@
-agents:
+workers:
   - name: "dev1"
     prompt: "You are a developer agent"
     enabled: true
@@ -25,7 +25,7 @@ settings:
   service:
     image: "node:18.17.1"
     user: "developer"
-  check_interval: 60
+  sleep_duration: 60
   team_name: "test-team"
   install_deps: true
   flow:

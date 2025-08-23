@@ -1,4 +1,4 @@
-agents:
+workers:
   - name: "dev1"
     prompt: "You are a developer agent"
     settings:
@@ -16,15 +16,15 @@ settings:
   service:
     image: "node:18.17.1"
     user: "developer"
-  check_interval: 60
+  sleep_duration: 60
   team_name: "test-team"
   install_deps: true
   common_prompt: "Follow best practices"
   flow:
     - name: collector
       type: gemini
-      prompt: "Collect tasks"
+      input: "Collect tasks"
     - name: executor
       type: claude
       depends_on: [collector]
-      prompt: "Execute tasks"
+      input: "Execute tasks"
