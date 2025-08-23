@@ -2,14 +2,13 @@ package agent
 
 import (
 	"autoteam/internal/config"
-	"autoteam/internal/entrypoint"
 	"context"
 	"fmt"
 )
 
 // DebugAgent implements the Agent interface for debugging purposes
 type DebugAgent struct {
-	config     entrypoint.AgentConfig
+	name       string
 	mcpServers map[string]config.MCPServer
 	args       []string
 	env        map[string]string
@@ -18,9 +17,7 @@ type DebugAgent struct {
 // NewDebugAgent creates a new Debug agent instance
 func NewDebugAgent(name string, args []string, env map[string]string, mcpServers map[string]config.MCPServer) Agent {
 	return &DebugAgent{
-		config: entrypoint.AgentConfig{
-			Name: name,
-		},
+		name:       name,
 		mcpServers: mcpServers,
 		args:       args,
 		env:        env,
@@ -29,7 +26,7 @@ func NewDebugAgent(name string, args []string, env map[string]string, mcpServers
 
 // Name returns the agent name
 func (d *DebugAgent) Name() string {
-	return d.config.Name
+	return d.name
 }
 
 // Type returns the agent type
@@ -40,7 +37,7 @@ func (d *DebugAgent) Type() string {
 // Run executes the debug agent with the given prompt
 func (d *DebugAgent) Run(ctx context.Context, prompt string, options RunOptions) (*AgentOutput, error) {
 	return &AgentOutput{
-		Stdout: fmt.Sprintf("Debug agent '%s' executed with prompt: %s", d.config.Name, prompt),
+		Stdout: fmt.Sprintf("Debug agent '%s' executed with prompt: %s", d.name, prompt),
 		Stderr: "",
 	}, nil
 }

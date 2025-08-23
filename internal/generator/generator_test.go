@@ -100,7 +100,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 	// Verify environment variables are set correctly
 	// The YAML unmarshaling converts environment to map[string]interface{}
 	dev1EnvInterface := dev1Service["environment"].(map[string]interface{})
-	expectedConfigFile := "/opt/autoteam/agents/dev1/config.yaml"
+	expectedConfigFile := "/opt/autoteam/workers/dev1/config.yaml"
 	if dev1EnvInterface["CONFIG_FILE"] != expectedConfigFile {
 		t.Errorf("dev1 environment should contain CONFIG_FILE=%s, got %v", expectedConfigFile, dev1EnvInterface["CONFIG_FILE"])
 	}
@@ -116,7 +116,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 		if strings.Contains(volStr, "./shared:/app/shared") {
 			hasSharedVolume = true
 		}
-		if strings.Contains(volStr, "dev1:/opt/autoteam/agents/dev1") {
+		if strings.Contains(volStr, "dev1:/opt/autoteam/workers/dev1") {
 			hasWorkerVolume = true
 		}
 	}
@@ -134,8 +134,8 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 
 	// Verify worker directories were created
 	agentDirs := []string{
-		".autoteam/agents/dev1",
-		".autoteam/agents/arch1",
+		".autoteam/workers/dev1",
+		".autoteam/workers/arch1",
 	}
 
 	for _, dir := range agentDirs {
@@ -173,8 +173,8 @@ func TestGenerator_CreateWorkerDirectories(t *testing.T) {
 
 	// Verify directories were created
 	expectedDirs := []string{
-		".autoteam/agents/test1",
-		".autoteam/agents/test2",
+		".autoteam/workers/test1",
+		".autoteam/workers/test2",
 	}
 
 	for _, dir := range expectedDirs {

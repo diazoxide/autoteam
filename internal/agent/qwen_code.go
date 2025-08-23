@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"autoteam/internal/config"
-	"autoteam/internal/entrypoint"
 	"autoteam/internal/logger"
 	"autoteam/internal/server"
 
@@ -20,7 +19,7 @@ import (
 
 // QwenCode implements the Agent interface for Qwen Code
 type QwenCode struct {
-	config     entrypoint.AgentConfig
+	name       string
 	binaryPath string
 	mcpServers map[string]config.MCPServer
 	agentArgs  []string
@@ -30,9 +29,7 @@ type QwenCode struct {
 // NewQwenCode creates a new Qwen agent instance
 func NewQwenCode(name string, args []string, env map[string]string, mcpServers map[string]config.MCPServer) *QwenCode {
 	return &QwenCode{
-		config: entrypoint.AgentConfig{
-			Name: name,
-		},
+		name:       name,
 		binaryPath: "qwen", // Will be found in PATH after npm installation
 		mcpServers: mcpServers,
 		agentArgs:  args,
@@ -42,7 +39,7 @@ func NewQwenCode(name string, args []string, env map[string]string, mcpServers m
 
 // Name returns the agent name
 func (q *QwenCode) Name() string {
-	return q.config.Name
+	return q.name
 }
 
 // Type returns the agent type
@@ -73,7 +70,7 @@ func (q *QwenCode) Run(ctx context.Context, prompt string, options RunOptions) (
 		cmd.Dir = options.WorkingDirectory
 	} else {
 		// Use agent directory where .qwen/settings.json is located
-		cmd.Dir = fmt.Sprintf("/opt/autoteam/agents/%s", q.config.Name)
+		cmd.Dir = fmt.Sprintf("/opt/autoteam/workers/%s", q.name)
 	}
 
 	cmd.Stdout = &stdout
@@ -162,7 +159,7 @@ func (q *QwenCode) ConfigureForProject(ctx context.Context, projectPath string) 
 		return nil
 	}
 
-	lgr.Info("Configuring MCP servers for Qwen", zap.Int("count", len(q.mcpServers)), zap.String("agent", q.config.Name))
+	lgr.Info("Configuring MCP servers for Qwen", zap.Int("count", len(q.mcpServers)), zap.String("agent", q.name))
 
 	// Create dedicated MCP configuration file for this agent
 	if err := q.createMCPConfigFile(ctx); err != nil {
@@ -178,7 +175,7 @@ func (q *QwenCode) ConfigureForProject(ctx context.Context, projectPath string) 
 func (q *QwenCode) getMCPConfigPath() string {
 	// Use the agent name as passed from the factory (already normalized with variations)
 	// Don't re-normalize as it would convert senior_developer/collector back to senior_developer_collector
-	return fmt.Sprintf("/opt/autoteam/agents/%s/.qwen/settings.json", q.config.Name)
+	return fmt.Sprintf("/opt/autoteam/workers/%s/.qwen/settings.json", q.name)
 }
 
 // createMCPConfigFile creates the MCP configuration file for this agent

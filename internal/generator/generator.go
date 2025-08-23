@@ -6,10 +6,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"autoteam/internal/config"
-	"autoteam/internal/entrypoint"
 	"autoteam/internal/ports"
 
 	"gopkg.in/yaml.v3"
@@ -34,11 +32,11 @@ func New() *Generator {
 // normalizeEnvironmentValue replaces AutoTeam placeholder variables with actual runtime values.
 // Supported placeholders:
 //   - ${AUTOTEAM_AGENT_NAME} -> actual agent name (e.g., "Senior Developer")
-//   - ${AUTOTEAM_AGENT_DIR}  -> agent directory path (e.g., "/opt/autoteam/agents/senior_developer")
+//   - ${AUTOTEAM_WORKER_DIR}  -> agent directory path (e.g., "/opt/autoteam/workers/senior_developer")
 //   - ${AUTOTEAM_AGENT_NORMALIZED_NAME} -> normalized agent name (e.g., "senior_developer")
 func (g *Generator) normalizeEnvironmentValue(value string, worker config.Worker) string {
 	value = strings.ReplaceAll(value, "${AUTOTEAM_AGENT_NAME}", worker.Name)
-	value = strings.ReplaceAll(value, "${AUTOTEAM_AGENT_DIR}", worker.GetWorkerDir())
+	value = strings.ReplaceAll(value, "${AUTOTEAM_WORKER_DIR}", worker.GetWorkerDir())
 	value = strings.ReplaceAll(value, "${AUTOTEAM_AGENT_NORMALIZED_NAME}", worker.GetNormalizedName())
 	return value
 }
@@ -106,7 +104,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 
 		// Build volumes array
 		volumes := []string{
-			fmt.Sprintf("./agents/%s:%s", serviceName, worker.GetWorkerDir()),
+			fmt.Sprintf("./workers/%s:%s", serviceName, worker.GetWorkerDir()),
 			"./bin:/opt/autoteam/bin",
 		}
 
@@ -133,7 +131,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 
 		// Set AutoTeam worker runtime variables with consistent AUTOTEAM_ prefix
 		environment["AUTOTEAM_AGENT_NAME"] = worker.Name
-		environment["AUTOTEAM_AGENT_DIR"] = worker.GetWorkerDir()
+		environment["AUTOTEAM_WORKER_DIR"] = worker.GetWorkerDir()
 		environment["AUTOTEAM_AGENT_NORMALIZED_NAME"] = worker.GetNormalizedName()
 
 		// Keep some optional runtime variables that can be overridden
@@ -225,9 +223,9 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 }
 
 func (g *Generator) copyBinDirectory() error {
-	// Ensure agents directory exists
-	if err := g.fileOps.EnsureDirectory(config.AgentsDir, config.DirPerm); err != nil {
-		return fmt.Errorf("failed to create agents directory: %w", err)
+	// Ensure workers directory exists
+	if err := g.fileOps.EnsureDirectory(config.WorkersDir, config.DirPerm); err != nil {
+		return fmt.Errorf("failed to create workers directory: %w", err)
 	}
 
 	// Remove existing directory if it exists
@@ -258,7 +256,7 @@ This directory should contain all AutoTeam binaries including:
 
 To install the binaries system-wide, run:
 ` + "```bash" + `
-autoteam --install-entrypoints
+make install
 ` + "```" + `
 
 This will:
@@ -344,38 +342,25 @@ func (g *Generator) generateAgentConfigFiles(cfg *config.Config) error {
 		workerWithSettings := &config.WorkerWithSettings{Worker: worker, Settings: settings}
 		serviceName := worker.GetNormalizedName()
 
-		// Build the entrypoint config
-		entrypointConfig := &entrypoint.Config{
-			Agent: entrypoint.AgentConfig{
-				Name:   worker.Name,
-				Type:   "flow",
-				Prompt: workerWithSettings.GetConsolidatedPrompt(cfg),
-			},
-			TeamName: settings.GetTeamName(),
-			Monitoring: entrypoint.MonitoringConfig{
-				SleepDuration: time.Duration(settings.GetSleepDuration()) * time.Second,
-				MaxRetries:    100, // Default value
-			},
-			Dependencies: entrypoint.DependenciesConfig{
-				InstallDeps: true, // Default value
-			},
-			MCPServers: settings.MCPServers,
-			Hooks:      settings.Hooks,
-			Flow:       settings.Flow,
-			Debug:      false, // Default value
+		// Build the worker config (now we generate worker config directly)
+		workerConfig := &config.Worker{
+			Name:       worker.Name,
+			Prompt:     workerWithSettings.GetConsolidatedPrompt(cfg),
+			Settings:   &settings,
+			MCPServers: worker.MCPServers,
 		}
 
-		// Create agent config directory
-		agentDir := filepath.Join(config.AgentsDir, serviceName)
-		if err := os.MkdirAll(agentDir, 0755); err != nil {
-			return fmt.Errorf("failed to create agent config directory %s: %w", agentDir, err)
+		// Create worker config directory
+		workerDir := filepath.Join(config.WorkersDir, serviceName)
+		if err := os.MkdirAll(workerDir, 0755); err != nil {
+			return fmt.Errorf("failed to create worker config directory %s: %w", workerDir, err)
 		}
 
 		// Write config file
-		configPath := filepath.Join(agentDir, "config.yaml")
-		configData, err := yaml.Marshal(entrypointConfig)
+		configPath := filepath.Join(workerDir, "config.yaml")
+		configData, err := yaml.Marshal(workerConfig)
 		if err != nil {
-			return fmt.Errorf("failed to marshal config for agent %s: %w", worker.Name, err)
+			return fmt.Errorf("failed to marshal config for worker %s: %w", worker.Name, err)
 		}
 
 		if err := os.WriteFile(configPath, configData, 0644); err != nil {

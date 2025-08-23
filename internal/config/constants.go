@@ -11,8 +11,8 @@ const (
 	// LocalBinPath is the local path where binaries are copied during generation
 	LocalBinPath = AutoTeamDir + "/bin"
 
-	// AgentsDir is the base directory for all agent-specific directories
-	AgentsDir = AutoTeamDir + "/agents"
+	// WorkersDir is the base directory for all worker-specific directories
+	WorkersDir = AutoTeamDir + "/workers"
 
 	// CodebaseSubdir is the subdirectory name for agent codebase
 	CodebaseSubdir = "codebase"

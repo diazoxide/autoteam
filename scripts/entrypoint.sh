@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # AutoTeam Universal Container Entrypoint
-# This script handles platform detection and entrypoint binary execution
+# This script handles platform detection and worker binary execution
 
 set -e  # Exit on any error
 
@@ -11,7 +11,7 @@ echo "Repositories Include: ${REPOSITORIES_INCLUDE:-none}"
 echo "Repositories Exclude: ${REPOSITORIES_EXCLUDE:-none}"
 echo "Current working directory: $(pwd)"
 echo "Available environment variables:"
-printenv | grep -E "(GH_|GITHUB_|AGENT_|TEAM_|CHECK_|INSTALL_|ENTRYPOINT_|MAX_|DEBUG|REPOSITORIES_)" | sort || true
+printenv | grep -E "(GH_|GITHUB_|AGENT_|TEAM_|CHECK_|INSTALL_|WORKER_|AUTOTEAM_|MAX_|DEBUG|REPOSITORIES_)" | sort || true
 echo "================================="
 
 # Detect container platform
@@ -32,37 +32,37 @@ case "$CONTAINER_ARCH" in
 esac
 
 PLATFORM="${CONTAINER_OS}-${CONTAINER_ARCH}"
-ENTRYPOINT_BINARY="/opt/autoteam/bin/autoteam-entrypoint-${PLATFORM}"
+WORKER_BINARY="/opt/autoteam/bin/autoteam-worker-${PLATFORM}"
 
 echo "📦 Detected platform: ${PLATFORM}"
-echo "🔍 Looking for entrypoint binary: ${ENTRYPOINT_BINARY}"
+echo "🔍 Looking for worker binary: ${WORKER_BINARY}"
 
-# Check if system-installed entrypoint binary exists
-if [ -f "$ENTRYPOINT_BINARY" ] && [ -x "$ENTRYPOINT_BINARY" ]; then
-  echo "📥 Using system-installed entrypoint binary..."
-  ls -la "$ENTRYPOINT_BINARY"
-  cp "$ENTRYPOINT_BINARY" /tmp/autoteam-entrypoint
-  chmod +x /tmp/autoteam-entrypoint
+# Check if system-installed worker binary exists
+if [ -f "$WORKER_BINARY" ] && [ -x "$WORKER_BINARY" ]; then
+  echo "📥 Using system-installed worker binary..."
+  ls -la "$WORKER_BINARY"
+  cp "$WORKER_BINARY" /tmp/autoteam-worker
+  chmod +x /tmp/autoteam-worker
   echo "✅ System binary copied successfully"
 else
-  echo "❌ System entrypoint binary not found for platform ${PLATFORM}"
-  echo "💡 Run 'autoteam --install-entrypoints' on the host to install entrypoint binaries"
-  echo "📁 Expected location: ${ENTRYPOINT_BINARY}"
+  echo "❌ System worker binary not found for platform ${PLATFORM}"
+  echo "💡 Run 'autoteam --install-workers' on the host to install worker binaries"
+  echo "📁 Expected location: ${WORKER_BINARY}"
   exit 1
 fi
 
 # Verify binary is executable
-if [ -x "/tmp/autoteam-entrypoint" ]; then
+if [ -x "/tmp/autoteam-worker" ]; then
   echo "✅ Binary is executable"
-  /tmp/autoteam-entrypoint --version || echo "Version check failed, but continuing..."
+  /tmp/autoteam-worker --version || echo "Version check failed, but continuing..."
 else
   echo "❌ Binary is not executable"
-  ls -la /tmp/autoteam-entrypoint
+  ls -la /tmp/autoteam-worker
   exit 1
 fi
 
-echo "=== Starting autoteam-entrypoint ==="
+echo "=== Starting autoteam-worker ==="
 echo "Configuration will be read from environment variables"
 
-# Execute the entrypoint
-exec /tmp/autoteam-entrypoint
+# Execute the worker
+exec /tmp/autoteam-worker
