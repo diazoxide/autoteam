@@ -167,6 +167,14 @@ jobs:
       run: |
         # Test generate command with created config
         ./build/autoteam generate
+        echo "=== Debug: checking generated files ==="
+        ls -la .autoteam/ || echo "No .autoteam directory"
+        ls -la .autoteam/bin/ || echo "No .autoteam/bin directory"
+        echo "=== Testing file existence ==="
+        test -f .autoteam/compose.yaml && echo "✓ compose.yaml exists" || echo "✗ compose.yaml missing"
+        test -d .autoteam/workers && echo "✓ workers directory exists" || echo "✗ workers directory missing"  
+        test -f .autoteam/bin/entrypoint.sh && echo "✓ entrypoint.sh exists" || echo "✗ entrypoint.sh missing"
+        # Final test that will fail if any file is missing
         test -f .autoteam/compose.yaml
         test -d .autoteam/workers
         test -f .autoteam/bin/entrypoint.sh
