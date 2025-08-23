@@ -55,10 +55,8 @@ func (m *Monitor) Start(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
 
 	lgr.Info("Starting flow-based agent monitor",
-		zap.Duration("sleep_duration", m.config.SleepDuration),
+		zap.Duration("cycle_interval", m.config.SleepDuration),
 		zap.Int("flow_steps", len(m.flowSteps)))
-
-	lgr.Info("Starting flow processing loop: dynamic dependency-based execution")
 
 	// Start HTTP API server if supported
 	if err := m.startHTTPServer(ctx); err != nil {
@@ -70,7 +68,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 		// Check for cancellation before starting cycle
 		select {
 		case <-ctx.Done():
-			lgr.Info("Monitor shutting down due to context cancellation")
+			lgr.Info("Monitor shutting down gracefully")
 
 			// Stop HTTP server
 			if err := m.stopHTTPServer(ctx); err != nil {
@@ -84,7 +82,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 		// Execute flow processing cycle
 		cycleStart := time.Now()
 		if err := m.processFlowCycle(ctx); err != nil {
-			lgr.Warn("Failed to process flow cycle", zap.Error(err))
+			lgr.Error("Flow cycle failed", zap.Error(err), zap.String("error_type", fmt.Sprintf("%T", err)))
 		}
 		cycleEnd := time.Now()
 		executionDuration := cycleEnd.Sub(cycleStart)
@@ -99,7 +97,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 
 		select {
 		case <-ctx.Done():
-			lgr.Info("Monitor shutting down during sleep interval")
+			lgr.Info("Monitor shutting down gracefully")
 
 			// Stop HTTP server
 			if err := m.stopHTTPServer(ctx); err != nil {
@@ -116,7 +114,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 // processFlowCycle executes one cycle of the flow-based architecture
 func (m *Monitor) processFlowCycle(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
-	lgr.Debug("Starting flow processing cycle")
+	lgr.Debug("Processing flow cycle")
 
 	// Execute the flow
 	result, err := m.flowExecutor.Execute(ctx)
@@ -132,8 +130,9 @@ func (m *Monitor) processFlowCycle(ctx context.Context) error {
 		return result.Error
 	}
 
-	lgr.Info("Flow execution completed successfully",
-		zap.Int("steps_executed", len(result.Steps)))
+	lgr.Info("Flow cycle completed",
+		zap.Int("steps_executed", len(result.Steps)),
+		zap.Bool("success", true))
 
 	// Log step outputs for debugging
 	for _, stepOutput := range result.Steps {
@@ -157,7 +156,7 @@ func (m *Monitor) startHTTPServer(ctx context.Context) error {
 func (m *Monitor) stopHTTPServer(ctx context.Context) error {
 	if m.httpServer != nil && m.httpServer.IsRunning() {
 		lgr := logger.FromContext(ctx)
-		lgr.Info("Stopping HTTP API server")
+		lgr.Debug("Stopping HTTP API server")
 		return m.httpServer.Stop(ctx)
 	}
 	return nil

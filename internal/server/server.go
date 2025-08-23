@@ -150,7 +150,7 @@ func (s *Server) Start(ctx context.Context) error {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	lgr.Info("Starting HTTP API server",
+	lgr.Debug("Starting HTTP API server",
 		zap.String("agent", s.agent.Name()),
 		zap.String("type", s.agent.Type()),
 		zap.Int("port", s.port),
@@ -174,7 +174,7 @@ func (s *Server) Stop(ctx context.Context) error {
 		return nil
 	}
 
-	lgr.Info("Stopping HTTP API server",
+	lgr.Debug("Stopping HTTP API server",
 		zap.String("agent", s.agent.Name()),
 		zap.Int("port", s.port))
 
@@ -187,7 +187,7 @@ func (s *Server) Stop(ctx context.Context) error {
 		return err
 	}
 
-	lgr.Info("HTTP API server stopped successfully")
+	lgr.Debug("HTTP API server stopped")
 	return nil
 }
 

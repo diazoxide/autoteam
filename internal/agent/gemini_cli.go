@@ -61,10 +61,9 @@ func (q *GeminiCli) Run(ctx context.Context, prompt string, options RunOptions) 
 		args = append(args, "--continue")
 	}
 
-	// Log the full prompt being sent for debugging
-	lgr.Info("Sending full prompt to Gemini",
-		zap.String("prompt_length", fmt.Sprintf("%d chars", len(prompt))),
-		zap.String("full_prompt", prompt))
+	// Log prompt details for debugging
+	lgr.Debug("Sending prompt to Gemini",
+		zap.Int("prompt_length", len(prompt)))
 
 	// Prepare output capture buffers
 	var stdout, stderr bytes.Buffer
@@ -81,8 +80,8 @@ func (q *GeminiCli) Run(ctx context.Context, prompt string, options RunOptions) 
 	}
 
 	// Log execution details for debugging
-	lgr.Info("Executing Gemini CLI",
-		zap.String("binary_path", q.binaryPath),
+	lgr.Debug("Executing Gemini CLI",
+		zap.String("binary", q.binaryPath),
 		zap.Strings("args", args),
 		zap.String("working_dir", cmd.Dir))
 
@@ -119,13 +118,13 @@ func (q *GeminiCli) IsAvailable(ctx context.Context) bool {
 // CheckAvailability checks if Gemini CLI is available, returns error if not found
 func (q *GeminiCli) CheckAvailability(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
-	lgr.Info("Checking Gemini CLI availability")
+	lgr.Debug("Checking Gemini CLI availability")
 
 	if !q.IsAvailable(ctx) {
 		return fmt.Errorf("gemini command not found - please install Gemini CLI using: npm install -g @google/gemini-cli")
 	}
 
-	lgr.Info("Gemini CLI is available")
+	lgr.Debug("Gemini CLI is available")
 	return nil
 }
 
@@ -167,14 +166,14 @@ func (q *GeminiCli) ConfigureForProject(ctx context.Context, projectPath string)
 		return nil
 	}
 
-	lgr.Info("Configuring MCP servers for Gemini", zap.Int("count", len(q.mcpServers)), zap.String("agent", q.config.Name))
+	lgr.Debug("Configuring MCP servers for Gemini", zap.Int("count", len(q.mcpServers)), zap.String("agent", q.config.Name))
 
 	// Create dedicated MCP configuration file for this agent
 	if err := q.createMCPConfigFile(ctx); err != nil {
 		return fmt.Errorf("failed to create MCP configuration file: %w", err)
 	}
 
-	lgr.Info("MCP servers configured successfully for Gemini")
+	lgr.Debug("MCP servers configured successfully for Gemini")
 	return nil
 }
 
@@ -191,7 +190,7 @@ func (q *GeminiCli) createMCPConfigFile(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
 
 	mcpConfigPath := q.getMCPConfigPath()
-	lgr.Info("Creating MCP configuration file for Gemini", zap.String("path", mcpConfigPath))
+	lgr.Debug("Creating MCP configuration file for Gemini", zap.String("path", mcpConfigPath))
 
 	// Ensure the directory exists
 	if err := os.MkdirAll(filepath.Dir(mcpConfigPath), 0755); err != nil {
@@ -241,7 +240,7 @@ func (q *GeminiCli) createMCPConfigFile(ctx context.Context) error {
 		return fmt.Errorf("failed to write Gemini config file: %w", err)
 	}
 
-	lgr.Info("MCP configuration file created successfully for Gemini",
+	lgr.Debug("MCP configuration file created for Gemini",
 		zap.String("path", mcpConfigPath),
 		zap.Int("mcp_servers", len(q.mcpServers)))
 

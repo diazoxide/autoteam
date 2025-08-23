@@ -52,7 +52,7 @@ func New(steps []config.FlowStep, mcpServers map[string]config.MCPServer, workin
 // Execute runs the flow with dependency resolution and parallel execution
 func (fe *FlowExecutor) Execute(ctx context.Context) (*FlowResult, error) {
 	lgr := logger.FromContext(ctx)
-	lgr.Info("Starting flow execution", zap.Int("total_steps", len(fe.steps)))
+	lgr.Debug("Starting flow execution", zap.Int("total_steps", len(fe.steps)))
 
 	// Validate flow configuration
 	if err := fe.validateFlow(); err != nil {
@@ -65,7 +65,7 @@ func (fe *FlowExecutor) Execute(ctx context.Context) (*FlowResult, error) {
 		return nil, fmt.Errorf("dependency resolution failed: %w", err)
 	}
 
-	lgr.Info("Flow dependency resolution completed",
+	lgr.Debug("Flow dependency resolution completed",
 		zap.Int("levels", len(dependencyLevels)),
 		zap.Any("execution_levels", dependencyLevels))
 
@@ -80,10 +80,10 @@ func (fe *FlowExecutor) Execute(ctx context.Context) (*FlowResult, error) {
 	var allStepOutputs []StepOutput
 
 	for levelIndex, level := range dependencyLevels {
-		lgr.Info("Starting execution level",
-			zap.Int("level_index", levelIndex),
-			zap.Strings("steps", level),
-			zap.Int("parallel_steps", len(level)))
+		lgr.Debug("Processing execution level",
+			zap.Int("level", levelIndex+1),
+			zap.Int("total_levels", len(dependencyLevels)),
+			zap.Strings("steps", level))
 
 		// Execute all steps in this level in parallel
 		levelOutputs, err := fe.executeLevel(ctx, level, stepOutputs, &stepOutputsMutex)
@@ -101,12 +101,12 @@ func (fe *FlowExecutor) Execute(ctx context.Context) (*FlowResult, error) {
 		allStepOutputs = append(allStepOutputs, levelOutputs...)
 		stepOutputsMutex.Unlock()
 
-		lgr.Info("Level execution completed",
-			zap.Int("level_index", levelIndex),
+		lgr.Debug("Level execution completed",
+			zap.Int("level", levelIndex+1),
 			zap.Int("steps_completed", len(levelOutputs)))
 	}
 
-	lgr.Info("Flow execution completed successfully", zap.Int("steps_executed", len(allStepOutputs)))
+	lgr.Info("Flow execution completed", zap.Int("steps_executed", len(allStepOutputs)), zap.Bool("success", true))
 	return &FlowResult{Steps: allStepOutputs, Success: true}, nil
 }
 
@@ -126,7 +126,7 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 			return nil, fmt.Errorf("step not found: %s", stepName)
 		}
 
-		lgr.Info("Executing single step", zap.String("step_name", step.Name))
+		lgr.Debug("Executing single step", zap.String("step_name", step.Name))
 
 		stepOutputsMutex.RLock()
 		stepOutputsCopy := make(map[string]StepOutput)
@@ -144,7 +144,7 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 	}
 
 	// For multiple steps, execute in parallel
-	lgr.Info("Executing parallel steps", zap.Strings("steps", stepNames))
+	lgr.Debug("Executing parallel steps", zap.Int("count", len(stepNames)), zap.Strings("steps", stepNames))
 
 	type stepResult struct {
 		output StepOutput
@@ -169,7 +169,7 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 				return
 			}
 
-			lgr.Info("Starting parallel step execution", zap.String("step_name", step.Name))
+			lgr.Debug("Starting parallel step", zap.String("step_name", step.Name))
 
 			// Create a copy of stepOutputs for thread safety
 			stepOutputsMutex.RLock()
@@ -182,9 +182,10 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 			// Execute the step
 			output, err := fe.executeStep(ctx, *step, stepOutputsCopy)
 			if err != nil {
-				lgr.Error("Parallel step execution failed",
+				lgr.Error("Step failed in parallel execution",
 					zap.String("step_name", step.Name),
-					zap.Error(err))
+					zap.Error(err),
+					zap.String("error_type", fmt.Sprintf("%T", err)))
 				resultChan <- stepResult{
 					output: StepOutput{Name: step.Name, Stdout: "", Stderr: err.Error()},
 					err:    err,
@@ -192,9 +193,9 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 				return
 			}
 
-			lgr.Info("Parallel step execution completed",
+			lgr.Debug("Parallel step completed",
 				zap.String("step_name", step.Name),
-				zap.Int("stdout_length", len(output.Stdout)))
+				zap.Int("output_size", len(output.Stdout)))
 
 			resultChan <- stepResult{output: *output, err: nil}
 		}(stepName)
@@ -344,7 +345,7 @@ func (fe *FlowExecutor) createAgents(ctx context.Context) error {
 
 		// Configure MCP servers if the agent supports configuration
 		if configurable, ok := stepAgent.(agent.Configurable); ok {
-			lgr.Info("Configuring MCP servers for agent",
+			lgr.Debug("Configuring MCP servers for agent",
 				zap.String("step_name", step.Name),
 				zap.String("agent_type", step.Type),
 				zap.Int("mcp_servers", len(fe.mcpServers)))
@@ -353,7 +354,7 @@ func (fe *FlowExecutor) createAgents(ctx context.Context) error {
 				return fmt.Errorf("failed to configure MCP servers for step %s: %w", step.Name, err)
 			}
 
-			lgr.Info("MCP servers configured successfully for agent",
+			lgr.Debug("MCP servers configured successfully",
 				zap.String("step_name", step.Name))
 		} else {
 			lgr.Debug("Agent does not support MCP configuration",
@@ -361,7 +362,7 @@ func (fe *FlowExecutor) createAgents(ctx context.Context) error {
 				zap.String("agent_type", step.Type))
 		}
 
-		lgr.Info("Created agent for flow step",
+		lgr.Debug("Agent created for step",
 			zap.String("step_name", step.Name),
 			zap.String("agent_type", step.Type))
 	}
@@ -380,9 +381,9 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 	}
 
 	if shouldSkip {
-		lgr.Info("Skipping step due to skip condition",
+		lgr.Info("Step skipped",
 			zap.String("step_name", step.Name),
-			zap.String("skip_when", step.SkipWhen))
+			zap.String("skip_condition", step.SkipWhen))
 
 		// Return empty output for skipped step
 		return &StepOutput{
@@ -423,10 +424,13 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 		}
 	}
 
-	// Log step input for debugging
-	lgr.Info("Starting step execution",
+	// Log step execution start
+	lgr.Info("Executing step",
 		zap.String("step_name", step.Name),
-		zap.String("agent_type", step.Type),
+		zap.String("agent_type", step.Type))
+	
+	lgr.Debug("Step prompt details",
+		zap.String("step_name", step.Name),
 		zap.String("prompt", prompt))
 
 	// Set up run options
@@ -442,12 +446,12 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 		return nil, fmt.Errorf("agent execution failed for step %s: %w", step.Name, err)
 	}
 
-	// Log raw agent output for debugging
-	lgr.Info("Agent execution completed",
+	// Log agent completion
+	lgr.Debug("Agent execution completed",
 		zap.String("step_name", step.Name),
 		zap.String("agent_type", step.Type),
-		zap.String("raw_stdout", output.Stdout),
-		zap.String("raw_stderr", output.Stderr))
+		zap.Int("stdout_length", len(output.Stdout)),
+		zap.Int("stderr_length", len(output.Stderr)))
 
 	// Apply output transformer if specified
 	stdout := output.Stdout
@@ -465,17 +469,16 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 				zap.Error(err))
 		} else {
 			stdout = transformedOutput
-			lgr.Info("Output transformed successfully",
+			lgr.Debug("Output transformed",
 				zap.String("step_name", step.Name),
-				zap.String("transformed_output", stdout))
+				zap.Int("output_length", len(stdout)))
 		}
 	}
 
-	// Log final step output
-	lgr.Info("Step execution finished",
+	// Log step completion
+	lgr.Info("Step completed",
 		zap.String("step_name", step.Name),
-		zap.String("final_stdout", stdout),
-		zap.String("final_stderr", output.Stderr))
+		zap.Bool("success", true))
 
 	return &StepOutput{
 		Name:   step.Name,
@@ -530,10 +533,10 @@ func (fe *FlowExecutor) evaluateSkipCondition(ctx context.Context, step config.F
 	// Trim whitespace and check if result is "true"
 	shouldSkip := strings.TrimSpace(result) == "true"
 
-	lgr.Info("Skip condition evaluated",
+	lgr.Debug("Skip condition evaluated",
 		zap.String("step_name", step.Name),
-		zap.String("condition_result", result),
-		zap.Bool("should_skip", shouldSkip))
+		zap.String("result", result),
+		zap.Bool("will_skip", shouldSkip))
 
 	return shouldSkip, nil
 }

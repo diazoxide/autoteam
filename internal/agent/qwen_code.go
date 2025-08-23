@@ -115,13 +115,13 @@ func (q *QwenCode) IsAvailable(ctx context.Context) bool {
 // CheckAvailability checks if Qwen Code is available, returns error if not found
 func (q *QwenCode) CheckAvailability(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
-	lgr.Info("Checking Qwen Code availability")
+	lgr.Debug("Checking Qwen Code availability")
 
 	if !q.IsAvailable(ctx) {
 		return fmt.Errorf("qwen command not found - please install Qwen Code using: npm install -g @qwen-code/qwen-code@latest")
 	}
 
-	lgr.Info("Qwen Code is available")
+	lgr.Debug("Qwen Code is available")
 	return nil
 }
 
@@ -162,14 +162,14 @@ func (q *QwenCode) ConfigureForProject(ctx context.Context, projectPath string) 
 		return nil
 	}
 
-	lgr.Info("Configuring MCP servers for Qwen", zap.Int("count", len(q.mcpServers)), zap.String("agent", q.config.Name))
+	lgr.Debug("Configuring MCP servers for Qwen", zap.Int("count", len(q.mcpServers)), zap.String("agent", q.config.Name))
 
 	// Create dedicated MCP configuration file for this agent
 	if err := q.createMCPConfigFile(ctx); err != nil {
 		return fmt.Errorf("failed to create MCP configuration file: %w", err)
 	}
 
-	lgr.Info("MCP servers configured successfully for Qwen")
+	lgr.Debug("MCP servers configured successfully for Qwen")
 	return nil
 }
 
@@ -186,7 +186,7 @@ func (q *QwenCode) createMCPConfigFile(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
 
 	mcpConfigPath := q.getMCPConfigPath()
-	lgr.Info("Creating MCP configuration file for Qwen", zap.String("path", mcpConfigPath))
+	lgr.Debug("Creating MCP configuration file for Qwen", zap.String("path", mcpConfigPath))
 
 	// Ensure the directory exists
 	if err := os.MkdirAll(filepath.Dir(mcpConfigPath), 0755); err != nil {
@@ -236,7 +236,7 @@ func (q *QwenCode) createMCPConfigFile(ctx context.Context) error {
 		return fmt.Errorf("failed to write Qwen config file: %w", err)
 	}
 
-	lgr.Info("MCP configuration file created successfully for Qwen",
+	lgr.Debug("MCP configuration file created for Qwen",
 		zap.String("path", mcpConfigPath),
 		zap.Int("mcp_servers", len(q.mcpServers)))
 

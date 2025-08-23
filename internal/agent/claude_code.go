@@ -54,7 +54,7 @@ func (c *ClaudeCode) Type() string {
 func (c *ClaudeCode) Run(ctx context.Context, prompt string, options RunOptions) (*AgentOutput, error) {
 	lgr := logger.FromContext(ctx)
 
-	lgr.Info("Running Claude", zap.String("agent", c.config.Name), zap.String("prompt", prompt))
+	lgr.Debug("Running Claude agent", zap.String("agent", c.config.Name), zap.Int("prompt_length", len(prompt)))
 
 	// Update Claude before running
 	if err := c.update(ctx); err != nil {
@@ -118,13 +118,13 @@ func (c *ClaudeCode) IsAvailable(ctx context.Context) bool {
 // CheckAvailability checks if Claude Code is available, returns error if not found
 func (c *ClaudeCode) CheckAvailability(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
-	lgr.Info("Checking Claude Code availability")
+	lgr.Debug("Checking Claude Code availability")
 
 	if !c.IsAvailable(ctx) {
 		return fmt.Errorf("claude command not found - please install Claude Code using: npm install -g @anthropic-ai/claude-code")
 	}
 
-	lgr.Info("Claude Code is available")
+	lgr.Debug("Claude Code is available")
 	return nil
 }
 
@@ -178,14 +178,14 @@ func (c *ClaudeCode) ConfigureForProject(ctx context.Context, projectPath string
 		return nil
 	}
 
-	lgr.Info("Configuring MCP servers", zap.Int("count", len(c.mcpServers)), zap.String("agent", c.config.Name))
+	lgr.Debug("Configuring MCP servers", zap.Int("count", len(c.mcpServers)), zap.String("agent", c.config.Name))
 
 	// Create dedicated MCP configuration file for this agent
 	if err := c.createMCPConfigFile(ctx); err != nil {
 		return fmt.Errorf("failed to create MCP configuration file: %w", err)
 	}
 
-	lgr.Info("MCP servers configured successfully")
+	lgr.Debug("MCP servers configured successfully")
 	return nil
 }
 
@@ -201,7 +201,7 @@ func (c *ClaudeCode) createMCPConfigFile(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
 
 	mcpConfigPath := c.getMCPConfigPath()
-	lgr.Info("Creating MCP configuration file", zap.String("path", mcpConfigPath))
+	lgr.Debug("Creating MCP configuration file", zap.String("path", mcpConfigPath))
 
 	// Ensure the directory exists
 	if err := os.MkdirAll(filepath.Dir(mcpConfigPath), 0755); err != nil {
@@ -242,7 +242,7 @@ func (c *ClaudeCode) createMCPConfigFile(ctx context.Context) error {
 		return fmt.Errorf("failed to write MCP config file: %w", err)
 	}
 
-	lgr.Info("MCP configuration file created successfully",
+	lgr.Debug("MCP configuration file created",
 		zap.String("path", mcpConfigPath),
 		zap.Int("mcp_servers", len(c.mcpServers)))
 

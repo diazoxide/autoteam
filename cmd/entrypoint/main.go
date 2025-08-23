@@ -106,7 +106,7 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	log.Info("Configuration loaded successfully",
+	log.Debug("Configuration loaded",
 		zap.String("agent_name", cfg.Agent.Name),
 		zap.String("agent_type", cfg.Agent.Type),
 		zap.String("team_name", cfg.TeamName),
@@ -127,7 +127,7 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigChan
-		log.Info("Received signal, shutting down gracefully", zap.String("signal", sig.String()))
+		log.Info("Shutting down gracefully", zap.String("signal", sig.String()))
 
 		// Execute on_stop hooks
 		if hookErr := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_stop"); hookErr != nil {

@@ -101,14 +101,14 @@ func generateCommand(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("config not available in context")
 	}
 
-	log.Info("Generating compose.yaml", zap.String("team_name", cfg.Settings.GetTeamName()))
+	log.Debug("Generating compose.yaml", zap.String("team_name", cfg.Settings.GetTeamName()))
 	gen := generator.New()
 	if err := gen.GenerateCompose(cfg); err != nil {
 		log.Error("Failed to generate compose.yaml", zap.Error(err))
 		return fmt.Errorf("failed to generate compose.yaml: %w", err)
 	}
 
-	log.Info("Generated compose.yaml successfully")
+	log.Debug("Generated compose.yaml successfully")
 	fmt.Println("Generated compose.yaml successfully")
 	return nil
 }
@@ -149,14 +149,14 @@ func upCommand(ctx context.Context, cmd *cli.Command) error {
 		fmt.Println()
 
 		// Generate compose with port allocations
-		log.Info("Generating compose.yaml with dynamic ports", zap.String("team_name", cfg.Settings.GetTeamName()))
+		log.Debug("Generating compose.yaml with dynamic ports", zap.String("team_name", cfg.Settings.GetTeamName()))
 		gen := generator.New()
 		if err := gen.GenerateComposeWithPorts(cfg, portAllocation); err != nil {
 			log.Error("Failed to generate compose.yaml", zap.Error(err))
 			return fmt.Errorf("failed to generate compose.yaml: %w", err)
 		}
 
-		log.Info("Generated compose.yaml successfully with port mappings")
+		log.Debug("Generated compose.yaml successfully with port mappings")
 		fmt.Println("Generated compose.yaml successfully with port mappings")
 	} else {
 		// No enabled agents, use regular generation
