@@ -183,10 +183,10 @@ func (f *FileOperations) SetPermissions(path string, perm os.FileMode) error {
 	if err := f.ValidatePath(path); err != nil {
 		return fmt.Errorf("invalid path %s: %w", path, err)
 	}
-	
+
 	if err := os.Chmod(path, perm); err != nil {
 		return fmt.Errorf("failed to set permissions on %s: %w", path, err)
 	}
-	
+
 	return nil
 }

@@ -249,7 +249,7 @@ func (g *Generator) copyBinDirectory() error {
 			// Copy entrypoint.sh from scripts directory
 			scriptsEntrypoint := filepath.Join("scripts", config.EntrypointScript)
 			localEntrypoint := filepath.Join(config.LocalBinPath, config.EntrypointScript)
-			
+
 			if g.fileOps.FileExists(scriptsEntrypoint) {
 				if err := g.fileOps.CopyFile(scriptsEntrypoint, localEntrypoint); err != nil {
 					return fmt.Errorf("failed to copy entrypoint script: %w", err)
