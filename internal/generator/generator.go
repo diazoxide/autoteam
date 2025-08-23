@@ -31,13 +31,13 @@ func New() *Generator {
 
 // normalizeEnvironmentValue replaces AutoTeam placeholder variables with actual runtime values.
 // Supported placeholders:
-//   - ${AUTOTEAM_AGENT_NAME} -> actual agent name (e.g., "Senior Developer")
-//   - ${AUTOTEAM_WORKER_DIR}  -> agent directory path (e.g., "/opt/autoteam/workers/senior_developer")
-//   - ${AUTOTEAM_AGENT_NORMALIZED_NAME} -> normalized agent name (e.g., "senior_developer")
+//   - ${AUTOTEAM_WORKER_NAME} -> actual worker name (e.g., "Senior Developer")
+//   - ${AUTOTEAM_WORKER_DIR}  -> worker directory path (e.g., "/opt/autoteam/workers/senior_developer")
+//   - ${AUTOTEAM_WORKER_NORMALIZED_NAME} -> normalized worker name (e.g., "senior_developer")
 func (g *Generator) normalizeEnvironmentValue(value string, worker config.Worker) string {
-	value = strings.ReplaceAll(value, "${AUTOTEAM_AGENT_NAME}", worker.Name)
+	value = strings.ReplaceAll(value, "${AUTOTEAM_WORKER_NAME}", worker.Name)
 	value = strings.ReplaceAll(value, "${AUTOTEAM_WORKER_DIR}", worker.GetWorkerDir())
-	value = strings.ReplaceAll(value, "${AUTOTEAM_AGENT_NORMALIZED_NAME}", worker.GetNormalizedName())
+	value = strings.ReplaceAll(value, "${AUTOTEAM_WORKER_NORMALIZED_NAME}", worker.GetNormalizedName())
 	return value
 }
 
@@ -57,8 +57,8 @@ func (g *Generator) GenerateComposeWithPorts(cfg *config.Config, portAllocation 
 	}
 
 	// Generate worker config files
-	if err := g.generateAgentConfigFiles(cfg); err != nil {
-		return fmt.Errorf("failed to generate agent config files: %w", err)
+	if err := g.generateWorkerConfigFiles(cfg); err != nil {
+		return fmt.Errorf("failed to generate worker config files: %w", err)
 	}
 
 	// Generate compose.yaml programmatically
@@ -80,7 +80,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 		Services: make(map[string]interface{}),
 	}
 
-	// Get only enabled agents with their effective settings
+	// Get only enabled workers with their effective settings
 	workersWithSettings := cfg.GetEnabledWorkersWithEffectiveSettings()
 
 	for _, workerWithSettings := range workersWithSettings {
@@ -130,9 +130,9 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 		environment["CONFIG_FILE"] = fmt.Sprintf("%s/config.yaml", worker.GetWorkerDir())
 
 		// Set AutoTeam worker runtime variables with consistent AUTOTEAM_ prefix
-		environment["AUTOTEAM_AGENT_NAME"] = worker.Name
+		environment["AUTOTEAM_WORKER_NAME"] = worker.Name
 		environment["AUTOTEAM_WORKER_DIR"] = worker.GetWorkerDir()
-		environment["AUTOTEAM_AGENT_NORMALIZED_NAME"] = worker.GetNormalizedName()
+		environment["AUTOTEAM_WORKER_NORMALIZED_NAME"] = worker.GetNormalizedName()
 
 		// Keep some optional runtime variables that can be overridden
 		environment["DEBUG"] = "${DEBUG:-false}"
@@ -188,9 +188,9 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 	// Add custom services from configuration
 	if cfg.Services != nil {
 		for serviceName, serviceConfig := range cfg.Services {
-			// Check for conflicts with agent services
+			// Check for conflicts with worker services
 			if _, exists := compose.Services[serviceName]; exists {
-				return fmt.Errorf("custom service '%s' conflicts with generated agent service - please choose a different name", serviceName)
+				return fmt.Errorf("custom service '%s' conflicts with generated worker service - please choose a different name", serviceName)
 			}
 
 			// Add custom service directly to compose
@@ -288,7 +288,7 @@ Supported platforms: linux-amd64, linux-arm64, darwin-amd64, darwin-arm64
 
 func (g *Generator) createWorkerDirectories(cfg *config.Config) error {
 	for _, worker := range cfg.Workers {
-		// Skip disabled agents
+		// Skip disabled workers
 		if !worker.IsEnabled() {
 			continue
 		}
@@ -334,10 +334,10 @@ func (g *Generator) detectNamedVolumes(services map[string]interface{}) map[stri
 	return namedVolumes
 }
 
-// generateAgentConfigFiles creates YAML config files for each enabled agent
-func (g *Generator) generateAgentConfigFiles(cfg *config.Config) error {
+// generateWorkerConfigFiles creates YAML config files for each enabled worker
+func (g *Generator) generateWorkerConfigFiles(cfg *config.Config) error {
 	for _, worker := range cfg.Workers {
-		// Skip disabled agents
+		// Skip disabled workers
 		if !worker.IsEnabled() {
 			continue
 		}
@@ -348,10 +348,9 @@ func (g *Generator) generateAgentConfigFiles(cfg *config.Config) error {
 
 		// Build the worker config (now we generate worker config directly)
 		workerConfig := &config.Worker{
-			Name:       worker.Name,
-			Prompt:     workerWithSettings.GetConsolidatedPrompt(cfg),
-			Settings:   &settings,
-			MCPServers: worker.MCPServers,
+			Name:     worker.Name,
+			Prompt:   workerWithSettings.GetConsolidatedPrompt(cfg),
+			Settings: &settings,
 		}
 
 		// Create worker config directory

@@ -18,19 +18,18 @@ const (
 type Config struct {
 	Workers    []Worker                          `yaml:"workers"`
 	Services   map[string]map[string]interface{} `yaml:"services,omitempty"`
-	Settings   AgentSettings                     `yaml:"settings"`
+	Settings   WorkerSettings                    `yaml:"settings"`
 	MCPServers map[string]MCPServer              `yaml:"mcp_servers,omitempty"`
 }
 
 type Worker struct {
-	Name       string               `yaml:"name"`
-	Prompt     string               `yaml:"prompt"`
-	Enabled    *bool                `yaml:"enabled,omitempty"`
-	Settings   *AgentSettings       `yaml:"settings,omitempty"`
-	MCPServers map[string]MCPServer `yaml:"mcp_servers,omitempty"`
+	Name     string         `yaml:"name"`
+	Prompt   string         `yaml:"prompt"`
+	Enabled  *bool          `yaml:"enabled,omitempty"`
+	Settings *WorkerSettings `yaml:"settings,omitempty"`
 }
 
-type AgentSettings struct {
+type WorkerSettings struct {
 	SleepDuration *int                   `yaml:"sleep_duration,omitempty"`
 	TeamName      *string                `yaml:"team_name,omitempty"`
 	InstallDeps   *bool                  `yaml:"install_deps,omitempty"`
@@ -63,23 +62,23 @@ type MCPServer struct {
 	Env     map[string]string `yaml:"env,omitempty"`
 }
 
-// AgentConfig represents unified agent configuration structure
-type AgentConfig struct {
+// WorkerAgentConfig represents unified worker configuration structure for workers
+type WorkerAgentConfig struct {
 	Type   string            `yaml:"type"`
 	Args   []string          `yaml:"args,omitempty"`
 	Env    map[string]string `yaml:"env,omitempty"`
 	Prompt *string           `yaml:"prompt,omitempty"`
 }
 
-// HookConfig represents agent lifecycle hook-driven script execution configuration
+// HookConfig represents worker lifecycle hook-driven script execution configuration
 type HookConfig struct {
-	OnInit  []HookCommand `yaml:"on_init,omitempty"`  // Before agent initialization
-	OnStart []HookCommand `yaml:"on_start,omitempty"` // When agent starts monitoring
-	OnStop  []HookCommand `yaml:"on_stop,omitempty"`  // When agent stops
-	OnError []HookCommand `yaml:"on_error,omitempty"` // When agent encounters errors
+	OnInit  []HookCommand `yaml:"on_init,omitempty"`  // Before worker initialization
+	OnStart []HookCommand `yaml:"on_start,omitempty"` // When worker starts monitoring
+	OnStop  []HookCommand `yaml:"on_stop,omitempty"`  // When worker stops
+	OnError []HookCommand `yaml:"on_error,omitempty"` // When worker encounters errors
 }
 
-// HookCommand represents a command to execute on an agent lifecycle hook
+// HookCommand represents a command to execute on a worker lifecycle hook
 type HookCommand struct {
 	Command     string            `yaml:"command"`
 	Args        []string          `yaml:"args,omitempty"`
@@ -147,7 +146,7 @@ func validateConfig(config *Config) error {
 
 			// Validate flow steps
 			if err := validateFlow(settings.Flow); err != nil {
-				return fmt.Errorf("agent[%d].flow validation failed: %w", i, err)
+				return fmt.Errorf("worker[%d].flow validation failed: %w", i, err)
 			}
 		}
 	}
@@ -216,12 +215,12 @@ func CreateSampleConfig(filename string) error {
 		Workers: []Worker{
 			{
 				Name:   "dev1",
-				Prompt: "You are a developer agent responsible for implementing features and fixing bugs.",
+				Prompt: "You are a developer worker responsible for implementing features and fixing bugs.",
 			},
 			{
 				Name:   "arch1",
-				Prompt: "You are an architecture agent responsible for system design and code reviews.",
-				Settings: &AgentSettings{
+				Prompt: "You are an architecture worker responsible for system design and code reviews.",
+				Settings: &WorkerSettings{
 					SleepDuration: IntPtr(30),
 					Service: map[string]interface{}{
 						"image": "python:3.11",
@@ -239,7 +238,7 @@ func CreateSampleConfig(filename string) error {
 							{
 								Command:     "/bin/sh",
 								Args:        []string{"-c", "echo 'Agent initializing: $AGENT_NAME'"},
-								Description: StringPtr("Log agent initialization"),
+								Description: StringPtr("Log worker initialization"),
 							},
 						},
 						OnStart: []HookCommand{
@@ -263,8 +262,8 @@ func CreateSampleConfig(filename string) error {
 			},
 			{
 				Name:    "devops1",
-				Prompt:  "You are a DevOps agent responsible for CI/CD and infrastructure.",
-				Enabled: BoolPtr(false), // This agent is disabled
+				Prompt:  "You are a DevOps worker responsible for CI/CD and infrastructure.",
+				Enabled: BoolPtr(false), // This worker is disabled
 			},
 		},
 		Services: map[string]map[string]interface{}{
@@ -287,7 +286,7 @@ func CreateSampleConfig(filename string) error {
 				"volumes": []string{"redis_data:/data"},
 			},
 		},
-		Settings: AgentSettings{
+		Settings: WorkerSettings{
 			SleepDuration: IntPtr(60),
 			TeamName:      StringPtr(DefaultTeamName),
 			InstallDeps:   BoolPtr(true),
@@ -333,40 +332,40 @@ func CreateSampleConfig(filename string) error {
 	return nil
 }
 
-// mergeServiceConfigs merges global and agent service configurations
-// Agent service properties override global ones, with special handling for maps and arrays
-func mergeServiceConfigs(global, agent map[string]interface{}) map[string]interface{} {
-	if global == nil && agent == nil {
+// mergeServiceConfigs merges global and worker service configurations
+// Worker service properties override global ones, with special handling for maps and arrays
+func mergeServiceConfigs(global, worker map[string]interface{}) map[string]interface{} {
+	if global == nil && worker == nil {
 		return nil
 	}
 	if global == nil {
-		return copyServiceConfig(agent)
+		return copyServiceConfig(worker)
 	}
-	if agent == nil {
+	if worker == nil {
 		return copyServiceConfig(global)
 	}
 
 	// Start with a copy of global config
 	result := copyServiceConfig(global)
 
-	// Override/merge with agent config
-	for key, agentValue := range agent {
+	// Override/merge with worker config
+	for key, workerValue := range worker {
 		globalValue, exists := result[key]
 
 		// If key doesn't exist in global, just add it
 		if !exists {
-			result[key] = agentValue
+			result[key] = workerValue
 			continue
 		}
 
 		// Universal map merging - merge any map-type values recursively
-		if merged := tryMergeAsMapRecursive(globalValue, agentValue); merged != nil {
+		if merged := tryMergeAsMapRecursive(globalValue, workerValue); merged != nil {
 			result[key] = merged
 			continue
 		}
 
-		// For all other properties (including arrays like volumes, ports), agent replaces global
-		result[key] = agentValue
+		// For all other properties (including arrays like volumes, ports), worker replaces global
+		result[key] = workerValue
 	}
 
 	return result
@@ -374,37 +373,37 @@ func mergeServiceConfigs(global, agent map[string]interface{}) map[string]interf
 
 // tryMergeAsMapRecursive attempts to merge two values as maps recursively using golang maps package
 // Returns the merged map if successful, nil if values aren't compatible maps
-func tryMergeAsMapRecursive(globalValue, agentValue interface{}) interface{} {
+func tryMergeAsMapRecursive(globalValue, workerValue interface{}) interface{} {
 	// Try map[string]string first (most common for environment, labels, etc.)
 	if globalMap, ok := globalValue.(map[string]string); ok {
-		if agentMap, ok := agentValue.(map[string]string); ok {
+		if workerMap, ok := workerValue.(map[string]string); ok {
 			// Use maps.Clone for efficient copying, then merge
 			merged := maps.Clone(globalMap)
-			maps.Copy(merged, agentMap) // Agent values override global
+			maps.Copy(merged, workerMap) // Agent values override global
 			return merged
 		}
 	}
 
 	// Try map[string]interface{} (common after YAML unmarshaling) with recursive merging
 	if globalMap, ok := globalValue.(map[string]interface{}); ok {
-		if agentMap, ok := agentValue.(map[string]interface{}); ok {
+		if workerMap, ok := workerValue.(map[string]interface{}); ok {
 			// Use maps.Clone for efficient copying
 			merged := maps.Clone(globalMap)
 
-			// Recursively merge/override with agent values
-			for k, agentVal := range agentMap {
+			// Recursively merge/override with worker values
+			for k, workerVal := range workerMap {
 				globalVal, exists := merged[k]
 
 				if !exists {
 					// Key doesn't exist in global, just add it (deep copy)
-					merged[k] = deepCopyValue(agentVal)
+					merged[k] = deepCopyValue(workerVal)
 				} else {
 					// Try recursive merge for nested maps
-					if recursiveMerged := tryMergeAsMapRecursive(globalVal, agentVal); recursiveMerged != nil {
+					if recursiveMerged := tryMergeAsMapRecursive(globalVal, workerVal); recursiveMerged != nil {
 						merged[k] = recursiveMerged
 					} else {
-						// Not mergeable maps, agent value replaces global (deep copy)
-						merged[k] = deepCopyValue(agentVal)
+						// Not mergeable maps, worker value replaces global (deep copy)
+						merged[k] = deepCopyValue(workerVal)
 					}
 				}
 			}
@@ -414,24 +413,24 @@ func tryMergeAsMapRecursive(globalValue, agentValue interface{}) interface{} {
 
 	// Try mixed map types - convert map[string]string to map[string]interface{}
 	if globalMap, ok := globalValue.(map[string]string); ok {
-		if agentMap, ok := agentValue.(map[string]interface{}); ok {
+		if workerMap, ok := workerValue.(map[string]interface{}); ok {
 			// Convert global to interface{} map and clone
 			merged := make(map[string]interface{})
 			for k, v := range globalMap {
 				merged[k] = v
 			}
 
-			// Recursively merge/override with agent values
-			for k, agentVal := range agentMap {
+			// Recursively merge/override with worker values
+			for k, workerVal := range workerMap {
 				globalVal, exists := merged[k]
 
 				if !exists {
-					merged[k] = deepCopyValue(agentVal)
+					merged[k] = deepCopyValue(workerVal)
 				} else {
-					if recursiveMerged := tryMergeAsMapRecursive(globalVal, agentVal); recursiveMerged != nil {
+					if recursiveMerged := tryMergeAsMapRecursive(globalVal, workerVal); recursiveMerged != nil {
 						merged[k] = recursiveMerged
 					} else {
-						merged[k] = deepCopyValue(agentVal)
+						merged[k] = deepCopyValue(workerVal)
 					}
 				}
 			}
@@ -441,12 +440,12 @@ func tryMergeAsMapRecursive(globalValue, agentValue interface{}) interface{} {
 
 	// Try reverse mixed types - convert map[string]interface{} to accommodate map[string]string
 	if globalMap, ok := globalValue.(map[string]interface{}); ok {
-		if agentMap, ok := agentValue.(map[string]string); ok {
+		if workerMap, ok := workerValue.(map[string]string); ok {
 			// Use maps.Clone for efficient copying
 			merged := maps.Clone(globalMap)
 
-			// Override with agent values (convert to interface{})
-			for k, v := range agentMap {
+			// Override with worker values (convert to interface{})
+			for k, v := range workerMap {
 				merged[k] = v
 			}
 			return merged
@@ -515,10 +514,10 @@ func copyServiceConfig(source map[string]interface{}) map[string]interface{} {
 	return result
 }
 
-// mergeMCPServers merges MCP server configurations from global settings, agent settings, and agent-level MCP servers
-// Priority: agent-level MCPServers > agent.settings.MCPServers > global settings MCPServers
-func mergeMCPServers(globalMCPServers, agentSettingsMCPServers, agentMCPServers map[string]MCPServer) map[string]MCPServer {
-	if globalMCPServers == nil && agentSettingsMCPServers == nil && agentMCPServers == nil {
+// mergeMCPServers merges MCP server configurations from global settings and worker settings
+// Priority: worker.settings.MCPServers > global settings MCPServers
+func mergeMCPServers(globalMCPServers, workerSettingsMCPServers map[string]MCPServer) map[string]MCPServer {
+	if globalMCPServers == nil && workerSettingsMCPServers == nil {
 		return nil
 	}
 
@@ -529,13 +528,8 @@ func mergeMCPServers(globalMCPServers, agentSettingsMCPServers, agentMCPServers 
 		result[name] = copyMCPServer(server)
 	}
 
-	// Override with agent settings MCP servers
-	for name, server := range agentSettingsMCPServers {
-		result[name] = copyMCPServer(server)
-	}
-
-	// Override with agent-level MCP servers (highest priority)
-	for name, server := range agentMCPServers {
+	// Override with worker settings MCP servers
+	for name, server := range workerSettingsMCPServers {
 		result[name] = copyMCPServer(server)
 	}
 
@@ -628,10 +622,10 @@ func copyHookCommands(source []HookCommand) []HookCommand {
 	return copied
 }
 
-// mergeHookConfigs merges hook configurations with agent-level overriding global
-func mergeHookConfigs(global, agentLevel *HookConfig) *HookConfig {
-	if agentLevel != nil {
-		return copyHookConfig(agentLevel)
+// mergeHookConfigs merges hook configurations with worker-level overriding global
+func mergeHookConfigs(global, workerLevel *HookConfig) *HookConfig {
+	if workerLevel != nil {
+		return copyHookConfig(workerLevel)
 	}
 	if global != nil {
 		return copyHookConfig(global)
@@ -639,9 +633,9 @@ func mergeHookConfigs(global, agentLevel *HookConfig) *HookConfig {
 	return nil
 }
 
-// copyAgentSettings creates a deep copy of an AgentSettings
-func copyAgentSettings(source AgentSettings) AgentSettings {
-	copied := AgentSettings{}
+// copyWorkerSettings creates a deep copy of a WorkerSettings
+func copyWorkerSettings(source WorkerSettings) WorkerSettings {
+	copied := WorkerSettings{}
 
 	if source.SleepDuration != nil {
 		copied.SleepDuration = IntPtr(*source.SleepDuration)
@@ -689,13 +683,13 @@ func copyAgentSettings(source AgentSettings) AgentSettings {
 	return copied
 }
 
-// GetEffectiveSettings returns the effective settings for an agent,
-// merging global settings with agent-specific overrides
-func (w *Worker) GetEffectiveSettings(globalSettings AgentSettings) AgentSettings {
-	effective := copyAgentSettings(globalSettings) // Start with copy of global settings
+// GetEffectiveSettings returns the effective settings for an worker,
+// merging global settings with worker-specific overrides
+func (w *Worker) GetEffectiveSettings(globalSettings WorkerSettings) WorkerSettings {
+	effective := copyWorkerSettings(globalSettings) // Start with copy of global settings
 
-	// Always merge MCP servers, even if agent settings is nil
-	effective.MCPServers = mergeMCPServers(globalSettings.MCPServers, nil, w.MCPServers)
+	// Always merge MCP servers, even if worker settings is nil
+	effective.MCPServers = mergeMCPServers(globalSettings.MCPServers, nil)
 
 	if w.Settings == nil {
 		return effective
@@ -724,7 +718,7 @@ func (w *Worker) GetEffectiveSettings(globalSettings AgentSettings) AgentSetting
 	}
 
 	// Merge MCP server configurations
-	effective.MCPServers = mergeMCPServers(globalSettings.MCPServers, w.Settings.MCPServers, w.MCPServers)
+	effective.MCPServers = mergeMCPServers(globalSettings.MCPServers, w.Settings.MCPServers)
 
 	// Merge hooks configuration
 	effective.Hooks = mergeHookConfigs(globalSettings.Hooks, w.Settings.Hooks)
@@ -734,7 +728,7 @@ func (w *Worker) GetEffectiveSettings(globalSettings AgentSettings) AgentSetting
 		effective.Debug = w.Settings.Debug
 	}
 
-	// Merge flow configuration - agent settings override global
+	// Merge flow configuration - worker settings override global
 	if len(w.Settings.Flow) > 0 {
 		effective.Flow = make([]FlowStep, len(w.Settings.Flow))
 		copy(effective.Flow, w.Settings.Flow)
@@ -774,7 +768,7 @@ func (c *Config) GetEnabledWorkersWithEffectiveSettings() []WorkerWithSettings {
 
 type WorkerWithSettings struct {
 	Worker   Worker
-	Settings AgentSettings
+	Settings WorkerSettings
 }
 
 // GetConsolidatedPrompt returns the worker prompt combined with common prompt
@@ -798,7 +792,7 @@ func (wws *WorkerWithSettings) GetConsolidatedPrompt(cfg *Config) string {
 	return strings.Join(promptParts, "\n\n")
 }
 
-// normalizeAgentName converts agent names to snake_case for use in service names and paths
+// normalizeWorkerName converts worker names to snake_case for use in service names and paths
 func normalizeWorkerName(name string) string {
 	// Replace any non-alphanumeric characters with underscores
 	reg := regexp.MustCompile(`[^a-zA-Z0-9]+`)
@@ -817,12 +811,12 @@ func normalizeWorkerName(name string) string {
 	return normalized
 }
 
-// GetNormalizedName returns the normalized agent name suitable for service names and paths
+// GetNormalizedName returns the normalized worker name suitable for service names and paths
 func (w *Worker) GetNormalizedName() string {
 	return normalizeWorkerName(w.Name)
 }
 
-// GetNormalizedNameWithVariation returns the normalized agent name with a variation (e.g., collector, executor)
+// GetNormalizedNameWithVariation returns the normalized worker name with a variation (e.g., collector, executor)
 // for two-layer architecture using subdirectory structure
 func (w *Worker) GetNormalizedNameWithVariation(variation string) string {
 	normalizedName := normalizeWorkerName(w.Name)
@@ -868,43 +862,43 @@ func BoolPtr(b bool) *bool {
 	return &b
 }
 
-// Helper methods to get values with defaults for AgentSettings
-func (s *AgentSettings) GetSleepDuration() int {
+// Helper methods to get values with defaults for WorkerSettings
+func (s *WorkerSettings) GetSleepDuration() int {
 	if s.SleepDuration != nil {
 		return *s.SleepDuration
 	}
 	return 60 // default
 }
 
-func (s *AgentSettings) GetTeamName() string {
+func (s *WorkerSettings) GetTeamName() string {
 	if s.TeamName != nil {
 		return *s.TeamName
 	}
 	return DefaultTeamName // default
 }
 
-func (s *AgentSettings) GetInstallDeps() bool {
+func (s *WorkerSettings) GetInstallDeps() bool {
 	if s.InstallDeps != nil {
 		return *s.InstallDeps
 	}
 	return false // default
 }
 
-func (s *AgentSettings) GetCommonPrompt() string {
+func (s *WorkerSettings) GetCommonPrompt() string {
 	if s.CommonPrompt != nil {
 		return *s.CommonPrompt
 	}
 	return "" // default
 }
 
-func (s *AgentSettings) GetMaxAttempts() int {
+func (s *WorkerSettings) GetMaxAttempts() int {
 	if s.MaxAttempts != nil {
 		return *s.MaxAttempts
 	}
 	return 3 // default
 }
 
-func (s *AgentSettings) GetDebug() bool {
+func (s *WorkerSettings) GetDebug() bool {
 	if s.Debug != nil {
 		return *s.Debug
 	}

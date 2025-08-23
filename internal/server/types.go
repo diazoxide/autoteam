@@ -8,7 +8,7 @@ import (
 type HealthResponse struct {
 	Status    string                 `json:"status"`
 	Timestamp time.Time              `json:"timestamp"`
-	Agent     AgentInfo              `json:"agent"`
+	Agent     WorkerInfo             `json:"agent"`
 	Checks    map[string]HealthCheck `json:"checks,omitempty"`
 }
 
@@ -23,7 +23,7 @@ type StatusResponse struct {
 	Status      string       `json:"status"`
 	Mode        string       `json:"mode"`
 	Timestamp   time.Time    `json:"timestamp"`
-	Agent       AgentInfo    `json:"agent"`
+	Agent       WorkerInfo   `json:"agent"`
 	CurrentTask *TaskSummary `json:"current_task,omitempty"`
 	Uptime      string       `json:"uptime,omitempty"`
 }
@@ -50,18 +50,18 @@ type TaskResponse struct {
 
 // MetricsResponse represents agent performance metrics
 type MetricsResponse struct {
-	Metrics   AgentMetrics `json:"metrics"`
+	Metrics   WorkerMetrics `json:"metrics"`
 	Timestamp time.Time    `json:"timestamp"`
 }
 
 // ConfigResponse represents sanitized agent configuration
 type ConfigResponse struct {
-	Config    AgentConfig `json:"config"`
+	Config    WorkerConfig `json:"config"`
 	Timestamp time.Time   `json:"timestamp"`
 }
 
-// AgentInfo contains basic agent information
-type AgentInfo struct {
+// WorkerInfo contains basic worker information
+type WorkerInfo struct {
 	Name      string `json:"name"`
 	Type      string `json:"type"`
 	Version   string `json:"version"`
@@ -105,8 +105,8 @@ type TaskSummary struct {
 	Status    *string   `json:"status,omitempty"`
 }
 
-// AgentMetrics represents agent performance metrics
-type AgentMetrics struct {
+// WorkerMetrics represents worker performance metrics
+type WorkerMetrics struct {
 	Uptime           *string    `json:"uptime,omitempty"`
 	TasksProcessed   *int       `json:"tasks_processed,omitempty"`
 	TasksSuccess     *int       `json:"tasks_success,omitempty"`
@@ -115,8 +115,8 @@ type AgentMetrics struct {
 	LastActivity     *time.Time `json:"last_activity,omitempty"`
 }
 
-// AgentConfig represents sanitized agent configuration
-type AgentConfig struct {
+// WorkerConfig represents sanitized worker configuration
+type WorkerConfig struct {
 	Name    *string `json:"name,omitempty"`
 	Type    *string `json:"type,omitempty"`
 	Enabled *bool   `json:"enabled,omitempty"`

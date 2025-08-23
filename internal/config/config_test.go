@@ -28,7 +28,7 @@ func TestLoadConfig_Valid(t *testing.T) {
 						Prompt: "You are an architect agent",
 					},
 				},
-				Settings: AgentSettings{
+				Settings: WorkerSettings{
 					Service: map[string]interface{}{
 						"image": "node:18.17.1",
 						"user":  "developer",
@@ -54,7 +54,7 @@ func TestLoadConfig_Valid(t *testing.T) {
 						Prompt: "Developer",
 					},
 				},
-				Settings: AgentSettings{
+				Settings: WorkerSettings{
 					Service: map[string]interface{}{
 						"image": "node:18.17.1", // default
 						"user":  "developer",    // default
@@ -200,7 +200,7 @@ func TestValidateConfig(t *testing.T) {
 				Workers: []Worker{
 					{Name: "dev1", Prompt: "prompt"},
 				},
-				Settings: AgentSettings{
+				Settings: WorkerSettings{
 					Flow: []FlowStep{
 						{Name: "step1", Type: "claude", Input: "test"},
 					},
@@ -281,7 +281,7 @@ func TestSetDefaults(t *testing.T) {
 
 	// Test that existing values are not overridden
 	config2 := &Config{
-		Settings: AgentSettings{
+		Settings: WorkerSettings{
 			Service: map[string]interface{}{
 				"image": "custom:latest",
 				"user":  "custom-user",
@@ -366,7 +366,7 @@ func TestGetEnabledWorkersWithEffectiveSettings(t *testing.T) {
 				// Enabled not set, defaults to true
 			},
 		},
-		Settings: AgentSettings{
+		Settings: WorkerSettings{
 			SleepDuration: IntPtr(60),
 			TeamName:      StringPtr("test"),
 			Flow: []FlowStep{
@@ -422,7 +422,7 @@ func TestValidateConfigWithDisabledAgents(t *testing.T) {
 						Enabled: BoolPtr(true),
 					},
 				},
-				Settings: AgentSettings{
+				Settings: WorkerSettings{
 					Flow: []FlowStep{
 						{Name: "step1", Type: "claude", Input: "test"},
 					},

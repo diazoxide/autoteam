@@ -36,7 +36,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 			{
 				Name:   "arch1",
 				Prompt: "You are an architect agent",
-				Settings: &config.AgentSettings{
+				Settings: &config.WorkerSettings{
 					Service: map[string]interface{}{
 						"image":   "python:3.11",
 						"volumes": []string{"./custom-vol:/app/custom"},
@@ -44,7 +44,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 				},
 			},
 		},
-		Settings: config.AgentSettings{
+		Settings: config.WorkerSettings{
 			Service: map[string]interface{}{
 				"image":   "node:18",
 				"user":    "testuser",
@@ -199,7 +199,7 @@ func TestGenerator_GenerateComposeYAML(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Settings: config.AgentSettings{
+		Settings: config.WorkerSettings{
 			Service: map[string]interface{}{
 				"image": "node:18",
 				"user":  "developer",

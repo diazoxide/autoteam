@@ -133,7 +133,7 @@ func TestMergeHookConfigs(t *testing.T) {
 }
 
 func TestAgentGetEffectiveSettings_WithHooks(t *testing.T) {
-	globalSettings := AgentSettings{
+	globalSettings := WorkerSettings{
 		Hooks: &HookConfig{
 			OnInit: []HookCommand{
 				{Command: "global-init"},
@@ -144,7 +144,7 @@ func TestAgentGetEffectiveSettings_WithHooks(t *testing.T) {
 	worker := Worker{
 		Name:   "test-agent",
 		Prompt: "test prompt",
-		Settings: &AgentSettings{
+		Settings: &WorkerSettings{
 			Hooks: &HookConfig{
 				OnStart: []HookCommand{
 					{Command: "agent-start"},
@@ -171,7 +171,7 @@ func TestAgentGetEffectiveSettings_WithHooks(t *testing.T) {
 }
 
 func TestAgentGetEffectiveSettings_InheritGlobalHooks(t *testing.T) {
-	globalSettings := AgentSettings{
+	globalSettings := WorkerSettings{
 		Hooks: &HookConfig{
 			OnInit: []HookCommand{
 				{Command: "global-init"},

@@ -25,14 +25,14 @@ type Monitor struct {
 	flowExecutor *flow.FlowExecutor // Dynamic flow executor
 	flowSteps    []config.FlowStep  // Flow configuration
 	config       Config
-	worker       *config.Worker       // Worker configuration
-	settings     config.AgentSettings // Effective settings
+	worker       *config.Worker        // Worker configuration
+	settings     config.WorkerSettings // Effective settings
 	taskService  *task.Service        // Service for task persistence operations
 	httpServer   agent.HTTPServer     // HTTP API server for monitoring
 }
 
 // New creates a new flow-based monitor instance
-func New(worker *config.Worker, settings config.AgentSettings, monitorConfig Config) *Monitor {
+func New(worker *config.Worker, settings config.WorkerSettings, monitorConfig Config) *Monitor {
 	// Get agent directory for task service
 	agentDirectory := worker.GetWorkerDir()
 

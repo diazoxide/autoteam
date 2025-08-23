@@ -103,7 +103,7 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// Get worker effective settings (without global settings - worker is standalone)
-	effectiveSettings := workerConfig.GetEffectiveSettings(config.AgentSettings{})
+	effectiveSettings := workerConfig.GetEffectiveSettings(config.WorkerSettings{})
 
 	log.Info("Worker configuration loaded successfully",
 		zap.String("worker_name", workerConfig.Name),

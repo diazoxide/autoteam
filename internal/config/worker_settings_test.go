@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestAgentGetSettings(t *testing.T) {
-	globalSettings := AgentSettings{
+func TestWorkerGetSettings(t *testing.T) {
+	globalSettings := WorkerSettings{
 		Service: map[string]interface{}{
 			"image": "node:18",
 			"user":  "developer",
@@ -19,7 +19,7 @@ func TestAgentGetSettings(t *testing.T) {
 	tests := []struct {
 		name           string
 		worker         Worker
-		expectedResult AgentSettings
+		expectedResult WorkerSettings
 	}{
 		{
 			name: "no agent settings - should use global",
@@ -35,14 +35,14 @@ func TestAgentGetSettings(t *testing.T) {
 			worker: Worker{
 				Name:   "test2",
 				Prompt: "test prompt",
-				Settings: &AgentSettings{
+				Settings: &WorkerSettings{
 					Service: map[string]interface{}{
 						"image": "python:3.11",
 					},
 					SleepDuration: IntPtr(30),
 				},
 			},
-			expectedResult: AgentSettings{
+			expectedResult: WorkerSettings{
 				Service: map[string]interface{}{
 					"image": "python:3.11", // overridden
 					"user":  "developer",   // from global
@@ -57,7 +57,7 @@ func TestAgentGetSettings(t *testing.T) {
 			worker: Worker{
 				Name:   "test3",
 				Prompt: "test prompt",
-				Settings: &AgentSettings{
+				Settings: &WorkerSettings{
 					Service: map[string]interface{}{
 						"image": "golang:1.21",
 						"user":  "admin",
@@ -67,7 +67,7 @@ func TestAgentGetSettings(t *testing.T) {
 					InstallDeps:   BoolPtr(false),
 				},
 			},
-			expectedResult: AgentSettings{
+			expectedResult: WorkerSettings{
 				Service: map[string]interface{}{
 					"image": "golang:1.21",
 					"user":  "admin",
@@ -119,7 +119,7 @@ func TestConfigGetAllWorkersWithSettings(t *testing.T) {
 			{
 				Name:   "arch",
 				Prompt: "architect prompt",
-				Settings: &AgentSettings{
+				Settings: &WorkerSettings{
 					Service: map[string]interface{}{
 						"image": "python:3.11",
 					},
@@ -127,7 +127,7 @@ func TestConfigGetAllWorkersWithSettings(t *testing.T) {
 				},
 			},
 		},
-		Settings: AgentSettings{
+		Settings: WorkerSettings{
 			Service: map[string]interface{}{
 				"image": "node:18",
 				"user":  "developer",
@@ -177,7 +177,7 @@ func TestConfigGetAllWorkersWithSettings(t *testing.T) {
 }
 
 func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
-	globalSettings := AgentSettings{
+	globalSettings := WorkerSettings{
 		Service: map[string]interface{}{
 			"image":   "node:18",
 			"user":    "developer",
@@ -195,14 +195,14 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 	tests := []struct {
 		name           string
 		worker         Worker
-		expectedResult AgentSettings
+		expectedResult WorkerSettings
 	}{
 		{
 			name: "custom volumes should replace global",
 			worker: Worker{
 				Name:   "test1",
 				Prompt: "test prompt",
-				Settings: &AgentSettings{
+				Settings: &WorkerSettings{
 					Service: map[string]interface{}{
 						"volumes": []string{
 							"./custom-vol:/app/custom",
@@ -211,7 +211,7 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: AgentSettings{
+			expectedResult: WorkerSettings{
 				Service: map[string]interface{}{
 					"image":   "node:18",
 					"user":    "developer",
@@ -231,13 +231,13 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 			worker: Worker{
 				Name:   "test2",
 				Prompt: "test prompt",
-				Settings: &AgentSettings{
+				Settings: &WorkerSettings{
 					Service: map[string]interface{}{
 						"entrypoint": []string{"/custom/entrypoint.sh"},
 					},
 				},
 			},
-			expectedResult: AgentSettings{
+			expectedResult: WorkerSettings{
 				Service: map[string]interface{}{
 					"image":      "node:18",
 					"user":       "developer",
@@ -258,7 +258,7 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 			worker: Worker{
 				Name:   "test3",
 				Prompt: "test prompt",
-				Settings: &AgentSettings{
+				Settings: &WorkerSettings{
 					Service: map[string]interface{}{
 						"environment": map[string]string{
 							"CUSTOM_VAR": "custom_value",
@@ -267,7 +267,7 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: AgentSettings{
+			expectedResult: WorkerSettings{
 				Service: map[string]interface{}{
 					"image":   "node:18",
 					"user":    "developer",
@@ -288,7 +288,7 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 			worker: Worker{
 				Name:   "test4",
 				Prompt: "test prompt",
-				Settings: &AgentSettings{
+				Settings: &WorkerSettings{
 					Service: map[string]interface{}{
 						"image":       "python:3.11",
 						"volumes":     []string{"./python-vol:/app/python"},
@@ -297,7 +297,7 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: AgentSettings{
+			expectedResult: WorkerSettings{
 				Service: map[string]interface{}{
 					"image":      "python:3.11",
 					"user":       "developer",
