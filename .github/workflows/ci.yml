@@ -150,8 +150,6 @@ jobs:
         make build
         # Build current platform worker binary
         make build-worker
-        # Install workers to system directory for testing
-        sudo make install-workers
     
     - name: Test binary installation
       run: |
