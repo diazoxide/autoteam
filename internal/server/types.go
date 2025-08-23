@@ -51,13 +51,13 @@ type TaskResponse struct {
 // MetricsResponse represents agent performance metrics
 type MetricsResponse struct {
 	Metrics   WorkerMetrics `json:"metrics"`
-	Timestamp time.Time    `json:"timestamp"`
+	Timestamp time.Time     `json:"timestamp"`
 }
 
 // ConfigResponse represents sanitized agent configuration
 type ConfigResponse struct {
 	Config    WorkerConfig `json:"config"`
-	Timestamp time.Time   `json:"timestamp"`
+	Timestamp time.Time    `json:"timestamp"`
 }
 
 // WorkerInfo contains basic worker information

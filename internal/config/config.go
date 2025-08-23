@@ -23,9 +23,9 @@ type Config struct {
 }
 
 type Worker struct {
-	Name     string         `yaml:"name"`
-	Prompt   string         `yaml:"prompt"`
-	Enabled  *bool          `yaml:"enabled,omitempty"`
+	Name     string          `yaml:"name"`
+	Prompt   string          `yaml:"prompt"`
+	Enabled  *bool           `yaml:"enabled,omitempty"`
 	Settings *WorkerSettings `yaml:"settings,omitempty"`
 }
 
@@ -60,14 +60,6 @@ type MCPServer struct {
 	Command string            `yaml:"command"`
 	Args    []string          `yaml:"args,omitempty"`
 	Env     map[string]string `yaml:"env,omitempty"`
-}
-
-// WorkerAgentConfig represents unified worker configuration structure for workers
-type WorkerAgentConfig struct {
-	Type   string            `yaml:"type"`
-	Args   []string          `yaml:"args,omitempty"`
-	Env    map[string]string `yaml:"env,omitempty"`
-	Prompt *string           `yaml:"prompt,omitempty"`
 }
 
 // HookConfig represents worker lifecycle hook-driven script execution configuration

@@ -327,7 +327,7 @@ func (fe *FlowExecutor) createAgents(ctx context.Context) error {
 
 	for _, step := range fe.steps {
 		// Create agent config from step
-		agentConfig := config.AgentConfig{
+		agentConfig := agent.AgentConfig{
 			Type: step.Type,
 			Args: step.Args,
 			Env:  step.Env,

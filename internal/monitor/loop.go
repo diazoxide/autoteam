@@ -27,8 +27,8 @@ type Monitor struct {
 	config       Config
 	worker       *config.Worker        // Worker configuration
 	settings     config.WorkerSettings // Effective settings
-	taskService  *task.Service        // Service for task persistence operations
-	httpServer   agent.HTTPServer     // HTTP API server for monitoring
+	taskService  *task.Service         // Service for task persistence operations
+	httpServer   agent.HTTPServer      // HTTP API server for monitoring
 }
 
 // New creates a new flow-based monitor instance
