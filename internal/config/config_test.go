@@ -38,8 +38,8 @@ func TestLoadConfig_Valid(t *testing.T) {
 					InstallDeps:   BoolPtr(true),
 					CommonPrompt:  StringPtr("Follow best practices"),
 					Flow: []FlowStep{
-						{Name: "collector", Type: "gemini", Prompt: "Collect tasks"},
-						{Name: "executor", Type: "claude", DependsOn: []string{"collector"}, Prompt: "Execute tasks"},
+						{Name: "collector", Type: "gemini", Input: "Collect tasks"},
+						{Name: "executor", Type: "claude", DependsOn: []string{"collector"}, Input: "Execute tasks"},
 					},
 				},
 			},
@@ -63,8 +63,8 @@ func TestLoadConfig_Valid(t *testing.T) {
 					TeamName:      StringPtr("autoteam"), // default
 					InstallDeps:   BoolPtr(false),        // default
 					Flow: []FlowStep{
-						{Name: "collector", Type: "gemini", Prompt: "Collect tasks"},
-						{Name: "executor", Type: "claude", DependsOn: []string{"collector"}, Prompt: "Execute tasks"},
+						{Name: "collector", Type: "gemini", Input: "Collect tasks"},
+						{Name: "executor", Type: "claude", DependsOn: []string{"collector"}, Input: "Execute tasks"},
 					},
 				},
 			},
@@ -202,7 +202,7 @@ func TestValidateConfig(t *testing.T) {
 				},
 				Settings: AgentSettings{
 					Flow: []FlowStep{
-						{Name: "step1", Type: "claude", Prompt: "test"},
+						{Name: "step1", Type: "claude", Input: "test"},
 					},
 				},
 			},
@@ -370,7 +370,7 @@ func TestGetEnabledWorkersWithEffectiveSettings(t *testing.T) {
 			SleepDuration: IntPtr(60),
 			TeamName:      StringPtr("test"),
 			Flow: []FlowStep{
-				{Name: "step1", Type: "claude", Prompt: "test"},
+				{Name: "step1", Type: "claude", Input: "test"},
 			},
 		},
 	}
@@ -424,7 +424,7 @@ func TestValidateConfigWithDisabledAgents(t *testing.T) {
 				},
 				Settings: AgentSettings{
 					Flow: []FlowStep{
-						{Name: "step1", Type: "claude", Prompt: "test"},
+						{Name: "step1", Type: "claude", Input: "test"},
 					},
 				},
 			},

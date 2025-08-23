@@ -6,19 +6,23 @@ import (
 	"os/exec"
 
 	"autoteam/internal/agent"
-	"autoteam/internal/entrypoint"
 	"autoteam/internal/logger"
 
 	"go.uber.org/zap"
 )
 
+// DependenciesConfig holds configuration for dependency management
+type DependenciesConfig struct {
+	InstallDeps bool
+}
+
 // Installer handles dependency installation
 type Installer struct {
-	config entrypoint.DependenciesConfig
+	config DependenciesConfig
 }
 
 // NewInstaller creates a new dependency installer
-func NewInstaller(cfg entrypoint.DependenciesConfig) *Installer {
+func NewInstaller(cfg DependenciesConfig) *Installer {
 	return &Installer{
 		config: cfg,
 	}

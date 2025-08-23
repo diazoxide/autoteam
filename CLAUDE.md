@@ -197,11 +197,22 @@
 - **DEBUGGING**: Enhanced logging shows execution timing and sleep duration for monitoring
 - All tests pass with simplified architecture - no functionality changes to core workflows
 
-## Custom Layer Prompts Configuration (Legacy - Removed)
-- **REMOVED**: Two-layer architecture completely replaced with dynamic flow system
-- Custom prompts now configured per flow step in `flow.steps[].prompt` field
-- Environment variable approach replaced with YAML configuration files per agent
-- Simplified configuration: Single `CONFIG_FILE` parameter instead of multiple environment variables
+## Flow Step Input/Output Configuration
+- **SIMPLIFIED**: Removed nested `transformers` structure in favor of direct `input` and `output` fields
+- **Flow Step Structure**:
+  ```yaml
+  flow:
+    - name: step_name
+      type: agent_type
+      input: |        # Agent input prompt (supports templates)
+        Your instructions here...
+      output: |        # Output transformation template (optional)
+        {{- .stdout | regexFind "PATTERN" -}}
+  ```
+- **Input Field**: Replaces previous `prompt` field and supports Go template syntax with Sprig functions
+- **Output Field**: Direct output transformation without nested transformer structure
+- **Template Context**: Input templates have access to `.flow`, `.worker`, `.step`, `.inputs` from dependencies
+- **Simplified Configuration**: Removed redundant `Transformers` struct for cleaner YAML structure
 
 ## Configuration Normalization System
 - **NEW**: Implemented placeholder variable replacement in environment variables during compose.yaml generation

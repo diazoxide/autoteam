@@ -39,26 +39,21 @@ type AgentSettings struct {
 	Service       map[string]interface{} `yaml:"service,omitempty"`
 	MCPServers    map[string]MCPServer   `yaml:"mcp_servers,omitempty"`
 	Hooks         *HookConfig            `yaml:"hooks,omitempty"`
+	Debug         *bool                  `yaml:"debug,omitempty"`
 	// Dynamic Flow Configuration
 	Flow []FlowStep `yaml:"flow"`
 }
 
 // FlowStep represents a single step in a dynamic flow configuration
 type FlowStep struct {
-	Name         string            `yaml:"name"`                   // Unique step name
-	Type         string            `yaml:"type"`                   // Agent type (claude, gemini, qwen)
-	Args         []string          `yaml:"args,omitempty"`         // Agent-specific arguments
-	Env          map[string]string `yaml:"env,omitempty"`          // Environment variables
-	DependsOn    []string          `yaml:"depends_on,omitempty"`   // Step dependencies
-	Prompt       string            `yaml:"prompt,omitempty"`       // Step-specific prompt
-	SkipWhen     string            `yaml:"skip_when,omitempty"`    // Skip condition template (if evaluates to "true")
-	Transformers *Transformers     `yaml:"transformers,omitempty"` // Input/output transformers
-}
-
-// Transformers defines template-based data transformation for flow steps
-type Transformers struct {
-	Input  string `yaml:"input,omitempty"`  // Input transformation template (Sprig)
-	Output string `yaml:"output,omitempty"` // Output transformation template (Sprig)
+	Name      string            `yaml:"name"`                 // Unique step name
+	Type      string            `yaml:"type"`                 // Agent type (claude, gemini, qwen)
+	Args      []string          `yaml:"args,omitempty"`       // Agent-specific arguments
+	Env       map[string]string `yaml:"env,omitempty"`        // Environment variables
+	DependsOn []string          `yaml:"depends_on,omitempty"` // Step dependencies
+	Input     string            `yaml:"input,omitempty"`      // Agent input prompt (supports templates)
+	Output    string            `yaml:"output,omitempty"`     // Output transformation template (Sprig)
+	SkipWhen  string            `yaml:"skip_when,omitempty"`  // Skip condition template (if evaluates to "true")
 }
 
 // MCPServer represents a Model Context Protocol server configuration
@@ -307,19 +302,14 @@ func CreateSampleConfig(filename string) error {
 					Name:   "collector",
 					Type:   "gemini",
 					Args:   []string{"--model", "gemini-2.5-flash"},
-					Prompt: "You are a notification collector. Get unread GitHub notifications and list them.\nUse GitHub MCP to get unread notifications.\nCRITICAL: Mark all notifications as read after collecting them.",
-					Transformers: &Transformers{
-						Output: "{{ .stdout | trim }}",
-					},
+					Input:  "You are a notification collector. Get unread GitHub notifications and list them.\nUse GitHub MCP to get unread notifications.\nCRITICAL: Mark all notifications as read after collecting them.",
+					Output: "{{ .stdout | trim }}",
 				},
 				{
 					Name:      "analyzer",
 					Type:      "claude",
 					DependsOn: []string{"collector"},
-					Prompt:    "You are the GitHub Notification Handler. Process GitHub notifications exactly like a human would.\n\nFor each notification:\n1. Read the full context (issues, PRs, comments, code)\n2. Respond naturally as a project contributor\n3. Take appropriate action (comment, review, create PR, etc.)\n4. Use GitHub MCP to publish your responses\n\nAlways be professional, helpful, and maintain high quality standards.",
-					Transformers: &Transformers{
-						Input: "{{ index .inputs 0 }}",
-					},
+					Input:     "{{ index .inputs 0 }}\n\nYou are the GitHub Notification Handler. Process GitHub notifications exactly like a human would.\n\nFor each notification:\n1. Read the full context (issues, PRs, comments, code)\n2. Respond naturally as a project contributor\n3. Take appropriate action (comment, review, create PR, etc.)\n4. Use GitHub MCP to publish your responses\n\nAlways be professional, helpful, and maintain high quality standards.",
 				},
 			},
 		},
@@ -685,6 +675,11 @@ func copyAgentSettings(source AgentSettings) AgentSettings {
 	// Copy hooks configuration
 	copied.Hooks = copyHookConfig(source.Hooks)
 
+	// Copy debug flag
+	if source.Debug != nil {
+		copied.Debug = BoolPtr(*source.Debug)
+	}
+
 	// Copy flow configuration
 	if len(source.Flow) > 0 {
 		copied.Flow = make([]FlowStep, len(source.Flow))
@@ -733,6 +728,11 @@ func (w *Worker) GetEffectiveSettings(globalSettings AgentSettings) AgentSetting
 
 	// Merge hooks configuration
 	effective.Hooks = mergeHookConfigs(globalSettings.Hooks, w.Settings.Hooks)
+
+	// Override debug flag
+	if w.Settings.Debug != nil {
+		effective.Debug = w.Settings.Debug
+	}
 
 	// Merge flow configuration - agent settings override global
 	if len(w.Settings.Flow) > 0 {
@@ -832,9 +832,9 @@ func (w *Worker) GetNormalizedNameWithVariation(variation string) string {
 	return fmt.Sprintf("%s/%s", normalizedName, variation)
 }
 
-// GetAgentDir returns the agent directory path for use in configurations and volume mounts
+// GetWorkerDir returns the worker directory path for use in configurations and volume mounts
 func (w *Worker) GetWorkerDir() string {
-	return fmt.Sprintf("/opt/autoteam/agents/%s", w.GetNormalizedName())
+	return fmt.Sprintf("/opt/autoteam/workers/%s", w.GetNormalizedName())
 }
 
 // GetWorkerSubDir returns the worker subdirectory path for a specific variation (e.g., collector, executor)
@@ -902,4 +902,11 @@ func (s *AgentSettings) GetMaxAttempts() int {
 		return *s.MaxAttempts
 	}
 	return 3 // default
+}
+
+func (s *AgentSettings) GetDebug() bool {
+	if s.Debug != nil {
+		return *s.Debug
+	}
+	return false // default
 }

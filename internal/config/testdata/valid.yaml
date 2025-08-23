@@ -23,8 +23,8 @@ settings:
   flow:
     - name: collector
       type: gemini
-      prompt: "Collect tasks"
+      input: "Collect tasks"
     - name: executor
       type: claude
       depends_on: [collector]
-      prompt: "Execute tasks"
+      input: "Execute tasks"
