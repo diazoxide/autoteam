@@ -19,11 +19,11 @@ import (
 
 // FlowExecutor executes dynamic flows with dependency resolution
 type FlowExecutor struct {
-	steps      []config.FlowStep
-	agents     map[string]agent.Agent
-	mcpServers map[string]config.MCPServer
-	workingDir string
-	worker     *config.Worker // Worker configuration for template context
+	Steps      []config.FlowStep
+	Agents     map[string]agent.Agent
+	MCPServers map[string]config.MCPServer
+	WorkingDir string
+	Worker     *config.Worker // Worker configuration for template context
 }
 
 // StepOutput represents the output of a flow step
@@ -43,18 +43,18 @@ type FlowResult struct {
 // New creates a new FlowExecutor with the given steps and worker configuration
 func New(steps []config.FlowStep, mcpServers map[string]config.MCPServer, workingDir string, worker *config.Worker) *FlowExecutor {
 	return &FlowExecutor{
-		steps:      steps,
-		agents:     make(map[string]agent.Agent),
-		mcpServers: mcpServers,
-		workingDir: workingDir,
-		worker:     worker,
+		Steps:      steps,
+		Agents:     make(map[string]agent.Agent),
+		MCPServers: mcpServers,
+		WorkingDir: workingDir,
+		Worker:     worker,
 	}
 }
 
 // Execute runs the flow with dependency resolution and parallel execution
 func (fe *FlowExecutor) Execute(ctx context.Context) (*FlowResult, error) {
 	lgr := logger.FromContext(ctx)
-	lgr.Info("Starting flow execution", zap.Int("total_steps", len(fe.steps)))
+	lgr.Info("Starting flow execution", zap.Int("total_steps", len(fe.Steps)))
 
 	// Validate flow configuration
 	if err := fe.validateFlow(); err != nil {
@@ -222,12 +222,12 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 
 // validateFlow validates the flow configuration
 func (fe *FlowExecutor) validateFlow() error {
-	if len(fe.steps) == 0 {
+	if len(fe.Steps) == 0 {
 		return fmt.Errorf("flow must contain at least one step")
 	}
 
 	stepNames := make(map[string]bool)
-	for _, step := range fe.steps {
+	for _, step := range fe.Steps {
 		if step.Name == "" {
 			return fmt.Errorf("step name is required")
 		}
@@ -252,7 +252,7 @@ func (fe *FlowExecutor) validateFlow() error {
 
 // stepExistsInFlow checks if a step name exists in the flow
 func (fe *FlowExecutor) stepExistsInFlow(stepName string) bool {
-	for _, step := range fe.steps {
+	for _, step := range fe.Steps {
 		if step.Name == stepName {
 			return true
 		}
@@ -267,13 +267,13 @@ func (fe *FlowExecutor) resolveDependencyLevels() ([][]string, error) {
 	inDegree := make(map[string]int)
 
 	// Initialize graph and in-degree count
-	for _, step := range fe.steps {
+	for _, step := range fe.Steps {
 		graph[step.Name] = []string{}
 		inDegree[step.Name] = 0
 	}
 
 	// Build edges and calculate in-degrees
-	for _, step := range fe.steps {
+	for _, step := range fe.Steps {
 		for _, dep := range step.DependsOn {
 			graph[dep] = append(graph[dep], step.Name)
 			inDegree[step.Name]++
@@ -281,7 +281,7 @@ func (fe *FlowExecutor) resolveDependencyLevels() ([][]string, error) {
 	}
 
 	var levels [][]string
-	remainingSteps := len(fe.steps)
+	remainingSteps := len(fe.Steps)
 
 	// Process steps level by level
 	for remainingSteps > 0 {
@@ -325,7 +325,7 @@ func (fe *FlowExecutor) resolveDependencyLevels() ([][]string, error) {
 func (fe *FlowExecutor) createAgents(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
 
-	for _, step := range fe.steps {
+	for _, step := range fe.Steps {
 		// Create agent config from step
 		agentConfig := agent.AgentConfig{
 			Type: step.Type,
@@ -335,21 +335,21 @@ func (fe *FlowExecutor) createAgents(ctx context.Context) error {
 
 		// Create agent with working directory + step name for proper MCP config paths
 		// Extract just the directory name from workingDir (e.g., "senior_developer" from "/opt/autoteam/workers/senior_developer")
-		baseName := filepath.Base(fe.workingDir)
+		baseName := filepath.Base(fe.WorkingDir)
 		fullAgentName := fmt.Sprintf("%s/%s", baseName, step.Name)
-		stepAgent, err := agent.CreateAgent(agentConfig, fullAgentName, fe.mcpServers)
+		stepAgent, err := agent.CreateAgent(agentConfig, fullAgentName, fe.MCPServers)
 		if err != nil {
 			return fmt.Errorf("failed to create agent for step %s: %w", step.Name, err)
 		}
 
-		fe.agents[step.Name] = stepAgent
+		fe.Agents[step.Name] = stepAgent
 
 		// Configure MCP servers if the agent supports configuration
 		if configurable, ok := stepAgent.(agent.Configurable); ok {
 			lgr.Info("Configuring MCP servers for agent",
 				zap.String("step_name", step.Name),
 				zap.String("agent_type", step.Type),
-				zap.Int("mcp_servers", len(fe.mcpServers)))
+				zap.Int("mcp_servers", len(fe.MCPServers)))
 
 			if err := configurable.Configure(ctx); err != nil {
 				return fmt.Errorf("failed to configure MCP servers for step %s: %w", step.Name, err)
@@ -395,11 +395,11 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 	}
 
 	// Get agent for this step
-	stepAgent, exists := fe.agents[step.Name]
+	stepAgent, exists := fe.Agents[step.Name]
 	if !exists {
 		// Debug: list all available agents
 		var availableAgents []string
-		for agentName := range fe.agents {
+		for agentName := range fe.Agents {
 			availableAgents = append(availableAgents, agentName)
 		}
 		lgr.Error("Agent not found for step",
@@ -435,7 +435,7 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 	runOptions := agent.RunOptions{
 		MaxRetries:       1,
 		ContinueMode:     false,
-		WorkingDirectory: fmt.Sprintf("%s/%s", fe.workingDir, step.Name),
+		WorkingDirectory: fmt.Sprintf("%s/%s", fe.WorkingDir, step.Name),
 	}
 
 	// Execute agent
@@ -499,9 +499,7 @@ func (fe *FlowExecutor) prepareInputData(step config.FlowStep, previousOutputs m
 	return map[string]interface{}{
 		"inputs": inputs,
 		"step":   step,
-		"flow": map[string]interface{}{
-			"worker": fe.worker,
-		},
+		"flow":   fe,
 	}
 }
 
@@ -561,7 +559,7 @@ func (fe *FlowExecutor) applyTemplate(templateStr string, data interface{}) (str
 
 // getStepByName finds a step by its name
 func (fe *FlowExecutor) getStepByName(name string) *config.FlowStep {
-	for _, step := range fe.steps {
+	for _, step := range fe.Steps {
 		if step.Name == name {
 			return &step
 		}

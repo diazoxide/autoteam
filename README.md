@@ -193,6 +193,316 @@ autoteam up
 autoteam down
 ```
 
+## Environment Variables and Secrets Management
+
+AutoTeam provides a secure and flexible system for managing environment variables, secrets, and credentials. The recommended approach uses Docker Compose service-level environment variables, which provides proper isolation and security without copying sensitive data to generated files.
+
+### 🔒 Security Best Practices
+
+**Secure Configuration Layer:**
+- Set environment variables in worker `service.environment` section
+- Nothing is copied to `.autoteam/` directory - only references are used
+- Runtime uses your local environment variables or `.env` file
+- Credentials stay in your secure environment, not in generated files
+
+### Configuration Approach
+
+The most secure way to handle secrets is through the worker service layer in `autoteam.yaml`:
+
+```yaml
+workers:
+  - name: Senior Developer
+    enabled: true
+    settings:
+      service:
+        environment:
+          # GitHub credentials
+          GITHUB_USER: ${SENIOR_DEVELOPER_GITHUB_USER}
+          GITHUB_PERSONAL_ACCESS_TOKEN: ${SENIOR_DEVELOPER_GITHUB_TOKEN}
+          
+          # Database credentials
+          DATABASE_URL: ${SENIOR_DEV_DATABASE_URL}
+          
+          # API keys
+          OPENAI_API_KEY: ${SENIOR_DEV_OPENAI_KEY}
+          SLACK_BOT_TOKEN: ${SENIOR_DEV_SLACK_TOKEN}
+
+  - name: DevOps Engineer
+    enabled: true
+    settings:
+      service:
+        environment:
+          # Different credentials for different roles
+          GITHUB_TOKEN: ${DEVOPS_ENGINEER_GITHUB_TOKEN}
+          AWS_ACCESS_KEY_ID: ${DEVOPS_AWS_ACCESS_KEY}
+          AWS_SECRET_ACCESS_KEY: ${DEVOPS_AWS_SECRET_KEY}
+          DOCKER_REGISTRY_TOKEN: ${DEVOPS_DOCKER_TOKEN}
+
+# Global settings (applied to all workers unless overridden)
+settings:
+  service:
+    environment:
+      # Common environment variables
+      TODO_DB_PATH: ${AUTOTEAM_WORKER_DIR}/todo.db
+      LOG_LEVEL: info
+      ENVIRONMENT: production
+```
+
+### Environment Variable Sources
+
+AutoTeam supports multiple ways to provide environment variables:
+
+#### 1. `.env` File (Recommended for Development)
+
+Create a `.env` file in your project root:
+
+```bash
+# .env file - Keep this file secure and never commit to version control
+# GitHub credentials for different workers
+SENIOR_DEVELOPER_GITHUB_USER=your-github-username
+SENIOR_DEVELOPER_GITHUB_TOKEN=ghp_your_personal_access_token_here
+
+DEVOPS_ENGINEER_GITHUB_TOKEN=ghp_different_token_for_devops_role
+SYSTEM_ARCHITECT_GITHUB_TOKEN=ghp_architect_review_token
+
+# API Keys
+SENIOR_DEV_OPENAI_KEY=sk-your-openai-api-key
+SENIOR_DEV_SLACK_TOKEN=xoxb-your-slack-bot-token
+
+# Database URLs
+SENIOR_DEV_DATABASE_URL=postgresql://user:pass@localhost/senior_dev_db
+SHARED_ANALYTICS_DB=sqlite:///opt/autoteam/shared/analytics.db
+
+# AWS credentials for DevOps
+DEVOPS_AWS_ACCESS_KEY=AKIA...
+DEVOPS_AWS_SECRET_KEY=your-aws-secret-key
+
+# Custom service credentials
+JIRA_API_TOKEN=your-jira-token
+CONFLUENCE_API_KEY=your-confluence-key
+```
+
+#### 2. System Environment Variables
+
+Set variables in your shell profile or system:
+
+```bash
+# In ~/.bashrc, ~/.zshrc, or system environment
+export SENIOR_DEVELOPER_GITHUB_TOKEN="ghp_your_token"
+export DEVOPS_ENGINEER_GITHUB_TOKEN="ghp_different_token"
+export DATABASE_URL="postgresql://user:pass@host/db"
+```
+
+#### 3. CI/CD Environment Variables
+
+For production deployments, use your CI/CD platform's secret management:
+
+```yaml
+# GitHub Actions example
+env:
+  SENIOR_DEVELOPER_GITHUB_TOKEN: ${{ secrets.SENIOR_DEV_TOKEN }}
+  DEVOPS_ENGINEER_GITHUB_TOKEN: ${{ secrets.DEVOPS_TOKEN }}
+  DATABASE_URL: ${{ secrets.PRODUCTION_DB_URL }}
+```
+
+### Environment Variable Patterns
+
+#### Role-Based Credentials
+```yaml
+workers:
+  - name: Senior Developer
+    settings:
+      service:
+        environment:
+          GITHUB_USER: ${SENIOR_DEVELOPER_GITHUB_USER}
+          GITHUB_TOKEN: ${SENIOR_DEVELOPER_GITHUB_TOKEN}
+          # Role-specific permissions and access
+
+  - name: Security Auditor  
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${SECURITY_AUDITOR_GITHUB_TOKEN}
+          # Read-only or audit-specific permissions
+```
+
+#### Service-Specific Credentials
+```yaml
+settings:
+  service:
+    environment:
+      # MCP server credentials
+      GITHUB_MCP_TOKEN: ${GITHUB_API_TOKEN}
+      SLACK_MCP_TOKEN: ${SLACK_BOT_TOKEN}
+      DATABASE_MCP_URL: ${DATABASE_CONNECTION_STRING}
+      
+      # Application-specific settings
+      LOG_LEVEL: ${APP_LOG_LEVEL:-info}
+      RETRY_ATTEMPTS: ${MAX_RETRIES:-3}
+```
+
+#### Dynamic Placeholders
+```yaml
+settings:
+  service:
+    environment:
+      # AutoTeam provides these placeholders automatically
+      WORKER_NAME: ${AUTOTEAM_WORKER_NAME}
+      WORKER_DIR: ${AUTOTEAM_WORKER_DIR}
+      CONFIG_FILE: ${AUTOTEAM_WORKER_DIR}/config.json
+      LOG_FILE: ${AUTOTEAM_WORKER_DIR}/worker.log
+```
+
+### Runtime Behavior
+
+#### Security Features:
+- **No Secret Copying**: Environment variables are referenced, not copied to `.autoteam/` files
+- **Runtime Resolution**: Variables resolved when containers start, not during generation
+- **Isolation**: Each worker gets its own isolated environment
+- **No Persistence**: Secrets stay in memory, not written to disk
+
+#### Generated Docker Compose:
+```yaml
+# Generated .autoteam/compose.yaml (example)
+services:
+  senior_developer:
+    environment:
+      # References resolved at runtime
+      GITHUB_USER: ${SENIOR_DEVELOPER_GITHUB_USER}
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${SENIOR_DEVELOPER_GITHUB_TOKEN}
+      # AutoTeam variables automatically added
+      AUTOTEAM_WORKER_NAME: "Senior Developer"
+      AUTOTEAM_WORKER_DIR: "/opt/autoteam/workers/senior_developer"
+```
+
+### Credential Management Examples
+
+#### GitHub Integration
+```yaml
+workers:
+  - name: Code Reviewer
+    settings:
+      service:
+        environment:
+          # GitHub API access
+          GITHUB_TOKEN: ${CODE_REVIEWER_GITHUB_TOKEN}
+          GITHUB_USER: ${CODE_REVIEWER_GITHUB_USER}
+      
+      # Corresponding .env entry:
+      # CODE_REVIEWER_GITHUB_TOKEN=ghp_token_with_repo_and_read_permissions
+      # CODE_REVIEWER_GITHUB_USER=reviewer-bot
+```
+
+#### Multi-Platform Setup
+```yaml
+workers:
+  - name: Integration Specialist
+    settings:
+      service:
+        environment:
+          # Multiple platform credentials
+          GITHUB_TOKEN: ${INTEGRATION_GITHUB_TOKEN}
+          SLACK_BOT_TOKEN: ${INTEGRATION_SLACK_TOKEN}
+          JIRA_API_TOKEN: ${INTEGRATION_JIRA_TOKEN}
+          DATABASE_URL: ${INTEGRATION_DATABASE_URL}
+          REDIS_URL: ${INTEGRATION_REDIS_URL}
+```
+
+#### Development vs Production
+```yaml
+# Development configuration
+settings:
+  service:
+    environment:
+      DATABASE_URL: ${DEV_DATABASE_URL:-sqlite:///tmp/dev.db}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      GITHUB_API_URL: ${GITHUB_API_URL:-https://api.github.com}
+
+# Production overrides using different environment variables
+# PROD_DATABASE_URL=postgresql://prod-server/app_db
+# LOG_LEVEL=warn
+# GITHUB_API_URL=https://github.company.com/api/v3
+```
+
+### Security Recommendations
+
+#### Credential Separation
+- **Use different tokens** for different workers/roles
+- **Minimal permissions** - only grant required access levels
+- **Regular rotation** - rotate tokens and keys periodically
+- **Audit access** - monitor which workers use which credentials
+
+#### Environment File Security
+```bash
+# Secure your .env file
+chmod 600 .env
+
+# Add to .gitignore
+echo ".env" >> .gitignore
+echo ".env.*" >> .gitignore
+
+# Example .env.template for team sharing (without actual secrets)
+cp .env .env.template
+# Remove actual values, keep variable names as examples
+```
+
+#### Production Deployment
+- **Never commit** `.env` files to version control
+- **Use secret management** systems (AWS Secrets Manager, Azure Key Vault, etc.)
+- **Environment-specific** configurations
+- **Container security** scanning and runtime protection
+
+### Common Patterns
+
+#### Hook Initialization
+```yaml
+settings:
+  hooks:
+    on_init:
+      - command: "/bin/sh"
+        args: ["-c", "echo https://$$GITHUB_USER:$$GITHUB_PERSONAL_ACCESS_TOKEN@github.com > ~/.git-credentials"]
+        description: "Initialize Git credentials securely"
+```
+
+#### MCP Server Configuration
+```yaml
+mcp_servers:
+  github:
+    command: /opt/autoteam/custom/mcp/github/bin/github-mcp-server
+    args: ["stdio"]
+    env:
+      # MCP server uses same credentials as worker
+      GITHUB_TOKEN: $$GITHUB_PERSONAL_ACCESS_TOKEN
+
+  database:
+    command: /opt/autoteam/bin/database-mcp-server
+    args: ["stdio"] 
+    env:
+      DATABASE_URL: $$DATABASE_URL
+```
+
+### Troubleshooting Environment Variables
+
+#### Common Issues:
+1. **Missing Variables**: Ensure all referenced variables are defined
+2. **Permission Errors**: Check token permissions for required operations  
+3. **Syntax Errors**: Use `${VAR_NAME}` syntax in autoteam.yaml, `$$VAR_NAME` in shell commands
+4. **Variable Priority**: Worker-level overrides global-level environment variables
+
+#### Debug Commands:
+```bash
+# Check environment variable resolution
+docker-compose -f .autoteam/compose.yaml config
+
+# Verify specific worker environment
+docker-compose -f .autoteam/compose.yaml exec worker_name env | grep GITHUB
+
+# Test credential access
+docker-compose -f .autoteam/compose.yaml exec worker_name curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
+```
+
+This approach ensures your sensitive credentials remain secure while providing flexible configuration options for different deployment scenarios.
+
 ## Dynamic Flow System
 
 AutoTeam's powerful flow-based execution system allows you to create sophisticated workflows that can process tasks from multiple platforms with intelligent dependency resolution and parallel execution.

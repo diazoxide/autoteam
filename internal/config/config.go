@@ -39,6 +39,7 @@ type WorkerSettings struct {
 	MCPServers    map[string]MCPServer   `yaml:"mcp_servers,omitempty"`
 	Hooks         *HookConfig            `yaml:"hooks,omitempty"`
 	Debug         *bool                  `yaml:"debug,omitempty"`
+	Meta          map[string]interface{} `yaml:"meta,omitempty"`
 	// Dynamic Flow Configuration
 	Flow []FlowStep `yaml:"flow"`
 }
@@ -379,8 +380,15 @@ func tryMergeAsMapRecursive(globalValue, workerValue interface{}) interface{} {
 	// Try map[string]interface{} (common after YAML unmarshaling) with recursive merging
 	if globalMap, ok := globalValue.(map[string]interface{}); ok {
 		if workerMap, ok := workerValue.(map[string]interface{}); ok {
-			// Use maps.Clone for efficient copying
-			merged := maps.Clone(globalMap)
+			var merged map[string]interface{}
+
+			// Handle nil global map
+			if globalMap == nil {
+				merged = make(map[string]interface{})
+			} else {
+				// Use maps.Clone for efficient copying
+				merged = maps.Clone(globalMap)
+			}
 
 			// Recursively merge/override with worker values
 			for k, workerVal := range workerMap {
@@ -400,6 +408,13 @@ func tryMergeAsMapRecursive(globalValue, workerValue interface{}) interface{} {
 				}
 			}
 			return merged
+		}
+	}
+
+	// Handle case where global is nil but worker is a map
+	if globalValue == nil {
+		if workerMap, ok := workerValue.(map[string]interface{}); ok {
+			return deepCopyValue(workerMap)
 		}
 	}
 
@@ -666,6 +681,11 @@ func copyWorkerSettings(source WorkerSettings) WorkerSettings {
 		copied.Debug = BoolPtr(*source.Debug)
 	}
 
+	// Copy meta configuration
+	if source.Meta != nil {
+		copied.Meta = deepCopyValue(source.Meta).(map[string]interface{})
+	}
+
 	// Copy flow configuration
 	if len(source.Flow) > 0 {
 		copied.Flow = make([]FlowStep, len(source.Flow))
@@ -718,6 +738,15 @@ func (w *Worker) GetEffectiveSettings(globalSettings WorkerSettings) WorkerSetti
 	// Override debug flag
 	if w.Settings.Debug != nil {
 		effective.Debug = w.Settings.Debug
+	}
+
+	// Merge meta configuration using universal map merging
+	if len(w.Settings.Meta) > 0 {
+		if merged := tryMergeAsMapRecursive(globalSettings.Meta, w.Settings.Meta); merged != nil {
+			effective.Meta = merged.(map[string]interface{})
+		} else {
+			effective.Meta = deepCopyValue(w.Settings.Meta).(map[string]interface{})
+		}
 	}
 
 	// Merge flow configuration - worker settings override global
