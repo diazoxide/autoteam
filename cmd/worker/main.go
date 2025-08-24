@@ -105,7 +105,7 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 	// Get worker effective settings (without global settings - worker is standalone)
 	effectiveSettings := workerConfig.GetEffectiveSettings(config.WorkerSettings{})
 
-	log.Info("Worker configuration loaded successfully",
+	log.Debug("Worker configuration loaded successfully",
 		zap.String("worker_name", workerConfig.Name),
 		zap.String("team_name", effectiveSettings.GetTeamName()),
 	)
@@ -125,7 +125,7 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigChan
-		log.Info("Received signal, shutting down gracefully", zap.String("signal", sig.String()))
+		log.Info("Shutting down gracefully", zap.String("signal", sig.String()))
 
 		// Execute on_stop hooks from worker settings
 		if hookErr := worker.ExecuteHooks(ctx, effectiveSettings.Hooks, "on_stop"); hookErr != nil {

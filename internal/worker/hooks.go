@@ -22,7 +22,7 @@ func ExecuteHooks(ctx context.Context, hookConfig *config.HookConfig, hookType s
 	}
 
 	lgr := logger.FromContext(ctx)
-	lgr.Info("Executing container hooks",
+	lgr.Debug("Executing container hooks",
 		zap.String("hook_type", hookType),
 		zap.Int("hook_count", len(hooks)))
 
@@ -41,12 +41,12 @@ func ExecuteHooks(ctx context.Context, hookConfig *config.HookConfig, hookType s
 
 			switch continueOn {
 			case "always":
-				lgr.Info("Continuing despite hook failure (continue_on: always)")
+				lgr.Debug("Continuing despite hook failure (continue_on: always)")
 				continue
 			case "success":
 				return fmt.Errorf("hook %d failed and continue_on is 'success': %w", i+1, err)
 			case "error":
-				lgr.Info("Continuing after hook failure (continue_on: error)")
+				lgr.Debug("Continuing after hook failure (continue_on: error)")
 				continue
 			default:
 				return fmt.Errorf("hook %d failed: %w", i+1, err)
@@ -54,7 +54,7 @@ func ExecuteHooks(ctx context.Context, hookConfig *config.HookConfig, hookType s
 		}
 	}
 
-	lgr.Info("All hooks executed successfully", zap.String("hook_type", hookType))
+	lgr.Debug("All hooks executed successfully", zap.String("hook_type", hookType))
 	return nil
 }
 
@@ -67,7 +67,7 @@ func executeHook(ctx context.Context, hookType string, index int, hook config.Ho
 		description = *hook.Description
 	}
 
-	lgr.Info("Executing hook",
+	lgr.Debug("Executing hook",
 		zap.String("hook_type", hookType),
 		zap.Int("index", index),
 		zap.String("description", description),
@@ -115,13 +115,13 @@ func executeHook(ctx context.Context, hookType string, index int, hook config.Ho
 	}
 
 	if len(output) > 0 {
-		lgr.Info("Hook command output",
+		lgr.Debug("Hook command output",
 			zap.String("hook_type", hookType),
 			zap.Int("index", index),
 			zap.String("output", strings.TrimSpace(string(output))))
 	}
 
-	lgr.Info("Hook executed successfully",
+	lgr.Debug("Hook executed successfully",
 		zap.String("hook_type", hookType),
 		zap.Int("index", index))
 
