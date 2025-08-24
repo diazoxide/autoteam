@@ -1086,7 +1086,7 @@ go test ./cmd/entrypoint
 ./
 ├── cmd/
 │   ├── autoteam/          # Main CLI application
-│   └── entrypoint/        # Go binary entrypoint for agents
+│   └── worker/            # Go binary worker for agents
 ├── internal/
 │   ├── config/            # Configuration parsing
 │   ├── generator/         # Template generation & embedded templates

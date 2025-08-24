@@ -18,6 +18,13 @@
 - Example: `autoteam up --docker-compose-args="--build --force-recreate"`
 - Arguments are automatically parsed and appended to the default `docker compose up -d --remove-orphans` command
 
+## Installation Script Updates
+- **RENAMED**: Binary renamed from `autoteam-entrypoint` to `autoteam-worker` throughout codebase
+- **SIMPLIFIED**: Install script always installs both main autoteam binary and all worker platform binaries
+- **REMOVED**: `--skip-workers` option - workers are always installed for complete functionality
+- Worker binaries installed to `/opt/autoteam/bin` for all supported platforms (linux-amd64, linux-arm64, darwin-amd64, darwin-arm64)
+- Installation script automatically detects platform and builds from source if pre-built binaries unavailable
+
 ## RunOptions Simplification
 - **SIMPLIFIED**: Removed OutputFormat, Verbose, and DryRun fields from agent.RunOptions struct
 - Claude agent now uses fixed `--output-format stream-json --print` arguments by default
@@ -165,10 +172,10 @@
 
 ## Build and Template Workflow
 - Use `make build` to build the main autoteam binary (required after template changes due to go:embed)
-- Use `make build-entrypoint` to build the entrypoint binary for current platform
-- Use `make build-all` to build both main and entrypoint binaries for all supported platforms
-- Use `make build-linux` to build both main and entrypoint binaries for Linux platforms (Docker focus)
-- Use `make build-entrypoint-all` to build only entrypoint binaries for Linux platforms
+- Use `make build-worker` to build the worker binary for current platform
+- Use `make build-all` to build both main and worker binaries for all supported platforms
+- Use `make build-linux` to build both main and worker binaries for Linux platforms (Docker focus)
+- Use `make build-worker-all` to build only worker binaries for Linux platforms
 - After modifying templates in `internal/generator/templates/`, always rebuild the main binary to update embedded templates
 - Use `autoteam generate` to generate compose.yaml and entrypoint.sh from autoteam.yaml configuration
 

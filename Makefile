@@ -236,7 +236,7 @@ install-darwin: ## Install on macOS
 			sudo chmod +x /usr/local/bin/$(WORKER_BINARY_NAME); \
 			echo "$(GREEN)✓ Installed $(WORKER_BINARY_NAME) to /usr/local/bin/$(WORKER_BINARY_NAME)$(NC)"; \
 		else \
-			echo "$(YELLOW)⚠ No entrypoint binary found, run 'make build-entrypoint' or 'make build-entrypoint-all' first$(NC)"; \
+			echo "$(YELLOW)⚠ No worker binary found, run 'make build-worker' or 'make build-worker-all' first$(NC)"; \
 		fi; \
 	fi
 
@@ -274,7 +274,7 @@ install-linux: ## Install on Linux
 		sudo chmod +x /usr/local/bin/$(WORKER_BINARY_NAME); \
 		echo "$(GREEN)✓ Installed $(WORKER_BINARY_NAME) to /usr/local/bin/$(WORKER_BINARY_NAME)$(NC)"; \
 	else \
-		echo "$(YELLOW)⚠ No entrypoint binary found, run 'make build-entrypoint' or 'make build-entrypoint-all' first$(NC)"; \
+		echo "$(YELLOW)⚠ No worker binary found, run 'make build-worker' or 'make build-worker-all' first$(NC)"; \
 	fi
 
 install-workers: ## Install worker binaries for all platforms to /opt/autoteam/bin
