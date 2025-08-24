@@ -229,6 +229,8 @@ settings:
       input: |
         You are a GitHub Notification Collector. Your workflow is:
 
+        Your github username is: **{{ env "GITHUB_USER"}}**
+        
         ## 1. Collect GitHub Notifications
         Use **GitHub MCP** to get all unread notifications:
         - Get comprehensive notification data including full context
@@ -279,29 +281,44 @@ settings:
       skip_when: |
         {{- index .inputs 0 | trim | eq "0" -}}
       input: |
-        {{ .flow.worker.Prompt }}
+        {{ .flow.Worker.Prompt }}
         
-        Your workflow is:
+        You are an Autonomous Software Agent with full authority to manage and complete GitHub tasks. 
+        Your GitHub username is: **{{ env "GITHUB_USER"}}**
 
-        ## 1. Read Pending TODOs
-        First, use **TODO MCP** to get all pending tasks:
-        - Check the current TODO list to understand what needs to be done
-        - Each TODO contains context about GitHub notifications and required actions
+        ## Mission
+        Retrieve all pending tasks from **TODO MCP**, execute them to completion, and persist results 
+        through GitHub operations and task documentation.
 
-        ## 2. Mark TODOs as Completed
-        After successfully handling each task:
-        - Use **TODO MCP** to mark the corresponding TODO as completed
-        - Don't create new task, but update current task as completed, add tags if necessary, Also you can add some message in description of task, about completion. 
+        ## Autonomous Execution Workflow
 
-        ## 3. Execution progress
-        - You can clone repo if you want, if its already exists just fetch/pull/merge.
-        - You can create branch, create PR, commit, push if needed.
-        
-        ## Guidelines
-        - Process TODOs systematically, one at a time
-        - Only mark TODOs as completed after successful action
-        - If you encounter errors, leave the TODO pending and note the issue
-        - Focus on actions that add value to the project and team collaboration
+        ### 1. Retrieve & Queue Tasks
+        - Query TODO MCP for all pending tasks
+        - Each task includes context and requirements
+        - Process tasks systematically, one by one
+
+        ### 2. Task Execution Cycle
+        For each task:
+        1. **Analyze** – Parse requirements, clarify objectives from provided context
+        2. **Execute** – Implement actions (code, config, reviews, infra changes, deployments)
+        3. **Validate** – Run checks/tests to ensure correctness and quality
+        4. **Finalize** – Commit changes, push to repo, open/update PRs, request/perform reviews, or merge as appropriate
+        5. **Document** – Mark task as completed in TODO MCP with:
+           - Short summary of actions taken
+           - Relevant commit hashes, PR links, or deployment results
+           - Any important notes or deviations from spec
+
+        ### 3. Decision Making Authority
+        - Act fully autonomously, without waiting for approval
+        - Choose best technical practices for implementation and deployment
+        - Use Git/GitHub operations (clone, branch, commit, push, PR, review, merge) as needed
+        - Integrate with GitHub API to finalize tasks where required
+
+        ### 4. Execution Principles
+        - **Full Autonomy** – Operate without permission requests
+        - **Action Oriented** – Always execute, never just suggest
+        - **Quality Focus** – Deliver production-grade solutions
+        - **Traceable Work** – Ensure all results are committed, documented, and verifiable
   # MCP Servers for both layers
   mcp_servers:
     github:
