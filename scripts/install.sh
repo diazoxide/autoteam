@@ -13,7 +13,7 @@ INSTALL_DIR="/usr/local/bin"
 ENTRYPOINTS_DIR="/opt/autoteam/bin"
 TEMP_DIR=$(mktemp -d)
 VERSION=${VERSION:-latest}
-INSTALL_ENTRYPOINTS="true"
+# Always install workers - no option to skip
 
 # Colors
 RED='\033[0;31m'
@@ -147,7 +147,7 @@ download_binary() {
     local download_url binary_name
 
     if [ "$VERSION" = "latest" ]; then
-        # For entrypoint binary, try direct download first, then build from source
+        # For worker binary, try direct download first, then build from source
         if [ "$BINARY_NAME" = "autoteam-entrypoint" ]; then
             binary_name="${BINARY_NAME}-${OS}-${ARCH}"
             download_url="https://github.com/${REPO}/releases/download/${VERSION}/${binary_name}"
@@ -237,7 +237,7 @@ build_from_source() {
     log_info "Building binary..."
     if [ "$BINARY_NAME" = "autoteam-entrypoint" ]; then
         if ! make build-entrypoint >/dev/null 2>&1; then
-            log_error "Failed to build entrypoint binary"
+            log_error "Failed to build worker binary"
             exit 1
         fi
     else
@@ -322,12 +322,11 @@ usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  -b, --binary NAME       Binary to install (autoteam|autoteam-entrypoint, default: autoteam)"
+    echo "  -b, --binary NAME       Binary to install (autoteam|autoteam-worker, default: autoteam)"
     echo "  -v, --version VERSION   Install specific version (default: latest)"
     echo "  -f, --force            Force installation even if already installed"
     echo "  -d, --dir DIRECTORY    Install directory (default: /usr/local/bin)"
     echo "  -t, --target PATH      Target installation path (overrides -d)"
-    echo "  --skip-entrypoints     Skip installation of entrypoint binaries (installed by default)"
     echo "  -h, --help             Show this help message"
     echo ""
     echo "Environment Variables:"
@@ -337,12 +336,11 @@ usage() {
     echo ""
     echo "Examples:"
     echo "  $0                                    # Install autoteam (latest)"
-    echo "  $0 --binary autoteam-entrypoint      # Install entrypoint binary"
-    echo "  $0 --skip-entrypoints               # Install main binary only (skip entrypoints)"
+    echo "  $0 --binary autoteam-worker          # Install worker binary"
     echo "  $0 -v 1.0.0                         # Install specific version"
     echo "  $0 -f                                # Force reinstall"
     echo "  $0 -d ~/.local/bin                   # Install to custom directory"
-    echo "  $0 -t /tmp/autoteam-entrypoint       # Install to specific path"
+    echo "  $0 -t /tmp/autoteam-worker           # Install to specific path"
 }
 
 # Parse command line arguments
@@ -380,10 +378,6 @@ parse_args() {
             -t|--target)
                 TARGET_PATH="$2"
                 shift 2
-                ;;
-            --skip-entrypoints)
-                INSTALL_ENTRYPOINTS="false"
-                shift
                 ;;
             -h|--help)
                 usage
@@ -445,7 +439,7 @@ if [ -f "$ENTRYPOINT_BINARY" ] && [ -x "$ENTRYPOINT_BINARY" ]; then
   chmod +x /tmp/autoteam-entrypoint
   exec /tmp/autoteam-entrypoint
 else
-  echo "❌ System entrypoint binary not found for platform ${PLATFORM}"
+  echo "❌ System worker binary not found for platform ${PLATFORM}"
   echo "💡 Run 'autoteam --install-entrypoints' to install entrypoint binaries"
   exit 1
 fi
@@ -467,7 +461,7 @@ EOF
         local binary_name="autoteam-entrypoint-$platform"
         local binary_path="$ENTRYPOINTS_DIR/$binary_name"
 
-        log_info "Installing entrypoint binary for $platform..."
+        log_info "Installing worker binary for $platform..."
 
         # Download binary for this platform
         local download_url
@@ -481,7 +475,7 @@ EOF
 
         # Try to download the binary
         if curl -fsSL "$download_url" -o "$TEMP_DIR/$binary_name" 2>/dev/null; then
-            log_success "Downloaded entrypoint binary for $platform"
+            log_success "Downloaded worker binary for $platform"
 
             # Install the binary
             if [ ! -w "$ENTRYPOINTS_DIR" ]; then
@@ -492,9 +486,9 @@ EOF
                 chmod +x "$binary_path"
             fi
 
-            log_success "Installed entrypoint binary to $binary_path"
+            log_success "Installed worker binary to $binary_path"
         else
-            log_warning "Failed to download entrypoint binary for $platform (not available in release)"
+            log_warning "Failed to download worker binary for $platform (not available in release)"
 
             # Try to build from source if Go is available
             if command -v go >/dev/null 2>&1 && command -v git >/dev/null 2>&1; then
@@ -510,7 +504,7 @@ EOF
 
                 # Build for the specific platform
                 if GOOS="$os" GOARCH="$arch" go build -ldflags "-s -w" -o "$TEMP_DIR/$binary_name" ./cmd/entrypoint >/dev/null 2>&1; then
-                    log_success "Built entrypoint binary for $platform from source"
+                    log_success "Built worker binary for $platform from source"
 
                     # Install the binary
                     if [ ! -w "$ENTRYPOINTS_DIR" ]; then
@@ -521,9 +515,9 @@ EOF
                         chmod +x "$binary_path"
                     fi
 
-                    log_success "Installed entrypoint binary to $binary_path"
+                    log_success "Installed worker binary to $binary_path"
                 else
-                    log_warning "Failed to build entrypoint binary for $platform"
+                    log_warning "Failed to build worker binary for $platform"
                 fi
 
                 cd - >/dev/null
@@ -564,10 +558,10 @@ main() {
     install_binary
     verify_installation
 
-    # Install entrypoints after main binary (unless skipped or installing entrypoint binary)
-    if [ "$INSTALL_ENTRYPOINTS" = "true" ] && [ "$BINARY_NAME" != "autoteam-entrypoint" ]; then
+    # Always install workers after main binary (unless installing worker binary directly)
+    if [ "$BINARY_NAME" != "autoteam-worker" ]; then
         echo ""
-        install_entrypoints
+        install_workers
     fi
 
     echo ""
