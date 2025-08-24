@@ -7,16 +7,16 @@ set -e
 
 # Configuration
 BINARY_NAME="autoteam"
-ENTRYPOINT_BINARY_NAME="autoteam-entrypoint"
+WORKER_BINARY_NAME="autoteam-worker"
 INSTALL_LOCATIONS=(
     "/usr/local/bin/$BINARY_NAME"
     "/usr/bin/$BINARY_NAME"
     "$HOME/.local/bin/$BINARY_NAME"
     "$HOME/bin/$BINARY_NAME"
-    "/usr/local/bin/$ENTRYPOINT_BINARY_NAME"
-    "/usr/bin/$ENTRYPOINT_BINARY_NAME"
-    "$HOME/.local/bin/$ENTRYPOINT_BINARY_NAME"
-    "$HOME/bin/$ENTRYPOINT_BINARY_NAME"
+    "/usr/local/bin/$WORKER_BINARY_NAME"
+    "/usr/bin/$WORKER_BINARY_NAME"
+    "$HOME/.local/bin/$WORKER_BINARY_NAME"
+    "$HOME/bin/$WORKER_BINARY_NAME"
 )
 
 # Colors
@@ -54,15 +54,15 @@ check_installation() {
         found=true
     fi
 
-    if command -v "$ENTRYPOINT_BINARY_NAME" >/dev/null 2>&1; then
+    if command -v "$WORKER_BINARY_NAME" >/dev/null 2>&1; then
         local version
-        version=$($ENTRYPOINT_BINARY_NAME --version 2>/dev/null | head -1 || echo "unknown")
-        log_info "Found $ENTRYPOINT_BINARY_NAME: $version"
+        version=$($WORKER_BINARY_NAME --version 2>/dev/null | head -1 || echo "unknown")
+        log_info "Found $WORKER_BINARY_NAME: $version"
         found=true
     fi
 
     if [ "$found" = false ]; then
-        log_warning "Neither $BINARY_NAME nor $ENTRYPOINT_BINARY_NAME is installed or in PATH"
+        log_warning "Neither $BINARY_NAME nor $WORKER_BINARY_NAME is installed or in PATH"
         return 1
     fi
     return 0
@@ -113,6 +113,7 @@ cleanup_files() {
         "$HOME/.autoteam"
         "$HOME/.config/autoteam"
         "/tmp/autoteam-*"
+        "/opt/autoteam"
     )
 
     log_info "Cleaning up configuration files..."
@@ -129,7 +130,12 @@ cleanup_files() {
         else
             if [ -e "$path" ]; then
                 log_info "Removing $path..."
-                rm -rf "$path"
+                if [ -w "$(dirname "$path")" ]; then
+                    rm -rf "$path"
+                else
+                    log_info "Administrator privileges required to remove $path"
+                    sudo rm -rf "$path"
+                fi
             fi
         fi
     done
