@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"autoteam/internal/config"
-	"autoteam/internal/entrypoint"
 	"autoteam/internal/logger"
 	"autoteam/internal/server"
 
@@ -20,7 +19,7 @@ import (
 
 // ClaudeCode implements the Agent interface for Claude Code
 type ClaudeCode struct {
-	config     entrypoint.AgentConfig
+	name       string
 	binaryPath string
 	mcpServers map[string]config.MCPServer
 	args       []string
@@ -30,9 +29,7 @@ type ClaudeCode struct {
 // NewClaudeCode creates a new Claude Code agent instance
 func NewClaudeCode(name string, args []string, env map[string]string, mcpServers map[string]config.MCPServer) *ClaudeCode {
 	return &ClaudeCode{
-		config: entrypoint.AgentConfig{
-			Name: name,
-		},
+		name:       name,
 		binaryPath: "claude", // Will be found in PATH after installation
 		mcpServers: mcpServers,
 		args:       args,
@@ -42,7 +39,7 @@ func NewClaudeCode(name string, args []string, env map[string]string, mcpServers
 
 // Name returns the agent name
 func (c *ClaudeCode) Name() string {
-	return c.config.Name
+	return c.name
 }
 
 // Type returns the agent type
@@ -54,7 +51,7 @@ func (c *ClaudeCode) Type() string {
 func (c *ClaudeCode) Run(ctx context.Context, prompt string, options RunOptions) (*AgentOutput, error) {
 	lgr := logger.FromContext(ctx)
 
-	lgr.Debug("Running Claude agent", zap.String("agent", c.config.Name), zap.Int("prompt_length", len(prompt)))
+	lgr.Debug("Running Claude agent", zap.String("agent", c.name), zap.Int("prompt_length", len(prompt)))
 
 	// Update Claude before running
 	if err := c.update(ctx); err != nil {
@@ -178,7 +175,7 @@ func (c *ClaudeCode) ConfigureForProject(ctx context.Context, projectPath string
 		return nil
 	}
 
-	lgr.Debug("Configuring MCP servers", zap.Int("count", len(c.mcpServers)), zap.String("agent", c.config.Name))
+	lgr.Debug("Configuring MCP servers", zap.Int("count", len(c.mcpServers)), zap.String("agent", c.name))
 
 	// Create dedicated MCP configuration file for this agent
 	if err := c.createMCPConfigFile(ctx); err != nil {
@@ -193,7 +190,7 @@ func (c *ClaudeCode) ConfigureForProject(ctx context.Context, projectPath string
 func (c *ClaudeCode) getMCPConfigPath() string {
 	// Use the agent name as passed from the factory (already normalized with variations)
 	// Don't re-normalize as it would convert senior_developer/executor back to senior_developer_executor
-	return fmt.Sprintf("/opt/autoteam/agents/%s/.mcp.json", c.config.Name)
+	return fmt.Sprintf("/opt/autoteam/workers/%s/.mcp.json", c.name)
 }
 
 // createMCPConfigFile creates the MCP configuration file for this agent

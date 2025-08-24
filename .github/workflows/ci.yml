@@ -148,10 +148,8 @@ jobs:
     - name: Build binary
       run: |
         make build
-        # Build current platform entrypoint binary
-        make build-entrypoint
-        # Install entrypoints to system directory for testing
-        sudo make install-entrypoints
+        # Build current platform worker binary
+        make build-worker
     
     - name: Test binary installation
       run: |
@@ -170,6 +168,7 @@ jobs:
         # Test generate command with created config
         ./build/autoteam generate
         test -f .autoteam/compose.yaml
+        test -d .autoteam/workers
         test -f .autoteam/bin/entrypoint.sh
     
     - name: Validate generated Docker Compose

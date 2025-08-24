@@ -2,7 +2,7 @@ repositories:
   include:
     - "owner/test-repo"
 
-agents:
+workers:
   - name: "dev1"
     prompt: "You are a developer agent"
     github_token: "DEV1_TOKEN"
@@ -18,6 +18,6 @@ settings:
   service:
     image: "node:18"
     user: "testuser"
-  check_interval: 30
+  sleep_duration: 30
   team_name: "test-team"
   install_deps: false

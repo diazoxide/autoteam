@@ -133,7 +133,7 @@ func TestMergeHookConfigs(t *testing.T) {
 }
 
 func TestAgentGetEffectiveSettings_WithHooks(t *testing.T) {
-	globalSettings := AgentSettings{
+	globalSettings := WorkerSettings{
 		Hooks: &HookConfig{
 			OnInit: []HookCommand{
 				{Command: "global-init"},
@@ -141,10 +141,10 @@ func TestAgentGetEffectiveSettings_WithHooks(t *testing.T) {
 		},
 	}
 
-	agent := Agent{
+	worker := Worker{
 		Name:   "test-agent",
 		Prompt: "test prompt",
-		Settings: &AgentSettings{
+		Settings: &WorkerSettings{
 			Hooks: &HookConfig{
 				OnStart: []HookCommand{
 					{Command: "agent-start"},
@@ -153,7 +153,7 @@ func TestAgentGetEffectiveSettings_WithHooks(t *testing.T) {
 		},
 	}
 
-	effective := agent.GetEffectiveSettings(globalSettings)
+	effective := worker.GetEffectiveSettings(globalSettings)
 
 	// Agent-level hooks should override global hooks
 	if effective.Hooks == nil {
@@ -171,7 +171,7 @@ func TestAgentGetEffectiveSettings_WithHooks(t *testing.T) {
 }
 
 func TestAgentGetEffectiveSettings_InheritGlobalHooks(t *testing.T) {
-	globalSettings := AgentSettings{
+	globalSettings := WorkerSettings{
 		Hooks: &HookConfig{
 			OnInit: []HookCommand{
 				{Command: "global-init"},
@@ -179,13 +179,13 @@ func TestAgentGetEffectiveSettings_InheritGlobalHooks(t *testing.T) {
 		},
 	}
 
-	agent := Agent{
+	worker := Worker{
 		Name:     "test-agent",
 		Prompt:   "test prompt",
 		Settings: nil, // No agent-specific settings
 	}
 
-	effective := agent.GetEffectiveSettings(globalSettings)
+	effective := worker.GetEffectiveSettings(globalSettings)
 
 	// Should inherit global hooks
 	if effective.Hooks == nil {

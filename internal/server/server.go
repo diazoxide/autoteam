@@ -14,18 +14,18 @@ import (
 	"go.uber.org/zap"
 )
 
-// AgentInterface defines the minimal interface needed by the HTTP server
-type AgentInterface interface {
+// WorkerInterface defines the minimal interface needed by the HTTP server
+type WorkerInterface interface {
 	Name() string
 	Type() string
 	IsAvailable(ctx context.Context) bool
 	Version(ctx context.Context) (string, error)
 }
 
-// Server represents the HTTP API server for an agent
+// Server represents the HTTP API server for a worker
 type Server struct {
 	echo       *echo.Echo
-	agent      AgentInterface
+	worker     WorkerInterface
 	port       int
 	apiKey     string
 	workingDir string
@@ -41,14 +41,14 @@ type Config struct {
 	WorkingDir string
 }
 
-// NewServer creates a new HTTP API server for the given agent
-func NewServer(ag AgentInterface, config Config) *Server {
+// NewServer creates a new HTTP API server for the given worker
+func NewServer(wk WorkerInterface, config Config) *Server {
 	e := echo.New()
 	e.HideBanner = true
 
 	server := &Server{
 		echo:       e,
-		agent:      ag,
+		worker:     wk,
 		port:       config.Port,
 		apiKey:     config.APIKey,
 		workingDir: config.WorkingDir,
@@ -56,7 +56,7 @@ func NewServer(ag AgentInterface, config Config) *Server {
 	}
 
 	// Create handlers
-	server.handlers = NewHandlers(ag, server.workingDir, server.startTime)
+	server.handlers = NewHandlers(wk, server.workingDir, server.startTime)
 
 	// Setup middleware
 	server.setupMiddleware()
@@ -151,8 +151,8 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	lgr.Debug("Starting HTTP API server",
-		zap.String("agent", s.agent.Name()),
-		zap.String("type", s.agent.Type()),
+		zap.String("agent", s.worker.Name()),
+		zap.String("type", s.worker.Type()),
 		zap.Int("port", s.port),
 		zap.String("address", s.server.Addr))
 
@@ -175,7 +175,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	lgr.Debug("Stopping HTTP API server",
-		zap.String("agent", s.agent.Name()),
+		zap.String("agent", s.worker.Name()),
 		zap.Int("port", s.port))
 
 	// Create context with timeout for shutdown

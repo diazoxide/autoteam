@@ -158,13 +158,34 @@ func (f *FileOperations) ValidatePath(path string) error {
 	return nil
 }
 
-// CreateAgentDirectoryStructure creates the complete directory structure for an agent
-func (f *FileOperations) CreateAgentDirectoryStructure(agentName string) error {
-	agentDir := filepath.Join(config.AgentsDir, agentName)
+// CreateWorkerDirectoryStructure creates the complete directory structure for a worker
+func (f *FileOperations) CreateWorkerDirectoryStructure(workerName string) error {
+	workerDir := filepath.Join(config.WorkersDir, workerName)
 
-	// Create main agent directory - subdirectories will be created as needed by individual layers
-	if err := f.EnsureDirectory(agentDir, config.DirPerm); err != nil {
-		return fmt.Errorf("failed to create agent directory for agent %s: %w", agentName, err)
+	// Create main worker directory - subdirectories will be created as needed by individual layers
+	if err := f.EnsureDirectory(workerDir, config.DirPerm); err != nil {
+		return fmt.Errorf("failed to create worker directory for worker %s: %w", workerName, err)
+	}
+
+	return nil
+}
+
+// FileExists checks if a file exists
+func (f *FileOperations) FileExists(path string) bool {
+	if _, err := os.Stat(path); err == nil {
+		return true
+	}
+	return false
+}
+
+// SetPermissions sets the permissions on a file or directory
+func (f *FileOperations) SetPermissions(path string, perm os.FileMode) error {
+	if err := f.ValidatePath(path); err != nil {
+		return fmt.Errorf("invalid path %s: %w", path, err)
+	}
+
+	if err := os.Chmod(path, perm); err != nil {
+		return fmt.Errorf("failed to set permissions on %s: %w", path, err)
 	}
 
 	return nil

@@ -7,10 +7,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
-	"autoteam/internal/entrypoint"
+	"autoteam/internal/config"
 	"autoteam/internal/logger"
 	"autoteam/internal/monitor"
+	"autoteam/internal/worker"
 
 	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
@@ -29,16 +31,16 @@ func main() {
 	_ = godotenv.Load()
 
 	app := &cli.Command{
-		Name:    "autoteam-entrypoint",
-		Usage:   "AutoTeam Agent Entrypoint - AI agent execution via MCP servers",
+		Name:    "autoteam-worker",
+		Usage:   "AutoTeam Worker - AI agent worker execution via MCP servers",
 		Version: fmt.Sprintf("%s (built %s, commit %s)", Version, BuildTime, GitCommit),
-		Action:  runEntrypoint,
+		Action:  runWorker,
 		Flags: []cli.Flag{
 			// Primary configuration file
 			&cli.StringFlag{
 				Name:     "config-file",
 				Aliases:  []string{"c"},
-				Usage:    "Path to agent configuration file (YAML)",
+				Usage:    "Path to worker configuration file (YAML)",
 				Required: true,
 				Sources:  cli.EnvVars("CONFIG_FILE"),
 			},
@@ -63,7 +65,7 @@ func main() {
 	}
 }
 
-func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
+func runWorker(ctx context.Context, cmd *cli.Command) error {
 	// Setup structured logger first
 	logLevelStr := cmd.String("log-level")
 
@@ -85,35 +87,31 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	log := logger.FromContext(ctx)
-	log.Info("Starting AutoTeam Entrypoint",
+	log.Info("Starting AutoTeam Worker",
 		zap.String("version", Version),
 		zap.String("build_time", BuildTime),
 		zap.String("git_commit", GitCommit),
 		zap.String("log_level", string(logLevel)),
 	)
 
-	// Load configuration from file
+	// Load worker configuration from file
 	configPath := cmd.String("config-file")
-	cfg, err := entrypoint.LoadFromFile(configPath)
+	workerConfig, err := worker.LoadWorkerFromFile(configPath)
 	if err != nil {
-		log.Error("Failed to load configuration from file", zap.String("config_path", configPath), zap.Error(err))
-		return fmt.Errorf("failed to load configuration from file %s: %w", configPath, err)
+		log.Error("Failed to load worker configuration from file", zap.String("config_path", configPath), zap.Error(err))
+		return fmt.Errorf("failed to load worker configuration from file %s: %w", configPath, err)
 	}
 
-	// Validate configuration
-	if err = cfg.Validate(); err != nil {
-		log.Error("Invalid configuration", zap.Error(err))
-		return fmt.Errorf("invalid configuration: %w", err)
-	}
+	// Get worker effective settings (without global settings - worker is standalone)
+	effectiveSettings := workerConfig.GetEffectiveSettings(config.WorkerSettings{})
 
-	log.Debug("Configuration loaded",
-		zap.String("agent_name", cfg.Agent.Name),
-		zap.String("agent_type", cfg.Agent.Type),
-		zap.String("team_name", cfg.TeamName),
+	log.Debug("Worker configuration loaded successfully",
+		zap.String("worker_name", workerConfig.Name),
+		zap.String("team_name", effectiveSettings.GetTeamName()),
 	)
 
-	// Execute on_init hooks
-	if hookErr := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_init"); hookErr != nil {
+	// Execute on_init hooks from worker settings
+	if hookErr := worker.ExecuteHooks(ctx, effectiveSettings.Hooks, "on_init"); hookErr != nil {
 		log.Error("Failed to execute on_init hooks", zap.Error(hookErr))
 		return fmt.Errorf("failed to execute on_init hooks: %w", hookErr)
 	}
@@ -129,8 +127,8 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 		sig := <-sigChan
 		log.Info("Shutting down gracefully", zap.String("signal", sig.String()))
 
-		// Execute on_stop hooks
-		if hookErr := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_stop"); hookErr != nil {
+		// Execute on_stop hooks from worker settings
+		if hookErr := worker.ExecuteHooks(ctx, effectiveSettings.Hooks, "on_stop"); hookErr != nil {
 			log.Error("Failed to execute on_stop hooks", zap.Error(hookErr))
 		}
 
@@ -138,39 +136,39 @@ func runEntrypoint(ctx context.Context, cmd *cli.Command) error {
 	}()
 
 	// Flow configuration is required
-	if len(cfg.Flow) == 0 {
+	if len(effectiveSettings.Flow) == 0 {
 		log.Error("No flow configuration found")
 		return fmt.Errorf("flow configuration is required")
 	}
 
 	// Note: Git operations now handled via MCP servers
 
-	// Initialize flow-based monitor
+	// Initialize flow-based monitor with worker and effective settings
 	monitorConfig := monitor.Config{
-		SleepDuration: cfg.Monitoring.SleepDuration,
-		TeamName:      cfg.TeamName,
+		SleepDuration: time.Duration(effectiveSettings.GetSleepDuration()) * time.Second,
+		TeamName:      effectiveSettings.GetTeamName(),
 	}
 
-	log.Info("Creating flow-based monitor", zap.Int("flow_steps", len(cfg.Flow)))
-	mon := monitor.New(cfg.Flow, monitorConfig, cfg)
+	log.Info("Creating flow-based monitor", zap.Int("flow_steps", len(effectiveSettings.Flow)))
+	mon := monitor.New(workerConfig, effectiveSettings, monitorConfig)
 
-	// Execute on_start hooks
-	if hookErr := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_start"); hookErr != nil {
+	// Execute on_start hooks from worker settings
+	if hookErr := worker.ExecuteHooks(ctx, effectiveSettings.Hooks, "on_start"); hookErr != nil {
 		log.Error("Failed to execute on_start hooks", zap.Error(hookErr))
 		return fmt.Errorf("failed to execute on_start hooks: %w", hookErr)
 	}
 
 	log.Info("Starting flow-based agent monitoring loop",
-		zap.Duration("sleep_duration", cfg.Monitoring.SleepDuration),
-		zap.Int("flow_steps", len(cfg.Flow)))
+		zap.Duration("sleep_duration", time.Duration(effectiveSettings.GetSleepDuration())*time.Second),
+		zap.Int("flow_steps", len(effectiveSettings.Flow)))
 
 	// Start monitoring with error handling for on_error hooks
 	err = mon.Start(ctx)
 	if err != nil {
 		log.Error("Monitoring loop failed", zap.Error(err))
 
-		// Execute on_error hooks
-		if hookErr := entrypoint.ExecuteHooks(ctx, cfg.Hooks, "on_error"); hookErr != nil {
+		// Execute on_error hooks from worker settings
+		if hookErr := worker.ExecuteHooks(ctx, effectiveSettings.Hooks, "on_error"); hookErr != nil {
 			log.Error("Failed to execute on_error hooks", zap.Error(hookErr))
 		}
 

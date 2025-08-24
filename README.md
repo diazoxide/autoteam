@@ -4,7 +4,7 @@ Universal AI Agent Management System powered by the Model Context Protocol (MCP)
 
 ## Overview
 
-AutoTeam is a cutting-edge system that orchestrates intelligent AI agents to work autonomously across any platform that supports the Model Context Protocol (MCP). Using a sophisticated two-layer architecture, AutoTeam agents can collect tasks from multiple platforms and execute them with context-aware intelligence, whether it's GitHub repositories, Slack channels, databases, file systems, or any other MCP-enabled service.
+AutoTeam is a cutting-edge system that orchestrates intelligent AI agents to work autonomously across any platform that supports the Model Context Protocol (MCP). Using a dynamic flow-based execution system with parallel processing capabilities, AutoTeam agents can collect tasks from multiple platforms simultaneously and execute them with context-aware intelligence, whether it's GitHub repositories, Slack channels, databases, file systems, or any other MCP-enabled service.
 
 ## Features
 
@@ -14,11 +14,18 @@ AutoTeam is a cutting-edge system that orchestrates intelligent AI agents to wor
 - **Multi-AI Agent Support**: Deploy Claude, Gemini, and Qwen agents with specialized capabilities
 - **Universal Task Processing**: Agents understand context across different platforms and services
 
+### 🔄 Dynamic Flow System
+- **Flow-Based Execution**: Define custom workflows with any number of steps and dependencies
+- **Parallel Processing**: Independent steps execute concurrently for maximum efficiency
+- **Conditional Logic**: Skip steps dynamically based on runtime conditions using templates
+- **Dependency Resolution**: Smart execution ordering based on step dependencies
+- **Data Sharing**: Seamless input/output data flow between workflow steps
+
 ### 🏗️ Advanced Architecture
-- **Two-Layer Agent System**: Clean separation between task collection (aggregation) and execution agents
 - **Intelligent Agent Orchestration**: Multiple AI models working together with different strengths
 - **Containerized Isolation**: Each agent runs in isolated Docker containers with dedicated configurations
 - **Dynamic Scaling**: Deploy any number of specialized agents with custom roles and capabilities
+- **Sleep-Based Monitoring**: Efficient resource management with configurable intervals between execution cycles
 
 ### ⚙️ Configuration & Management
 - **Universal Configuration**: Single YAML file to define agents, platforms, and MCP server connections
@@ -72,10 +79,10 @@ This creates a sample `autoteam.yaml` with basic configuration.
 
 ### 3. Configure Your Setup
 
-Edit `autoteam.yaml` to define your AI agents and the platforms they should work with:
+Edit `autoteam.yaml` to define your AI agents and dynamic workflows:
 
 ```yaml
-agents:
+workers:
   - name: "Platform Specialist"
     enabled: true
     prompt: |
@@ -88,20 +95,6 @@ agents:
           GITHUB_TOKEN: ${PLATFORM_SPECIALIST_GITHUB_TOKEN}
           SLACK_TOKEN: ${PLATFORM_SPECIALIST_SLACK_TOKEN}
           DATABASE_URL: ${DATABASE_URL}
-          
-  - name: "Content Manager"
-    enabled: true 
-    prompt: |
-      You are a content manager focused on documentation and communication.
-      Help maintain wikis, update documentation, and manage content across platforms.
-    settings:
-      service:
-        environment:
-          NOTION_TOKEN: ${CONTENT_MANAGER_NOTION_TOKEN}
-          GITHUB_TOKEN: ${CONTENT_MANAGER_GITHUB_TOKEN}
-        image: "node:20"  # Custom image for content operations
-        volumes:
-          - "./content-tools:/opt/tools:ro"  # Content management tools
 
 settings:
   service:
@@ -110,26 +103,50 @@ settings:
     volumes:
       - "./shared/claude:/root/.claude"
       - "./shared/claude.json:/root/.claude.json"
-  check_interval: 60
+  sleep_duration: 30  # Sleep 30 seconds between workflow cycles
   team_name: "autoteam"
   install_deps: true
   
-  # Two-Layer Architecture Configuration
-  collector_agent:
-    type: gemini
-    args: ["--model", "gemini-2.5-flash"]
-    prompt: |
-      You are a task collector that discovers actionable items across all platforms.
-      Use available MCP servers to check for tasks from any configured service.
-      Report tasks in format: {PLATFORM}: {TASK DESCRIPTION}
-      
-  execution_agent:
-    type: claude
-    args: []
-    prompt: |
-      You are a universal task execution agent. Handle tasks from any platform.
-      Use appropriate MCP tools for the platform: GitHub for code, Slack for messages, 
-      databases for data operations, etc. Always complete tasks thoroughly.
+  # Dynamic Flow-Based Architecture
+  flow:
+    # Parallel data collection from multiple platforms
+    - name: collect_github
+      type: gemini
+      args: ["--model", "gemini-2.5-flash"]
+      prompt: |
+        Collect GitHub notifications and issues using GitHub MCP.
+        Output: List of GitHub tasks that need attention.
+        
+    - name: collect_slack
+      type: gemini
+      args: ["--model", "gemini-2.5-flash"]  
+      prompt: |
+        Collect Slack messages and mentions using Slack MCP.
+        Output: List of Slack tasks requiring responses.
+        
+    - name: collect_database
+      type: qwen
+      prompt: |
+        Check database for pending operations using Database MCP.
+        Output: List of database tasks to process.
+        
+    # Task processing after all collection is complete
+    - name: process_all_tasks
+      type: claude
+      depends_on: [collect_github, collect_slack, collect_database]
+      prompt: |
+        Process all collected tasks from previous steps.
+        Use appropriate MCP tools for each platform.
+        Prioritize based on urgency and context.
+        
+    # Optional notification step (runs only if tasks were processed)
+    - name: send_summary
+      type: claude
+      depends_on: [process_all_tasks]
+      skip_when: "{{- index .inputs 0 | trim | eq \"No tasks processed\" -}}"
+      prompt: |
+        Send a summary of completed tasks to the team.
+        Use Slack MCP to post in the updates channel.
       
   # Universal MCP Server Configuration
   mcp_servers:
@@ -148,9 +165,6 @@ settings:
       args: ["stdio"]
       env:
         DATABASE_URL: $$DATABASE_URL
-    filesystem:
-      command: "npx"
-      args: ["-y", "@modelcontextprotocol/server-filesystem", "/opt/workdir"]
 ```
 
 ### 4. Add Platform Credentials
@@ -162,9 +176,6 @@ Create a `.env` file in your project root to securely provide platform credentia
 PLATFORM_SPECIALIST_GITHUB_TOKEN=ghp_your_github_token
 PLATFORM_SPECIALIST_SLACK_TOKEN=xoxb_your_slack_bot_token
 DATABASE_URL=sqlite:///path/to/your/database.db
-
-CONTENT_MANAGER_NOTION_TOKEN=secret_your_notion_token
-CONTENT_MANAGER_GITHUB_TOKEN=ghp_your_content_github_token
 ```
 
 These credentials enable your agents to work with different platforms through MCP servers. Each MCP server handles secure authentication for its respective platform.
@@ -180,6 +191,145 @@ autoteam up
 
 # Stop when needed
 autoteam down
+```
+
+## Dynamic Flow System
+
+AutoTeam's powerful flow-based execution system allows you to create sophisticated workflows that can process tasks from multiple platforms with intelligent dependency resolution and parallel execution.
+
+### How Flows Work
+
+Flows consist of **steps** that are organized into **dependency levels** based on their relationships:
+
+- **Level 0**: Steps with no dependencies (execute in parallel immediately)
+- **Level 1**: Steps that depend on Level 0 steps (execute in parallel after Level 0 completes)
+- **Level N**: Steps that depend on Level N-1 steps
+
+This creates an efficient execution model where independent operations run simultaneously while maintaining proper ordering for dependent tasks.
+
+### Flow Step Properties
+
+Each flow step supports the following configuration:
+
+```yaml
+flow:
+  - name: step_name           # Unique identifier for the step
+    type: claude|gemini|qwen  # AI agent type to execute this step
+    args: ["--model", "..."]  # Optional command-line arguments
+    prompt: |                 # Step-specific instructions
+      Your task description here...
+    depends_on: [step1, step2] # Optional: steps that must complete first
+    skip_when: "{{ condition }}" # Optional: template condition to skip step
+    env:                      # Optional: step-specific environment variables
+      CUSTOM_VAR: value
+```
+
+### Execution Examples
+
+#### Simple Sequential Flow
+```yaml
+flow:
+  - name: collect
+    type: gemini
+    prompt: "Collect all notifications..."
+  - name: process
+    type: claude
+    depends_on: [collect]
+    prompt: "Process the collected notifications..."
+```
+
+#### Parallel Collection with Unified Processing
+```yaml
+flow:
+  # These three steps run simultaneously (Level 0)
+  - name: github_tasks
+    type: gemini
+    prompt: "Collect GitHub notifications..."
+  - name: slack_tasks
+    type: gemini
+    prompt: "Collect Slack messages..."
+  - name: jira_tasks
+    type: qwen
+    prompt: "Collect Jira tickets..."
+    
+  # This step waits for all collectors to complete (Level 1)
+  - name: process_all
+    type: claude
+    depends_on: [github_tasks, slack_tasks, jira_tasks]
+    prompt: "Process all collected tasks..."
+```
+
+#### Conditional Execution
+```yaml
+flow:
+  - name: check_notifications
+    type: gemini
+    prompt: "Count unread notifications. Output: just the number."
+  - name: process_notifications
+    type: claude
+    depends_on: [check_notifications]
+    skip_when: "{{- index .inputs 0 | trim | eq \"0\" -}}"
+    prompt: "Process the notifications..."
+  - name: send_summary
+    type: claude
+    depends_on: [process_notifications]
+    prompt: "Send completion summary..."
+```
+
+### Data Flow Between Steps
+
+Steps can share data through inputs and outputs:
+
+- **Outputs**: Each step's output (stdout) is automatically captured
+- **Inputs**: Dependent steps receive outputs from their dependencies via `.inputs` array
+- **Templates**: Use Go template syntax in `skip_when` conditions to access input data
+
+### Conditional Step Execution
+
+The `skip_when` field allows dynamic step skipping using Go template syntax with Sprig functions:
+
+```yaml
+# Skip if no notifications found
+skip_when: "{{- index .inputs 0 | trim | eq \"0\" -}}"
+
+# Skip if previous step output contains "SKIP"
+skip_when: "{{- index .inputs 0 | contains \"SKIP\" -}}"
+
+# Skip based on multiple conditions
+skip_when: "{{- and (index .inputs 0 | trim | ne \"\") (index .inputs 0 | contains \"error\") -}}"
+```
+
+### Performance Benefits
+
+- **Parallel Execution**: Independent steps run simultaneously
+- **Efficient Resource Usage**: Only run necessary steps
+- **Smart Dependency Resolution**: Automatic execution ordering
+- **Conditional Logic**: Skip unnecessary work dynamically
+
+### Migration from Two-Layer System
+
+If you're upgrading from the old two-layer architecture:
+
+**Old Format:**
+```yaml
+collector_agent:
+  type: gemini
+  prompt: "Collect tasks..."
+execution_agent:
+  type: claude
+  prompt: "Execute tasks..."
+```
+
+**New Format:**
+```yaml
+flow:
+  - name: collector
+    type: gemini
+    prompt: "Collect tasks..."
+  - name: executor
+    type: claude
+    depends_on: [collector]
+    prompt: "Execute tasks..."
 ```
 
 ## Configuration
@@ -199,7 +349,7 @@ autoteam down
 
 **Example Agent Configuration:**
 ```yaml
-agents:
+workers:
   - name: "Senior Developer"
     enabled: true
     prompt: |
@@ -223,18 +373,18 @@ agents:
   - `volumes`: Default volume mounts applied to all agents
   - `environment`: Default environment variables for all agents
 
-**Two-Layer Architecture:**
-- `collector_agent`: First layer configuration (task collection)
-  - `type`: Agent type (gemini, claude, qwen)
-  - `args`: Command line arguments
-  - `prompt`: Collection-specific prompt
-- `execution_agent`: Second layer configuration (task execution)
-  - `type`: Agent type (gemini, claude, qwen)  
-  - `args`: Command line arguments
-  - `prompt`: Execution-specific prompt
+**Dynamic Flow Configuration:**
+- `flow`: Array of flow steps defining workflow execution
+  - `name`: Unique step identifier
+  - `type`: Agent type (claude, gemini, qwen)
+  - `args`: Command line arguments (optional)
+  - `prompt`: Step-specific instructions
+  - `depends_on`: Dependencies on other steps (optional)
+  - `skip_when`: Conditional execution template (optional)
+  - `env`: Step-specific environment variables (optional)
 
 **System Settings:**
-- `check_interval`: Monitoring frequency in seconds
+- `sleep_duration`: Sleep duration in seconds between flow execution cycles
 - `team_name`: Project name used in paths and Docker Compose project name
 - `install_deps`: Install dependencies on container startup
 - `common_prompt`: Common instructions shared by all agents (optional)
@@ -298,7 +448,7 @@ settings:
       command: "npx"
       args: ["-y", "mcp-memory-service"]
 
-agents:
+workers:
   - name: "developer"
     prompt: |
       You are a developer agent responsible for implementing features.
@@ -397,7 +547,7 @@ autoteam init      # Create sample autoteam.yaml
 autoteam generate  # Generate compose.yaml from config
 autoteam up        # Generate and start containers
 autoteam down      # Stop containers
-autoteam agents     # List all agents and their states
+autoteam workers    # List all workers and their states
 ```
 
 All generated files are organized in the `.autoteam/` directory for better project organization.
@@ -407,7 +557,7 @@ All generated files are organized in the `.autoteam/` directory for better proje
 AutoTeam automatically normalizes agent names for Docker Compose services and directory paths while preserving the original names for identification:
 
 ```yaml
-agents:
+workers:
   - name: "Senior Developer"      # Original name (used in environment variables)
     prompt: "You are a senior developer"
     settings:
@@ -426,25 +576,28 @@ This generates Docker Compose services with normalized names:
 - `Senior Developer` → `senior_developer` (service name)
 - `API Agent #1` → `api_agent_1` (service name)
 
-Directory structure uses normalized names with two-layer architecture:
+Directory structure uses normalized names with flow-based architecture:
 ```
 .autoteam/agents/
 ├── senior_developer/
-│   ├── collector/          # Task collection agent (Gemini/Qwen)
+│   ├── collect_tasks/      # Flow step: Task collection
 │   │   ├── .gemini/        # Gemini CLI configuration
-│   │   └── codebase/       # Repository clones
-│   ├── executor/           # Task execution agent (Claude)
+│   │   └── data/           # Step-specific data
+│   ├── process_tasks/      # Flow step: Task processing
 │   │   ├── mcp.json        # Claude MCP configuration
-│   │   └── codebase/       # Repository clones
-│   └── codebase/           # Shared repository access
+│   │   └── data/           # Step-specific data
+│   ├── send_updates/       # Flow step: Status updates
+│   │   ├── mcp.json        # Claude MCP configuration
+│   │   └── data/           # Step-specific data
+│   └── shared/             # Shared agent resources
 └── api_agent_1/
-    ├── collector/
+    ├── analyze_apis/       # Flow step: API analysis
     │   ├── .qwen/          # Qwen Code configuration
-    │   └── codebase/
-    ├── executor/
-    │   ├── mcp.json
-    │   └── codebase/
-    └── codebase/
+    │   └── data/           # Step-specific data
+    ├── implement_features/ # Flow step: Feature implementation
+    │   ├── mcp.json        # Claude MCP configuration
+    │   └── data/           # Step-specific data
+    └── shared/             # Shared agent resources
 ```
 
 ### Disabling Agents
@@ -452,7 +605,7 @@ Directory structure uses normalized names with two-layer architecture:
 You can temporarily disable agents without removing their configuration:
 
 ```yaml
-agents:
+workers:
   - name: "developer"
     prompt: "You are a developer agent"
     settings:
@@ -476,7 +629,7 @@ Benefits:
 - Test with specific agent combinations
 - Preserve tokens and settings when not actively needed
 
-Use `autoteam agents` to list all agents and their states.
+Use `autoteam workers` to list all workers and their states.
 
 ## Architecture
 
@@ -489,9 +642,9 @@ graph TB
     Compose --> Docker[Docker Compose]
     Docker --> AgentContainers[Agent Containers]
     
-    subgraph "Two-Layer Agent Architecture"
-        AgentContainers --> Collector[Collector Agents<br/>Gemini/Qwen/Claude]
-        AgentContainers --> Executor[Executor Agents<br/>Claude/Gemini/Qwen]
+    subgraph "Dynamic Flow Architecture"
+        AgentContainers --> FlowSteps[Flow Steps<br/>Parallel Execution]
+        FlowSteps --> DependencyLevels[Dependency Levels<br/>Sequential Ordering]
     end
     
     subgraph "Universal MCP Integration"
@@ -512,9 +665,8 @@ graph TB
         MCPn --> Platform[Any Platform]
     end
     
-    Collector --> Tasks[Task Collection]
-    Tasks --> Executor
-    Executor --> Actions[Platform Actions]
+    DependencyLevels --> FlowExecution[Flow Execution]
+    FlowExecution --> Actions[Platform Actions]
     Actions --> GitHub
     Actions --> Slack  
     Actions --> DB
@@ -527,14 +679,14 @@ graph TB
 
 AutoTeam's architecture is built around the Model Context Protocol (MCP), enabling seamless integration with any platform:
 
-- **Aggregation Layer**: AI agents discover tasks using MCP servers from multiple platforms
-- **Execution Layer**: Specialized AI agents handle tasks using appropriate MCP tools  
+- **Flow-Based Processing**: Dynamic workflow execution with parallel and sequential steps
+- **Dependency Resolution**: Smart execution ordering based on step dependencies
 - **Platform Abstraction**: MCP servers provide standardized interfaces to any service
-- **Agent Orchestration**: Container-based agents with per-agent MCP configurations
+- **Agent Orchestration**: Container-based agents with per-step MCP configurations
 
 ### Multi-Platform Agent Structure
 
-Each agent maintains separate working directories with two-layer architecture and platform-specific configurations:
+Each agent maintains separate working directories with flow-based architecture and platform-specific configurations:
 
 ```
 ./
@@ -543,31 +695,33 @@ Each agent maintains separate working directories with two-layer architecture an
     ├── compose.yaml       # Docker Compose configuration
     ├── agents/            # Agent-specific directories
     │   ├── platform_specialist/
-    │   │   ├── collector/          # Task collection layer (Gemini)
+    │   │   ├── collect_github/     # Flow step: GitHub collection
     │   │   │   ├── .gemini/        # Gemini CLI config
-    │   │   │   ├── data/           # Platform-specific data
-    │   │   │   │   ├── github/     # GitHub workspace
-    │   │   │   │   ├── slack/      # Slack workspace  
-    │   │   │   │   └── database/   # Database workspace
-    │   │   │   └── logs/           # Collection logs
-    │   │   ├── executor/           # Task execution layer (Claude)
-    │   │   │   ├── .mcp.json       # Agent-specific MCP config
-    │   │   │   ├── data/           # Execution workspace
-    │   │   │   │   ├── github/     # Code repositories
-    │   │   │   │   ├── slack/      # Message contexts
-    │   │   │   │   └── database/   # Data operations
-    │   │   │   └── logs/           # Execution logs with streaming
-    │   │   └── shared/             # Shared resources
+    │   │   │   ├── data/           # Step-specific data
+    │   │   │   └── logs/           # Step execution logs
+    │   │   ├── collect_slack/      # Flow step: Slack collection
+    │   │   │   ├── .gemini/        # Gemini CLI config
+    │   │   │   ├── data/           # Step-specific data
+    │   │   │   └── logs/           # Step execution logs
+    │   │   ├── process_all_tasks/  # Flow step: Unified processing
+    │   │   │   ├── .mcp.json       # Claude MCP configuration
+    │   │   │   ├── data/           # Processing workspace
+    │   │   │   └── logs/           # Step execution logs
+    │   │   ├── send_summary/       # Flow step: Summary notifications
+    │   │   │   ├── .mcp.json       # Claude MCP configuration
+    │   │   │   ├── data/           # Summary workspace
+    │   │   │   └── logs/           # Step execution logs
+    │   │   └── shared/             # Shared agent resources
     │   └── content_manager/
-    │       ├── collector/          # Task discovery (Qwen)
+    │       ├── analyze_content/    # Flow step: Content analysis
     │       │   ├── .qwen/          # Qwen configuration
-    │       │   ├── data/           # Multi-platform data
-    │       │   └── logs/           # Collection logs
-    │       ├── executor/           # Content operations (Claude)
-    │       │   ├── .mcp.json       # MCP server configuration
-    │       │   ├── data/           # Content workspaces
-    │       │   └── logs/           # Task execution logs
-    │       └── shared/             # Shared configurations
+    │       │   ├── data/           # Analysis workspace
+    │       │   └── logs/           # Step execution logs
+    │       ├── generate_content/   # Flow step: Content generation
+    │       │   ├── .mcp.json       # Claude MCP configuration
+    │       │   ├── data/           # Generation workspace
+    │       │   └── logs/           # Step execution logs
+    │       └── shared/             # Shared agent resources
     ├── bin/               # Unified binary directory
     │   ├── autoteam-entrypoint-*
     │   ├── entrypoint.sh
@@ -583,9 +737,9 @@ Each agent maintains separate working directories with two-layer architecture an
 
 ### Platform Integration Patterns
 
-- **MCP Server Discovery**: Automatically detect and configure available MCP servers
-- **Multi-Platform Monitoring**: Collect tasks from multiple platforms simultaneously  
-- **Context-Aware Processing**: Agents understand platform-specific context and requirements
+- **MCP Server Discovery**: Automatically detect and configure available MCP servers per step
+- **Parallel Flow Execution**: Execute independent steps simultaneously across platforms
+- **Context-Aware Processing**: Steps share data and understand cross-platform context
 - **Dynamic Platform Addition**: Add new platforms by installing MCP servers - no code changes needed
 
 ## Testing

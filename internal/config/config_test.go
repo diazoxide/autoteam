@@ -18,7 +18,7 @@ func TestLoadConfig_Valid(t *testing.T) {
 			name:     "valid config",
 			filename: "testdata/valid.yaml",
 			want: Config{
-				Agents: []Agent{
+				Workers: []Worker{
 					{
 						Name:   "dev1",
 						Prompt: "You are a developer agent",
@@ -28,7 +28,7 @@ func TestLoadConfig_Valid(t *testing.T) {
 						Prompt: "You are an architect agent",
 					},
 				},
-				Settings: AgentSettings{
+				Settings: WorkerSettings{
 					Service: map[string]interface{}{
 						"image": "node:18.17.1",
 						"user":  "developer",
@@ -38,8 +38,8 @@ func TestLoadConfig_Valid(t *testing.T) {
 					InstallDeps:   BoolPtr(true),
 					CommonPrompt:  StringPtr("Follow best practices"),
 					Flow: []FlowStep{
-						{Name: "collector", Type: "gemini", Prompt: "Collect tasks"},
-						{Name: "executor", Type: "claude", DependsOn: []string{"collector"}, Prompt: "Execute tasks"},
+						{Name: "collector", Type: "gemini", Input: "Collect tasks"},
+						{Name: "executor", Type: "claude", DependsOn: []string{"collector"}, Input: "Execute tasks"},
 					},
 				},
 			},
@@ -48,13 +48,13 @@ func TestLoadConfig_Valid(t *testing.T) {
 			name:     "minimal config with defaults",
 			filename: "testdata/minimal.yaml",
 			want: Config{
-				Agents: []Agent{
+				Workers: []Worker{
 					{
 						Name:   "dev1",
 						Prompt: "Developer",
 					},
 				},
-				Settings: AgentSettings{
+				Settings: WorkerSettings{
 					Service: map[string]interface{}{
 						"image": "node:18.17.1", // default
 						"user":  "developer",    // default
@@ -63,8 +63,8 @@ func TestLoadConfig_Valid(t *testing.T) {
 					TeamName:      StringPtr("autoteam"), // default
 					InstallDeps:   BoolPtr(false),        // default
 					Flow: []FlowStep{
-						{Name: "collector", Type: "gemini", Prompt: "Collect tasks"},
-						{Name: "executor", Type: "claude", DependsOn: []string{"collector"}, Prompt: "Execute tasks"},
+						{Name: "collector", Type: "gemini", Input: "Collect tasks"},
+						{Name: "executor", Type: "claude", DependsOn: []string{"collector"}, Input: "Execute tasks"},
 					},
 				},
 			},
@@ -78,17 +78,17 @@ func TestLoadConfig_Valid(t *testing.T) {
 				t.Fatalf("LoadConfig() error = %v", err)
 			}
 
-			if len(got.Agents) != len(tt.want.Agents) {
-				t.Fatalf("len(Agents) = %v, want %v", len(got.Agents), len(tt.want.Agents))
+			if len(got.Workers) != len(tt.want.Workers) {
+				t.Fatalf("len(Agents) = %v, want %v", len(got.Workers), len(tt.want.Workers))
 			}
 
-			for i, agent := range got.Agents {
-				wantAgent := tt.want.Agents[i]
-				if agent.Name != wantAgent.Name {
-					t.Errorf("Agent[%d].Name = %v, want %v", i, agent.Name, wantAgent.Name)
+			for i, worker := range got.Workers {
+				wantWorker := tt.want.Workers[i]
+				if worker.Name != wantWorker.Name {
+					t.Errorf("Worker[%d].Name = %v, want %v", i, worker.Name, wantWorker.Name)
 				}
-				if agent.Prompt != wantAgent.Prompt {
-					t.Errorf("Agent[%d].Prompt = %v, want %v", i, agent.Prompt, wantAgent.Prompt)
+				if worker.Prompt != wantWorker.Prompt {
+					t.Errorf("Worker[%d].Prompt = %v, want %v", i, worker.Prompt, wantWorker.Prompt)
 				}
 			}
 
@@ -117,7 +117,7 @@ func TestLoadConfig_Invalid(t *testing.T) {
 		{
 			name:     "no agents",
 			filename: "testdata/invalid_no_agents.yaml",
-			wantErr:  "at least one agent must be configured",
+			wantErr:  "at least one worker must be configured",
 		},
 		{
 			name:     "non-existent file",
@@ -166,24 +166,24 @@ func TestCreateSampleConfig(t *testing.T) {
 
 	// Verify some basic properties
 
-	if len(cfg.Agents) != 3 {
-		t.Errorf("Sample config len(Agents) = %v, want 3", len(cfg.Agents))
+	if len(cfg.Workers) != 3 {
+		t.Errorf("Sample config len(Agents) = %v, want 3", len(cfg.Workers))
 	}
 
-	if cfg.Agents[0].Name != "dev1" {
-		t.Errorf("Sample config Agents[0].Name = %v, want dev1", cfg.Agents[0].Name)
+	if cfg.Workers[0].Name != "dev1" {
+		t.Errorf("Sample config Agents[0].Name = %v, want dev1", cfg.Workers[0].Name)
 	}
 
-	if cfg.Agents[1].Name != "arch1" {
-		t.Errorf("Sample config Agents[1].Name = %v, want arch1", cfg.Agents[1].Name)
+	if cfg.Workers[1].Name != "arch1" {
+		t.Errorf("Sample config Agents[1].Name = %v, want arch1", cfg.Workers[1].Name)
 	}
 
-	if cfg.Agents[2].Name != "devops1" {
-		t.Errorf("Sample config Agents[2].Name = %v, want devops1", cfg.Agents[2].Name)
+	if cfg.Workers[2].Name != "devops1" {
+		t.Errorf("Sample config Agents[2].Name = %v, want devops1", cfg.Workers[2].Name)
 	}
 
 	// Check that the third agent is disabled
-	if cfg.Agents[2].IsEnabled() {
+	if cfg.Workers[2].IsEnabled() {
 		t.Errorf("Sample config Agents[2] should be disabled")
 	}
 }
@@ -197,12 +197,12 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "valid config",
 			config: Config{
-				Agents: []Agent{
+				Workers: []Worker{
 					{Name: "dev1", Prompt: "prompt"},
 				},
-				Settings: AgentSettings{
+				Settings: WorkerSettings{
 					Flow: []FlowStep{
-						{Name: "step1", Type: "claude", Prompt: "test"},
+						{Name: "step1", Type: "claude", Input: "test"},
 					},
 				},
 			},
@@ -211,27 +211,27 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "no agents",
 			config: Config{
-				Agents: []Agent{},
+				Workers: []Worker{},
 			},
-			wantErr: "at least one agent must be configured",
+			wantErr: "at least one worker must be configured",
 		},
 		{
 			name: "agent missing name",
 			config: Config{
-				Agents: []Agent{
+				Workers: []Worker{
 					{Prompt: "prompt"},
 				},
 			},
-			wantErr: "agent[0].name is required",
+			wantErr: "worker[0].name is required",
 		},
 		{
 			name: "agent missing prompt",
 			config: Config{
-				Agents: []Agent{
+				Workers: []Worker{
 					{Name: "dev1"},
 				},
 			},
-			wantErr: "agent[0].prompt is required for enabled agents",
+			wantErr: "worker[0].prompt is required for enabled workers",
 		},
 	}
 
@@ -281,7 +281,7 @@ func TestSetDefaults(t *testing.T) {
 
 	// Test that existing values are not overridden
 	config2 := &Config{
-		Settings: AgentSettings{
+		Settings: WorkerSettings{
 			Service: map[string]interface{}{
 				"image": "custom:latest",
 				"user":  "custom-user",
@@ -307,15 +307,15 @@ func TestSetDefaults(t *testing.T) {
 	}
 }
 
-func TestAgentIsEnabled(t *testing.T) {
+func TestWorkerIsEnabled(t *testing.T) {
 	tests := []struct {
-		name  string
-		agent Agent
-		want  bool
+		name   string
+		worker Worker
+		want   bool
 	}{
 		{
-			name: "agent with enabled=true",
-			agent: Agent{
+			name: "worker with enabled=true",
+			worker: Worker{
 				Name:    "test",
 				Enabled: BoolPtr(true),
 			},
@@ -323,7 +323,7 @@ func TestAgentIsEnabled(t *testing.T) {
 		},
 		{
 			name: "agent with enabled=false",
-			agent: Agent{
+			worker: Worker{
 				Name:    "test",
 				Enabled: BoolPtr(false),
 			},
@@ -331,7 +331,7 @@ func TestAgentIsEnabled(t *testing.T) {
 		},
 		{
 			name: "agent without enabled field (default)",
-			agent: Agent{
+			worker: Worker{
 				Name: "test",
 			},
 			want: true,
@@ -340,16 +340,16 @@ func TestAgentIsEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.agent.IsEnabled(); got != tt.want {
+			if got := tt.worker.IsEnabled(); got != tt.want {
 				t.Errorf("Agent.IsEnabled() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestGetEnabledAgentsWithEffectiveSettings(t *testing.T) {
+func TestGetEnabledWorkersWithEffectiveSettings(t *testing.T) {
 	config := &Config{
-		Agents: []Agent{
+		Workers: []Worker{
 			{
 				Name:    "dev1",
 				Prompt:  "Developer",
@@ -366,24 +366,24 @@ func TestGetEnabledAgentsWithEffectiveSettings(t *testing.T) {
 				// Enabled not set, defaults to true
 			},
 		},
-		Settings: AgentSettings{
+		Settings: WorkerSettings{
 			SleepDuration: IntPtr(60),
 			TeamName:      StringPtr("test"),
 			Flow: []FlowStep{
-				{Name: "step1", Type: "claude", Prompt: "test"},
+				{Name: "step1", Type: "claude", Input: "test"},
 			},
 		},
 	}
 
-	agents := config.GetEnabledAgentsWithEffectiveSettings()
-	if len(agents) != 2 {
-		t.Errorf("GetEnabledAgentsWithEffectiveSettings() returned %d agents, want 2", len(agents))
+	workers := config.GetEnabledWorkersWithEffectiveSettings()
+	if len(workers) != 2 {
+		t.Errorf("GetEnabledWorkersWithEffectiveSettings() returned %d workers, want 2", len(workers))
 	}
 
-	// Check that only enabled agents are returned
-	for _, agent := range agents {
-		if agent.Agent.Name == "dev2" {
-			t.Errorf("GetEnabledAgentsWithEffectiveSettings() returned disabled agent dev2")
+	// Check that only enabled workers are returned
+	for _, worker := range workers {
+		if worker.Worker.Name == "dev2" {
+			t.Errorf("GetEnabledWorkersWithEffectiveSettings() returned disabled worker dev2")
 		}
 	}
 }
@@ -397,7 +397,7 @@ func TestValidateConfigWithDisabledAgents(t *testing.T) {
 		{
 			name: "all agents disabled",
 			config: Config{
-				Agents: []Agent{
+				Workers: []Worker{
 					{
 						Name:    "dev1",
 						Prompt:  "prompt",
@@ -405,12 +405,12 @@ func TestValidateConfigWithDisabledAgents(t *testing.T) {
 					},
 				},
 			},
-			wantErr: "at least one agent must be enabled",
+			wantErr: "at least one worker must be enabled",
 		},
 		{
 			name: "disabled agent without required fields",
 			config: Config{
-				Agents: []Agent{
+				Workers: []Worker{
 					{
 						Name:    "dev1",
 						Enabled: BoolPtr(false),
@@ -422,9 +422,9 @@ func TestValidateConfigWithDisabledAgents(t *testing.T) {
 						Enabled: BoolPtr(true),
 					},
 				},
-				Settings: AgentSettings{
+				Settings: WorkerSettings{
 					Flow: []FlowStep{
-						{Name: "step1", Type: "claude", Prompt: "test"},
+						{Name: "step1", Type: "claude", Input: "test"},
 					},
 				},
 			},

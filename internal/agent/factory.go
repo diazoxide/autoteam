@@ -15,7 +15,7 @@ const (
 )
 
 // CreateAgent creates an agent based on configuration
-func CreateAgent(agentConfig config.AgentConfig, name string, mcpServers map[string]config.MCPServer) (Agent, error) {
+func CreateAgent(agentConfig AgentConfig, name string, mcpServers map[string]config.MCPServer) (Agent, error) {
 	switch agentConfig.Type {
 	case AgentTypeClaudeCode:
 		agent := NewClaudeCode(name, agentConfig.Args, agentConfig.Env, mcpServers)

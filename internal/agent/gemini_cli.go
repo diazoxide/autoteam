@@ -2,7 +2,6 @@ package agent
 
 import (
 	"autoteam/internal/config"
-	"autoteam/internal/entrypoint"
 	"autoteam/internal/logger"
 	"autoteam/internal/server"
 	"bytes"
@@ -19,7 +18,7 @@ import (
 
 // GeminiCli implements the Agent interface for Gemini CLI
 type GeminiCli struct {
-	config     entrypoint.AgentConfig
+	name       string
 	binaryPath string
 	mcpServers map[string]config.MCPServer
 	agentArgs  []string
@@ -29,9 +28,7 @@ type GeminiCli struct {
 // NewGeminiCli creates a new Gemini agent instance
 func NewGeminiCli(name string, args []string, env map[string]string, mcpServers map[string]config.MCPServer) *GeminiCli {
 	return &GeminiCli{
-		config: entrypoint.AgentConfig{
-			Name: name,
-		},
+		name:       name,
 		binaryPath: "gemini", // Will be found in PATH after npm installation
 		mcpServers: mcpServers,
 		agentArgs:  args,
@@ -41,7 +38,7 @@ func NewGeminiCli(name string, args []string, env map[string]string, mcpServers 
 
 // Name returns the agent name
 func (q *GeminiCli) Name() string {
-	return q.config.Name
+	return q.name
 }
 
 // Type returns the agent type
@@ -76,7 +73,7 @@ func (q *GeminiCli) Run(ctx context.Context, prompt string, options RunOptions) 
 		cmd.Dir = options.WorkingDirectory
 	} else {
 		// Use the agent name as passed (already normalized with variations)
-		cmd.Dir = fmt.Sprintf("/opt/autoteam/agents/%s", q.config.Name)
+		cmd.Dir = fmt.Sprintf("/opt/autoteam/workers/%s", q.name)
 	}
 
 	// Log execution details for debugging
@@ -166,7 +163,7 @@ func (q *GeminiCli) ConfigureForProject(ctx context.Context, projectPath string)
 		return nil
 	}
 
-	lgr.Debug("Configuring MCP servers for Gemini", zap.Int("count", len(q.mcpServers)), zap.String("agent", q.config.Name))
+	lgr.Debug("Configuring MCP servers for Gemini", zap.Int("count", len(q.mcpServers)), zap.String("agent", q.name))
 
 	// Create dedicated MCP configuration file for this agent
 	if err := q.createMCPConfigFile(ctx); err != nil {
@@ -182,7 +179,7 @@ func (q *GeminiCli) ConfigureForProject(ctx context.Context, projectPath string)
 func (q *GeminiCli) getMCPConfigPath() string {
 	// Use the agent name as passed from the factory (already normalized with variations)
 	// Don't re-normalize as it would convert senior_developer/collector back to senior_developer_collector
-	return fmt.Sprintf("/opt/autoteam/agents/%s/.gemini/settings.json", q.config.Name)
+	return fmt.Sprintf("/opt/autoteam/workers/%s/.gemini/settings.json", q.name)
 }
 
 // createMCPConfigFile creates the MCP configuration file for this agent

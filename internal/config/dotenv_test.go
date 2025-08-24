@@ -62,7 +62,7 @@ API_ENDPOINT=http://localhost:8080`
 	}
 
 	// Test that config can be created without GitHub-specific fields
-	configContent := `agents:
+	configContent := `workers:
   - name: "developer"
     prompt: "Developer agent"
   - name: "reviewer"
@@ -87,12 +87,12 @@ settings:
 	}
 
 	// Verify basic config properties
-	if len(cfg.Agents) != 2 {
-		t.Errorf("Expected 2 agents, got %d", len(cfg.Agents))
+	if len(cfg.Workers) != 2 {
+		t.Errorf("Expected 2 workers, got %d", len(cfg.Workers))
 	}
 
-	if cfg.Agents[0].Name != "developer" {
-		t.Errorf("Expected first agent name to be 'developer', got %s", cfg.Agents[0].Name)
+	if cfg.Workers[0].Name != "developer" {
+		t.Errorf("Expected first worker name to be 'developer', got %s", cfg.Workers[0].Name)
 	}
 
 	if cfg.Settings.GetTeamName() != "custom-team" {
@@ -116,7 +116,7 @@ func TestDotenvOptional(t *testing.T) {
 	}
 
 	// Create a config file without .env file present
-	configContent := `agents:
+	configContent := `workers:
   - name: "developer"
     prompt: "Developer agent"
 
@@ -142,8 +142,8 @@ settings:
 	}
 
 	// Verify basic functionality
-	if len(cfg.Agents) != 1 {
-		t.Errorf("Expected 1 agent, got %d", len(cfg.Agents))
+	if len(cfg.Workers) != 1 {
+		t.Errorf("Expected 1 worker, got %d", len(cfg.Workers))
 	}
 
 	if cfg.Settings.GetTeamName() != "test-team" {

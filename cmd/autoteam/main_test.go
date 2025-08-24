@@ -36,7 +36,7 @@ func TestGenerateCommand(t *testing.T) {
 
 	// Create simplified template files for testing
 	composeTemplate := `services:
-{{- range .Agents }}
+{{- range .Workers }}
   {{ .Name }}:
     image: {{ $.Settings.DockerImage }}
     environment:
@@ -54,7 +54,7 @@ echo "Test entrypoint"`
 	testConfig := `repositories:
   include:
     - "owner/test-repo"
-agents:
+workers:
   - name: "dev1"
     prompt: "Test agent"
     github_token: "TEST_TOKEN"
@@ -166,11 +166,11 @@ func TestInitCommand(t *testing.T) {
 
 	// Verify content contains expected sample data
 	content := testutil.ReadFile(t, "autoteam.yaml")
-	if !strings.Contains(content, "agents:") {
-		t.Errorf("autoteam.yaml should contain agents section")
+	if !strings.Contains(content, "workers:") {
+		t.Errorf("autoteam.yaml should contain workers section")
 	}
 	if !strings.Contains(content, "dev1") {
-		t.Errorf("autoteam.yaml should contain dev1 agent")
+		t.Errorf("autoteam.yaml should contain dev1 worker")
 	}
 	if !strings.Contains(content, "arch1") {
 		t.Errorf("autoteam.yaml should contain arch1 agent")
@@ -216,7 +216,7 @@ func TestCLIIntegration(t *testing.T) {
 
 	// Create template files
 	composeTemplate := `services:
-{{- range .Agents }}
+{{- range .Workers }}
   {{ .Name }}:
     image: {{ $.Settings.DockerImage }}
 {{- end }}`
@@ -253,8 +253,8 @@ echo "Integration test"`
 	expectedFiles := []string{
 		"autoteam.yaml",
 		".autoteam/compose.yaml",
-		".autoteam/agents/dev1",
-		".autoteam/agents/arch1",
+		".autoteam/workers/dev1",
+		".autoteam/workers/arch1",
 	}
 
 	for _, file := range expectedFiles {
