@@ -10,7 +10,7 @@ REPO="diazoxide/autoteam"
 DEFAULT_BINARY="autoteam"
 BINARY_NAME=""
 INSTALL_DIR="/usr/local/bin"
-ENTRYPOINTS_DIR="/opt/autoteam/bin"
+WORKERS_DIR="/opt/autoteam/bin"
 TEMP_DIR=$(mktemp -d)
 VERSION=${VERSION:-latest}
 # Always install workers - no option to skip
@@ -148,7 +148,7 @@ download_binary() {
 
     if [ "$VERSION" = "latest" ]; then
         # For worker binary, try direct download first, then build from source
-        if [ "$BINARY_NAME" = "autoteam-entrypoint" ]; then
+        if [ "$BINARY_NAME" = "autoteam-worker" ]; then
             binary_name="${BINARY_NAME}-${OS}-${ARCH}"
             download_url="https://github.com/${REPO}/releases/download/${VERSION}/${binary_name}"
 
@@ -166,7 +166,7 @@ download_binary() {
     fi
 
     # For versioned releases, use packaged downloads
-    if [ "$BINARY_NAME" = "autoteam-entrypoint" ]; then
+    if [ "$BINARY_NAME" = "autoteam-worker" ]; then
         # Direct binary download for entrypoint
         binary_name="${BINARY_NAME}-${OS}-${ARCH}"
         download_url="https://github.com/${REPO}/releases/download/v${VERSION}/${binary_name}"
@@ -235,8 +235,8 @@ build_from_source() {
     cd "$repo_dir"
 
     log_info "Building binary..."
-    if [ "$BINARY_NAME" = "autoteam-entrypoint" ]; then
-        if ! make build-entrypoint >/dev/null 2>&1; then
+    if [ "$BINARY_NAME" = "autoteam-worker" ]; then
+        if ! make build-worker >/dev/null 2>&1; then
             log_error "Failed to build worker binary"
             exit 1
         fi
@@ -353,11 +353,11 @@ parse_args() {
         case $1 in
             -b|--binary)
                 case "$2" in
-                    autoteam|autoteam-entrypoint)
+                    autoteam|autoteam-worker)
                         BINARY_NAME="$2"
                         ;;
                     *)
-                        log_error "Invalid binary name: $2. Use 'autoteam' or 'autoteam-entrypoint'"
+                        log_error "Invalid binary name: $2. Use 'autoteam' or 'autoteam-worker'"
                         exit 1
                         ;;
                 esac
@@ -393,7 +393,7 @@ parse_args() {
 }
 
 # Install entrypoint binaries for all supported platforms
-install_entrypoints() {
+install_workers() {
     log_header "Installing AutoTeam Entrypoint Binaries"
     log_header "========================================"
 
@@ -401,11 +401,11 @@ install_entrypoints() {
     local platforms=("linux-amd64" "linux-arm64" "darwin-amd64" "darwin-arm64")
 
     # Create entrypoints directory
-    log_info "Creating entrypoints directory: $ENTRYPOINTS_DIR"
-    if [ ! -w "$(dirname "$ENTRYPOINTS_DIR")" ]; then
-        sudo mkdir -p "$ENTRYPOINTS_DIR"
+    log_info "Creating entrypoints directory: $WORKERS_DIR"
+    if [ ! -w "$(dirname "$WORKERS_DIR")" ]; then
+        sudo mkdir -p "$WORKERS_DIR"
     else
-        mkdir -p "$ENTRYPOINTS_DIR"
+        mkdir -p "$WORKERS_DIR"
     fi
 
     # Install entrypoint.sh script
@@ -413,14 +413,14 @@ install_entrypoints() {
     log_info "Installing entrypoint.sh script..."
 
     if curl -fsSL "$script_url" -o "$TEMP_DIR/entrypoint.sh" 2>/dev/null; then
-        if [ ! -w "$ENTRYPOINTS_DIR" ]; then
-            sudo cp "$TEMP_DIR/entrypoint.sh" "$ENTRYPOINTS_DIR/entrypoint.sh"
-            sudo chmod +x "$ENTRYPOINTS_DIR/entrypoint.sh"
+        if [ ! -w "$WORKERS_DIR" ]; then
+            sudo cp "$TEMP_DIR/entrypoint.sh" "$WORKERS_DIR/entrypoint.sh"
+            sudo chmod +x "$WORKERS_DIR/entrypoint.sh"
         else
-            cp "$TEMP_DIR/entrypoint.sh" "$ENTRYPOINTS_DIR/entrypoint.sh"
-            chmod +x "$ENTRYPOINTS_DIR/entrypoint.sh"
+            cp "$TEMP_DIR/entrypoint.sh" "$WORKERS_DIR/entrypoint.sh"
+            chmod +x "$WORKERS_DIR/entrypoint.sh"
         fi
-        log_success "Installed entrypoint.sh to $ENTRYPOINTS_DIR/entrypoint.sh"
+        log_success "Installed entrypoint.sh to $WORKERS_DIR/entrypoint.sh"
     else
         log_warning "Failed to download entrypoint.sh script (will be created locally)"
         # Create a local copy if download fails
@@ -433,33 +433,33 @@ echo "Agent: ${AGENT_NAME:-unknown}"
 echo "Repository: ${GITHUB_REPO:-unknown}"
 echo "Platform: $(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/armv7l/arm/')"
 PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/armv7l/arm/')"
-ENTRYPOINT_BINARY="/opt/autoteam/bin/autoteam-entrypoint-${PLATFORM}"
-if [ -f "$ENTRYPOINT_BINARY" ] && [ -x "$ENTRYPOINT_BINARY" ]; then
-  cp "$ENTRYPOINT_BINARY" /tmp/autoteam-entrypoint
-  chmod +x /tmp/autoteam-entrypoint
-  exec /tmp/autoteam-entrypoint
+WORKER_BINARY="/opt/autoteam/bin/autoteam-worker-${PLATFORM}"
+if [ -f "$WORKER_BINARY" ] && [ -x "$WORKER_BINARY" ]; then
+  cp "$WORKER_BINARY" /tmp/autoteam-worker
+  chmod +x /tmp/autoteam-worker
+  exec /tmp/autoteam-worker
 else
   echo "❌ System worker binary not found for platform ${PLATFORM}"
-  echo "💡 Run 'autoteam --install-entrypoints' to install entrypoint binaries"
+  echo "💡 Run 'autoteam --install-workers' to install worker binaries"
   exit 1
 fi
 EOF
-        if [ ! -w "$ENTRYPOINTS_DIR" ]; then
-            sudo cp "$TEMP_DIR/entrypoint.sh" "$ENTRYPOINTS_DIR/entrypoint.sh"
-            sudo chmod +x "$ENTRYPOINTS_DIR/entrypoint.sh"
+        if [ ! -w "$WORKERS_DIR" ]; then
+            sudo cp "$TEMP_DIR/entrypoint.sh" "$WORKERS_DIR/entrypoint.sh"
+            sudo chmod +x "$WORKERS_DIR/entrypoint.sh"
         else
-            cp "$TEMP_DIR/entrypoint.sh" "$ENTRYPOINTS_DIR/entrypoint.sh"
-            chmod +x "$ENTRYPOINTS_DIR/entrypoint.sh"
+            cp "$TEMP_DIR/entrypoint.sh" "$WORKERS_DIR/entrypoint.sh"
+            chmod +x "$WORKERS_DIR/entrypoint.sh"
         fi
-        log_success "Created fallback entrypoint.sh at $ENTRYPOINTS_DIR/entrypoint.sh"
+        log_success "Created fallback entrypoint.sh at $WORKERS_DIR/entrypoint.sh"
     fi
 
     # Download and install binaries for each platform
     for platform in "${platforms[@]}"; do
         local os=$(echo "$platform" | cut -d'-' -f1)
         local arch=$(echo "$platform" | cut -d'-' -f2)
-        local binary_name="autoteam-entrypoint-$platform"
-        local binary_path="$ENTRYPOINTS_DIR/$binary_name"
+        local binary_name="autoteam-worker-$platform"
+        local binary_path="$WORKERS_DIR/$binary_name"
 
         log_info "Installing worker binary for $platform..."
 
@@ -478,7 +478,7 @@ EOF
             log_success "Downloaded worker binary for $platform"
 
             # Install the binary
-            if [ ! -w "$ENTRYPOINTS_DIR" ]; then
+            if [ ! -w "$WORKERS_DIR" ]; then
                 sudo cp "$TEMP_DIR/$binary_name" "$binary_path"
                 sudo chmod +x "$binary_path"
             else
@@ -503,11 +503,11 @@ EOF
                 cd "$repo_dir"
 
                 # Build for the specific platform
-                if GOOS="$os" GOARCH="$arch" go build -ldflags "-s -w" -o "$TEMP_DIR/$binary_name" ./cmd/entrypoint >/dev/null 2>&1; then
+                if GOOS="$os" GOARCH="$arch" go build -ldflags "-s -w" -o "$TEMP_DIR/$binary_name" ./cmd/worker >/dev/null 2>&1; then
                     log_success "Built worker binary for $platform from source"
 
                     # Install the binary
-                    if [ ! -w "$ENTRYPOINTS_DIR" ]; then
+                    if [ ! -w "$WORKERS_DIR" ]; then
                         sudo cp "$TEMP_DIR/$binary_name" "$binary_path"
                         sudo chmod +x "$binary_path"
                     else
@@ -529,16 +529,16 @@ EOF
 
     echo ""
     log_success "Entrypoint binaries installation completed!"
-    log_info "Binaries installed to: $ENTRYPOINTS_DIR"
+    log_info "Binaries installed to: $WORKERS_DIR"
     log_info "Available binaries:"
 
     # List installed binaries
     for platform in "${platforms[@]}"; do
-        local binary_path="$ENTRYPOINTS_DIR/autoteam-entrypoint-$platform"
+        local binary_path="$WORKERS_DIR/autoteam-worker-$platform"
         if [ -f "$binary_path" ] && [ -x "$binary_path" ]; then
-            log_success "  autoteam-entrypoint-$platform"
+            log_success "  autoteam-worker-$platform"
         else
-            log_warning "  autoteam-entrypoint-$platform: Not installed"
+            log_warning "  autoteam-worker-$platform: Not installed"
         fi
     done
 }
