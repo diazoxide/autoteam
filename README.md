@@ -6,7 +6,7 @@ AutoTeam is a platform-agnostic orchestration system that connects AI agents wit
 
 ## What is AutoTeam?
 
-AutoTeam orchestrates AI agents (Claude, Gemini, Qwen) to work autonomously across any platform that supports MCP. Instead of building custom integrations, you configure MCP servers and let intelligent agents handle complex, multi-platform workflows.
+AutoTeam orchestrates AI agents (Claude Code, Gemini CLI, Qwen Code) to work autonomously across any platform that supports MCP. The agent list can be scaled with additional AI tools. Instead of building custom integrations, you configure MCP servers and let intelligent agents handle complex, multi-platform workflows.
 
 ## Scale Your Team with Virtual Workers
 
@@ -15,9 +15,9 @@ Transform your development workflow by adding AI agents as virtual team members.
 ```mermaid
 graph TB
     subgraph "Virtual Development Team"
-        SD[👨‍💻 Senior Developer<br/>Claude Agent<br/>Code reviews, Implementation]
-        ARCH[🏗️ Architect<br/>Claude Agent<br/>Design, Technical decisions]
-        QA[🧪 QA Assistant<br/>Qwen Agent<br/>Testing, Quality checks]
+        SD[👨‍💻 Senior Developer<br/>Claude Code Agent<br/>Code reviews, Implementation]
+        ARCH[🏗️ Architect<br/>Claude Code Agent<br/>Design, Technical decisions]
+        QA[🧪 QA Assistant<br/>Qwen Code Agent<br/>Testing, Quality checks]
     end
     
     subgraph "Parallel Execution"
@@ -68,9 +68,9 @@ AutoTeam also scales non-technical teams. Here's how a marketing team leverages 
 ```mermaid
 graph TB
     subgraph "Virtual Marketing Team"
-        CM[📝 Content Manager<br/>Claude Agent<br/>Blog posts, Social content]
-        SM[📱 Social Media Manager<br/>Gemini Agent<br/>Scheduling, Engagement]
-        DA[📊 Data Analyst<br/>Qwen Agent<br/>Analytics, Reports]
+        CM[📝 Content Manager<br/>Claude Code Agent<br/>Blog posts, Social content]
+        SM[📱 Social Media Manager<br/>Gemini CLI Agent<br/>Scheduling, Engagement]
+        DA[📊 Data Analyst<br/>Qwen Code Agent<br/>Analytics, Reports]
     end
     
     subgraph "Parallel Marketing Operations"
@@ -121,9 +121,9 @@ Scale your support operations with AI agents that handle multiple channels simul
 ```mermaid
 graph TB
     subgraph "Virtual Support Team"
-        SC[🎧 Support Coordinator<br/>Claude Agent<br/>Ticket triage, Escalation]
-        CR[💬 Chat Representative<br/>Gemini Agent<br/>Live chat, Quick responses]
-        KB[📚 Knowledge Specialist<br/>Qwen Agent<br/>Documentation, Solutions]
+        SC[🎧 Support Coordinator<br/>Claude Code Agent<br/>Ticket triage, Escalation]
+        CR[💬 Chat Representative<br/>Gemini CLI Agent<br/>Live chat, Quick responses]
+        KB[📚 Knowledge Specialist<br/>Qwen Code Agent<br/>Documentation, Solutions]
     end
     
     subgraph "Parallel Support Operations"
@@ -175,10 +175,11 @@ graph TB
         WM[Worker Manager]
     end
     
-    subgraph "AI Agents"
-        Claude[Claude Agent]
-        Gemini[Gemini Agent]
-        Qwen[Qwen Agent]
+    subgraph "AI Agents (Scalable)"
+        Claude[Claude Code Agent]
+        Gemini[Gemini CLI Agent]
+        Qwen[Qwen Code Agent]
+        More[...More AI Agents]
     end
     
     subgraph "MCP Servers"
@@ -220,7 +221,7 @@ graph TB
 
 🌐 **Universal Platform Integration** - Connect any MCP-enabled service  
 🔄 **Intelligent Flow Orchestration** - Parallel execution with dependency resolution  
-🤖 **Multi-AI Agent Support** - Claude, Gemini, Qwen working together  
+🤖 **Multi-AI Agent Support** - Claude Code, Gemini CLI, Qwen Code working together (scalable)  
 🏗️ **Container-Native Architecture** - Isolated, scalable agent deployment  
 ⚙️ **Configuration-Driven** - Define workflows in simple YAML  
 
@@ -231,10 +232,10 @@ AutoTeam acts as an intelligent MCP hub, enabling seamless communication between
 ```mermaid
 graph LR
     subgraph "Flow Execution"
-        F1[Collect GitHub<br/>Gemini]
-        F2[Collect Slack<br/>Claude]
-        F3[Collect Database<br/>Qwen]
-        F4[Process All Tasks<br/>Claude]
+        F1[Collect GitHub<br/>Gemini CLI]
+        F2[Collect Slack<br/>Claude Code]
+        F3[Collect Database<br/>Qwen Code]
+        F4[Process All Tasks<br/>Claude Code]
         
         F1 --> F4
         F2 --> F4
