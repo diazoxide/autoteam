@@ -160,9 +160,9 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 
 		httpServer = server.NewServer(workerImpl, serverConfig)
 
-		if err := httpServer.Start(ctx); err != nil {
-			log.Error("Failed to start HTTP server", zap.Error(err))
-			return fmt.Errorf("failed to start HTTP server: %w", err)
+		if startErr := httpServer.Start(ctx); startErr != nil {
+			log.Error("Failed to start HTTP server", zap.Error(startErr))
+			return fmt.Errorf("failed to start HTTP server: %w", startErr)
 		}
 
 		log.Info("HTTP API server started",

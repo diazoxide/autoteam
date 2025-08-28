@@ -487,15 +487,6 @@ func (h *Handlers) GetSwaggerUI(c echo.Context) error {
 }
 
 // Utility functions for pointer creation
-func stringPtr(s string) *string     { return &s }
-func intPtr(i int) *int              { return &i }
-func boolPtr(b bool) *bool           { return &b }
-func timePtr(t time.Time) *time.Time { return &t }
-
-// stringPtrIfNotEmpty returns a pointer to string if not empty, nil otherwise
-func stringPtrIfNotEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
+func stringPtr(s string) *string { return &s }
+func intPtr(i int) *int          { return &i }
+func boolPtr(b bool) *bool       { return &b }
