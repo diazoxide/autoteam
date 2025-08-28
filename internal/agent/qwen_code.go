@@ -10,9 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"autoteam/internal/config"
 	"autoteam/internal/logger"
-	"autoteam/internal/server"
+	"autoteam/internal/worker"
 
 	"go.uber.org/zap"
 )
@@ -21,13 +20,13 @@ import (
 type QwenCode struct {
 	name       string
 	binaryPath string
-	mcpServers map[string]config.MCPServer
+	mcpServers map[string]worker.MCPServer
 	agentArgs  []string
 	agentEnv   map[string]string
 }
 
 // NewQwenCode creates a new Qwen agent instance
-func NewQwenCode(name string, args []string, env map[string]string, mcpServers map[string]config.MCPServer) *QwenCode {
+func NewQwenCode(name string, args []string, env map[string]string, mcpServers map[string]worker.MCPServer) *QwenCode {
 	return &QwenCode{
 		name:       name,
 		binaryPath: "qwen", // Will be found in PATH after npm installation
@@ -241,16 +240,6 @@ func (q *QwenCode) createMCPConfigFile(ctx context.Context) error {
 }
 
 // SetMCPServers sets the MCP servers for this agent
-func (q *QwenCode) SetMCPServers(mcpServers map[string]config.MCPServer) {
+func (q *QwenCode) SetMCPServers(mcpServers map[string]worker.MCPServer) {
 	q.mcpServers = mcpServers
-}
-
-// CreateHTTPServer creates an HTTP API server for this agent
-func (q *QwenCode) CreateHTTPServer(workingDir string, port int, apiKey string) HTTPServer {
-	config := server.Config{
-		Port:       port,
-		APIKey:     apiKey,
-		WorkingDir: workingDir,
-	}
-	return server.NewServer(q, config)
 }

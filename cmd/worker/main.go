@@ -9,9 +9,9 @@ import (
 	"syscall"
 	"time"
 
-	"autoteam/internal/config"
 	"autoteam/internal/logger"
 	"autoteam/internal/monitor"
+	"autoteam/internal/server"
 	"autoteam/internal/worker"
 
 	"github.com/joho/godotenv"
@@ -56,6 +56,24 @@ func main() {
 				Usage:   "Set log level (debug, info, warn, error)",
 				Value:   "info",
 				Sources: cli.EnvVars("LOG_LEVEL"),
+			},
+
+			// HTTP Server Configuration
+			&cli.IntFlag{
+				Name:    "http-port",
+				Usage:   "HTTP server port (0 for dynamic port discovery)",
+				Value:   8080,
+				Sources: cli.EnvVars("HTTP_PORT"),
+			},
+			&cli.StringFlag{
+				Name:    "http-api-key",
+				Usage:   "HTTP API key for authentication (optional)",
+				Sources: cli.EnvVars("HTTP_API_KEY"),
+			},
+			&cli.BoolFlag{
+				Name:    "disable-http",
+				Usage:   "Disable HTTP server",
+				Sources: cli.EnvVars("DISABLE_HTTP"),
 			},
 		},
 	}
@@ -103,12 +121,61 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// Get worker effective settings (without global settings - worker is standalone)
-	effectiveSettings := workerConfig.GetEffectiveSettings(config.WorkerSettings{})
+	effectiveSettings := workerConfig.GetEffectiveSettings(worker.WorkerSettings{})
+
+	// Check if debug is enabled in config and update log level if needed
+	if effectiveSettings.GetDebug() && logLevel != logger.DebugLevel {
+		logLevel = logger.DebugLevel
+		ctx, err = logger.SetupContext(ctx, logLevel)
+		if err != nil {
+			return fmt.Errorf("failed to update logger to debug level: %w", err)
+		}
+		log = logger.FromContext(ctx)
+		log.Debug("Updated log level to debug based on worker configuration")
+	}
 
 	log.Debug("Worker configuration loaded successfully",
 		zap.String("worker_name", workerConfig.Name),
 		zap.String("team_name", effectiveSettings.GetTeamName()),
+		zap.Bool("debug_enabled", effectiveSettings.GetDebug()),
 	)
+
+	// Create Worker instance for HTTP server
+	workerImpl := worker.NewWorker(workerConfig, effectiveSettings)
+
+	// Start HTTP server if not disabled
+	var httpServer *server.Server
+	if !cmd.Bool("disable-http") {
+		// Use port from worker config, fallback to CLI flag
+		httpPort := effectiveSettings.GetHTTPPort()
+		if httpPort == 0 {
+			httpPort = cmd.Int("http-port")
+		}
+
+		serverConfig := server.Config{
+			Port:       httpPort,
+			APIKey:     cmd.String("http-api-key"),
+			WorkingDir: workerImpl.GetWorkingDir(),
+		}
+
+		httpServer = server.NewServer(workerImpl, serverConfig)
+
+		if startErr := httpServer.Start(ctx); startErr != nil {
+			log.Error("Failed to start HTTP server", zap.Error(startErr))
+			return fmt.Errorf("failed to start HTTP server: %w", startErr)
+		}
+
+		log.Info("HTTP API server started",
+			zap.String("url", httpServer.GetURL()),
+			zap.Int("port", httpServer.Port()))
+
+		// Graceful shutdown for HTTP server
+		defer func() {
+			if shutdownErr := httpServer.Stop(context.Background()); shutdownErr != nil {
+				log.Error("Failed to stop HTTP server", zap.Error(shutdownErr))
+			}
+		}()
+	}
 
 	// Execute on_init hooks from worker settings
 	if hookErr := worker.ExecuteHooks(ctx, effectiveSettings.Hooks, "on_init"); hookErr != nil {
@@ -151,6 +218,11 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 
 	log.Info("Creating flow-based monitor", zap.Int("flow_steps", len(effectiveSettings.Flow)))
 	mon := monitor.New(workerConfig, effectiveSettings, monitorConfig)
+
+	// Pass the HTTP server to monitor for management
+	if httpServer != nil {
+		mon.SetHTTPServer(httpServer)
+	}
 
 	// Execute on_start hooks from worker settings
 	if hookErr := worker.ExecuteHooks(ctx, effectiveSettings.Hooks, "on_start"); hookErr != nil {

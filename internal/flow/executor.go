@@ -10,8 +10,8 @@ import (
 	"text/template"
 
 	"autoteam/internal/agent"
-	"autoteam/internal/config"
 	"autoteam/internal/logger"
+	"autoteam/internal/worker"
 
 	"github.com/Masterminds/sprig/v3"
 	"go.uber.org/zap"
@@ -19,11 +19,11 @@ import (
 
 // FlowExecutor executes dynamic flows with dependency resolution
 type FlowExecutor struct {
-	Steps      []config.FlowStep
+	Steps      []worker.FlowStep
 	Agents     map[string]agent.Agent
-	MCPServers map[string]config.MCPServer
+	MCPServers map[string]worker.MCPServer
 	WorkingDir string
-	Worker     *config.Worker // Worker configuration for template context
+	Worker     *worker.Worker // Worker configuration for template context
 }
 
 // StepOutput represents the output of a flow step
@@ -41,7 +41,7 @@ type FlowResult struct {
 }
 
 // New creates a new FlowExecutor with the given steps and worker configuration
-func New(steps []config.FlowStep, mcpServers map[string]config.MCPServer, workingDir string, worker *config.Worker) *FlowExecutor {
+func New(steps []worker.FlowStep, mcpServers map[string]worker.MCPServer, workingDir string, worker *worker.Worker) *FlowExecutor {
 	return &FlowExecutor{
 		Steps:      steps,
 		Agents:     make(map[string]agent.Agent),
@@ -373,7 +373,7 @@ func (fe *FlowExecutor) createAgents(ctx context.Context) error {
 }
 
 // executeStep executes a single flow step
-func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, previousOutputs map[string]StepOutput) (*StepOutput, error) {
+func (fe *FlowExecutor) executeStep(ctx context.Context, step worker.FlowStep, previousOutputs map[string]StepOutput) (*StepOutput, error) {
 	lgr := logger.FromContext(ctx)
 
 	// Check skip condition first
@@ -452,8 +452,9 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 	lgr.Debug("Agent execution completed",
 		zap.String("step_name", step.Name),
 		zap.String("agent_type", step.Type),
-		zap.Int("stdout_length", len(output.Stdout)),
-		zap.Int("stderr_length", len(output.Stderr)))
+		zap.String("stdout", output.Stdout),
+		zap.String("stderr", output.Stderr),
+	)
 
 	// Apply output transformation if specified
 	stdout := output.Stdout
@@ -473,7 +474,8 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 			stdout = transformedOutput
 			lgr.Debug("Output transformed",
 				zap.String("step_name", step.Name),
-				zap.Int("output_length", len(stdout)))
+				zap.String("output", stdout),
+			)
 		}
 	}
 
@@ -490,7 +492,7 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step config.FlowStep, p
 }
 
 // prepareInputData prepares template data for input transformation
-func (fe *FlowExecutor) prepareInputData(step config.FlowStep, previousOutputs map[string]StepOutput) map[string]interface{} {
+func (fe *FlowExecutor) prepareInputData(step worker.FlowStep, previousOutputs map[string]StepOutput) map[string]interface{} {
 	// Collect inputs from dependencies
 	var inputs []string
 	for _, dep := range step.DependsOn {
@@ -507,7 +509,7 @@ func (fe *FlowExecutor) prepareInputData(step config.FlowStep, previousOutputs m
 }
 
 // evaluateSkipCondition evaluates a skip condition template and returns true if step should be skipped
-func (fe *FlowExecutor) evaluateSkipCondition(ctx context.Context, step config.FlowStep, previousOutputs map[string]StepOutput) (bool, error) {
+func (fe *FlowExecutor) evaluateSkipCondition(ctx context.Context, step worker.FlowStep, previousOutputs map[string]StepOutput) (bool, error) {
 	if step.SkipWhen == "" {
 		return false, nil // No skip condition defined
 	}
@@ -561,7 +563,7 @@ func (fe *FlowExecutor) applyTemplate(templateStr string, data interface{}) (str
 }
 
 // getStepByName finds a step by its name
-func (fe *FlowExecutor) getStepByName(name string) *config.FlowStep {
+func (fe *FlowExecutor) getStepByName(name string) *worker.FlowStep {
 	for _, step := range fe.Steps {
 		if step.Name == name {
 			return &step

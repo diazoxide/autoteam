@@ -9,6 +9,7 @@ import (
 
 	"autoteam/internal/config"
 	"autoteam/internal/ports"
+	"autoteam/internal/worker"
 
 	"gopkg.in/yaml.v3"
 )
@@ -34,10 +35,10 @@ func New() *Generator {
 //   - ${AUTOTEAM_WORKER_NAME} -> actual worker name (e.g., "Senior Developer")
 //   - ${AUTOTEAM_WORKER_DIR}  -> worker directory path (e.g., "/opt/autoteam/workers/senior_developer")
 //   - ${AUTOTEAM_WORKER_NORMALIZED_NAME} -> normalized worker name (e.g., "senior_developer")
-func (g *Generator) normalizeEnvironmentValue(value string, worker config.Worker) string {
-	value = strings.ReplaceAll(value, "${AUTOTEAM_WORKER_NAME}", worker.Name)
-	value = strings.ReplaceAll(value, "${AUTOTEAM_WORKER_DIR}", worker.GetWorkerDir())
-	value = strings.ReplaceAll(value, "${AUTOTEAM_WORKER_NORMALIZED_NAME}", worker.GetNormalizedName())
+func (g *Generator) normalizeEnvironmentValue(value string, w worker.Worker) string {
+	value = strings.ReplaceAll(value, "${AUTOTEAM_WORKER_NAME}", w.Name)
+	value = strings.ReplaceAll(value, "${AUTOTEAM_WORKER_DIR}", w.GetWorkerDir())
+	value = strings.ReplaceAll(value, "${AUTOTEAM_WORKER_NORMALIZED_NAME}", w.GetNormalizedName())
 	return value
 }
 
@@ -57,7 +58,7 @@ func (g *Generator) GenerateComposeWithPorts(cfg *config.Config, portAllocation 
 	}
 
 	// Generate worker config files
-	if err := g.generateWorkerConfigFiles(cfg); err != nil {
+	if err := g.generateWorkerConfigFiles(cfg, portAllocation); err != nil {
 		return fmt.Errorf("failed to generate worker config files: %w", err)
 	}
 
@@ -163,8 +164,8 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 		// Add port mapping if ports are allocated
 		if portAllocation != nil {
 			if port, hasPort := portAllocation[serviceName]; hasPort {
-				// Add port mapping: host:container (8080 is the default container port)
-				portMappings := []string{fmt.Sprintf("%d:8080", port)}
+				// Use same port for both host and container (dynamic port discovery)
+				portMappings := []string{fmt.Sprintf("%d:%d", port, port)}
 
 				// Merge with existing ports if any
 				if existingPorts, ok := serviceConfig["ports"]; ok {
@@ -287,14 +288,14 @@ Supported platforms: linux-amd64, linux-arm64, darwin-amd64, darwin-arm64
 }
 
 func (g *Generator) createWorkerDirectories(cfg *config.Config) error {
-	for _, worker := range cfg.Workers {
+	for _, w := range cfg.Workers {
 		// Skip disabled workers
-		if !worker.IsEnabled() {
+		if !w.IsEnabled() {
 			continue
 		}
-		normalizedName := worker.GetNormalizedName()
+		normalizedName := w.GetNormalizedName()
 		if err := g.fileOps.CreateWorkerDirectoryStructure(normalizedName); err != nil {
-			return fmt.Errorf("failed to create directory structure for worker %s (normalized: %s): %w", worker.Name, normalizedName, err)
+			return fmt.Errorf("failed to create directory structure for worker %s (normalized: %s): %w", w.Name, normalizedName, err)
 		}
 	}
 
@@ -335,21 +336,30 @@ func (g *Generator) detectNamedVolumes(services map[string]interface{}) map[stri
 }
 
 // generateWorkerConfigFiles creates YAML config files for each enabled worker
-func (g *Generator) generateWorkerConfigFiles(cfg *config.Config) error {
-	for _, worker := range cfg.Workers {
+func (g *Generator) generateWorkerConfigFiles(cfg *config.Config, portAllocation ports.PortAllocation) error {
+	for _, w := range cfg.Workers {
 		// Skip disabled workers
-		if !worker.IsEnabled() {
+		if !w.IsEnabled() {
 			continue
 		}
 
-		settings := worker.GetEffectiveSettings(cfg.Settings)
-		workerWithSettings := &config.WorkerWithSettings{Worker: worker, Settings: settings}
-		serviceName := worker.GetNormalizedName()
+		settings := w.GetEffectiveSettings(cfg.Settings)
+		workerWithSettings := &worker.WorkerWithSettings{Worker: w, Settings: settings}
+		serviceName := w.GetNormalizedName()
+
+		// Set HTTP port from port allocation if available
+		if portAllocation != nil {
+			if port, hasPort := portAllocation[serviceName]; hasPort {
+				if settings.HTTPPort == nil {
+					settings.HTTPPort = &port
+				}
+			}
+		}
 
 		// Build the worker config (now we generate worker config directly)
-		workerConfig := &config.Worker{
-			Name:     worker.Name,
-			Prompt:   workerWithSettings.GetConsolidatedPrompt(cfg),
+		workerConfig := &worker.Worker{
+			Name:     w.Name,
+			Prompt:   workerWithSettings.GetConsolidatedPrompt(),
 			Settings: &settings,
 		}
 
@@ -363,7 +373,7 @@ func (g *Generator) generateWorkerConfigFiles(cfg *config.Config) error {
 		configPath := filepath.Join(workerDir, "config.yaml")
 		configData, err := yaml.Marshal(workerConfig)
 		if err != nil {
-			return fmt.Errorf("failed to marshal config for worker %s: %w", worker.Name, err)
+			return fmt.Errorf("failed to marshal config for worker %s: %w", w.Name, err)
 		}
 
 		if err := os.WriteFile(configPath, configData, 0644); err != nil {

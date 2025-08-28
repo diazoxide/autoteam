@@ -3,27 +3,30 @@ package config
 import (
 	"fmt"
 	"testing"
+
+	"autoteam/internal/util"
+	"autoteam/internal/worker"
 )
 
 func TestWorkerGetSettings(t *testing.T) {
-	globalSettings := WorkerSettings{
+	globalSettings := worker.WorkerSettings{
 		Service: map[string]interface{}{
 			"image": "node:18",
 			"user":  "developer",
 		},
-		SleepDuration: IntPtr(60),
-		TeamName:      StringPtr("global-team"),
-		InstallDeps:   BoolPtr(true),
+		SleepDuration: util.IntPtr(60),
+		TeamName:      util.StringPtr("global-team"),
+		InstallDeps:   util.BoolPtr(true),
 	}
 
 	tests := []struct {
 		name           string
-		worker         Worker
-		expectedResult WorkerSettings
+		worker         worker.Worker
+		expectedResult worker.WorkerSettings
 	}{
 		{
 			name: "no agent settings - should use global",
-			worker: Worker{
+			worker: worker.Worker{
 				Name:     "test1",
 				Prompt:   "test prompt",
 				Settings: nil,
@@ -32,49 +35,49 @@ func TestWorkerGetSettings(t *testing.T) {
 		},
 		{
 			name: "partial agent settings - should override only specified",
-			worker: Worker{
+			worker: worker.Worker{
 				Name:   "test2",
 				Prompt: "test prompt",
-				Settings: &WorkerSettings{
+				Settings: &worker.WorkerSettings{
 					Service: map[string]interface{}{
 						"image": "python:3.11",
 					},
-					SleepDuration: IntPtr(30),
+					SleepDuration: util.IntPtr(30),
 				},
 			},
-			expectedResult: WorkerSettings{
+			expectedResult: worker.WorkerSettings{
 				Service: map[string]interface{}{
 					"image": "python:3.11", // overridden
 					"user":  "developer",   // from global
 				},
-				SleepDuration: IntPtr(30),               // overridden
-				TeamName:      StringPtr("global-team"), // from global
-				InstallDeps:   BoolPtr(true),            // from global
+				SleepDuration: util.IntPtr(30),               // overridden
+				TeamName:      util.StringPtr("global-team"), // from global
+				InstallDeps:   util.BoolPtr(true),            // from global
 			},
 		},
 		{
 			name: "full agent settings - should override all",
-			worker: Worker{
+			worker: worker.Worker{
 				Name:   "test3",
 				Prompt: "test prompt",
-				Settings: &WorkerSettings{
+				Settings: &worker.WorkerSettings{
 					Service: map[string]interface{}{
 						"image": "golang:1.21",
 						"user":  "admin",
 					},
-					SleepDuration: IntPtr(15),
-					TeamName:      StringPtr("custom-team"),
-					InstallDeps:   BoolPtr(false),
+					SleepDuration: util.IntPtr(15),
+					TeamName:      util.StringPtr("custom-team"),
+					InstallDeps:   util.BoolPtr(false),
 				},
 			},
-			expectedResult: WorkerSettings{
+			expectedResult: worker.WorkerSettings{
 				Service: map[string]interface{}{
 					"image": "golang:1.21",
 					"user":  "admin",
 				},
-				SleepDuration: IntPtr(15),
-				TeamName:      StringPtr("custom-team"),
-				InstallDeps:   BoolPtr(false),
+				SleepDuration: util.IntPtr(15),
+				TeamName:      util.StringPtr("custom-team"),
+				InstallDeps:   util.BoolPtr(false),
 			},
 		},
 	}
@@ -110,7 +113,7 @@ func TestWorkerGetSettings(t *testing.T) {
 
 func TestConfigGetAllWorkersWithSettings(t *testing.T) {
 	cfg := &Config{
-		Workers: []Worker{
+		Workers: []worker.Worker{
 			{
 				Name:     "dev",
 				Prompt:   "developer prompt",
@@ -119,22 +122,22 @@ func TestConfigGetAllWorkersWithSettings(t *testing.T) {
 			{
 				Name:   "arch",
 				Prompt: "architect prompt",
-				Settings: &WorkerSettings{
+				Settings: &worker.WorkerSettings{
 					Service: map[string]interface{}{
 						"image": "python:3.11",
 					},
-					SleepDuration: IntPtr(30),
+					SleepDuration: util.IntPtr(30),
 				},
 			},
 		},
-		Settings: WorkerSettings{
+		Settings: worker.WorkerSettings{
 			Service: map[string]interface{}{
 				"image": "node:18",
 				"user":  "developer",
 			},
-			SleepDuration: IntPtr(60),
-			TeamName:      StringPtr("test-team"),
-			InstallDeps:   BoolPtr(true),
+			SleepDuration: util.IntPtr(60),
+			TeamName:      util.StringPtr("test-team"),
+			InstallDeps:   util.BoolPtr(true),
 		},
 	}
 
@@ -177,7 +180,7 @@ func TestConfigGetAllWorkersWithSettings(t *testing.T) {
 }
 
 func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
-	globalSettings := WorkerSettings{
+	globalSettings := worker.WorkerSettings{
 		Service: map[string]interface{}{
 			"image":   "node:18",
 			"user":    "developer",
@@ -187,22 +190,22 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 				"SHARED_VAR": "global_shared",
 			},
 		},
-		SleepDuration: IntPtr(60),
-		TeamName:      StringPtr("global-team"),
-		InstallDeps:   BoolPtr(true),
+		SleepDuration: util.IntPtr(60),
+		TeamName:      util.StringPtr("global-team"),
+		InstallDeps:   util.BoolPtr(true),
 	}
 
 	tests := []struct {
 		name           string
-		worker         Worker
-		expectedResult WorkerSettings
+		worker         worker.Worker
+		expectedResult worker.WorkerSettings
 	}{
 		{
 			name: "custom volumes should replace global",
-			worker: Worker{
+			worker: worker.Worker{
 				Name:   "test1",
 				Prompt: "test prompt",
-				Settings: &WorkerSettings{
+				Settings: &worker.WorkerSettings{
 					Service: map[string]interface{}{
 						"volumes": []string{
 							"./custom-vol:/app/custom",
@@ -211,7 +214,7 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: WorkerSettings{
+			expectedResult: worker.WorkerSettings{
 				Service: map[string]interface{}{
 					"image":   "node:18",
 					"user":    "developer",
@@ -221,23 +224,23 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 						"SHARED_VAR": "global_shared",
 					},
 				},
-				SleepDuration: IntPtr(60),
-				TeamName:      StringPtr("global-team"),
-				InstallDeps:   BoolPtr(true),
+				SleepDuration: util.IntPtr(60),
+				TeamName:      util.StringPtr("global-team"),
+				InstallDeps:   util.BoolPtr(true),
 			},
 		},
 		{
 			name: "custom entrypoint should override global",
-			worker: Worker{
+			worker: worker.Worker{
 				Name:   "test2",
 				Prompt: "test prompt",
-				Settings: &WorkerSettings{
+				Settings: &worker.WorkerSettings{
 					Service: map[string]interface{}{
 						"entrypoint": []string{"/custom/entrypoint.sh"},
 					},
 				},
 			},
-			expectedResult: WorkerSettings{
+			expectedResult: worker.WorkerSettings{
 				Service: map[string]interface{}{
 					"image":      "node:18",
 					"user":       "developer",
@@ -248,17 +251,17 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 						"SHARED_VAR": "global_shared",
 					},
 				},
-				SleepDuration: IntPtr(60),
-				TeamName:      StringPtr("global-team"),
-				InstallDeps:   BoolPtr(true),
+				SleepDuration: util.IntPtr(60),
+				TeamName:      util.StringPtr("global-team"),
+				InstallDeps:   util.BoolPtr(true),
 			},
 		},
 		{
 			name: "custom environment should merge with global",
-			worker: Worker{
+			worker: worker.Worker{
 				Name:   "test3",
 				Prompt: "test prompt",
-				Settings: &WorkerSettings{
+				Settings: &worker.WorkerSettings{
 					Service: map[string]interface{}{
 						"environment": map[string]string{
 							"CUSTOM_VAR": "custom_value",
@@ -267,7 +270,7 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: WorkerSettings{
+			expectedResult: worker.WorkerSettings{
 				Service: map[string]interface{}{
 					"image":   "node:18",
 					"user":    "developer",
@@ -278,17 +281,17 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 						"CUSTOM_VAR": "custom_value",
 					},
 				},
-				SleepDuration: IntPtr(60),
-				TeamName:      StringPtr("global-team"),
-				InstallDeps:   BoolPtr(true),
+				SleepDuration: util.IntPtr(60),
+				TeamName:      util.StringPtr("global-team"),
+				InstallDeps:   util.BoolPtr(true),
 			},
 		},
 		{
 			name: "all custom service fields combined",
-			worker: Worker{
+			worker: worker.Worker{
 				Name:   "test4",
 				Prompt: "test prompt",
-				Settings: &WorkerSettings{
+				Settings: &worker.WorkerSettings{
 					Service: map[string]interface{}{
 						"image":       "python:3.11",
 						"volumes":     []string{"./python-vol:/app/python"},
@@ -297,7 +300,7 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: WorkerSettings{
+			expectedResult: worker.WorkerSettings{
 				Service: map[string]interface{}{
 					"image":      "python:3.11",
 					"user":       "developer",
@@ -309,9 +312,9 @@ func TestAgentGetSettingsWithServiceMerging(t *testing.T) {
 						"PYTHON_ENV": "production",
 					},
 				},
-				SleepDuration: IntPtr(60),
-				TeamName:      StringPtr("global-team"),
-				InstallDeps:   BoolPtr(true),
+				SleepDuration: util.IntPtr(60),
+				TeamName:      util.StringPtr("global-team"),
+				InstallDeps:   util.BoolPtr(true),
 			},
 		},
 	}

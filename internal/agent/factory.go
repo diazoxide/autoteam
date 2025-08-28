@@ -3,7 +3,7 @@ package agent
 import (
 	"fmt"
 
-	"autoteam/internal/config"
+	"autoteam/internal/worker"
 )
 
 // Agent type constants
@@ -15,7 +15,7 @@ const (
 )
 
 // CreateAgent creates an agent based on configuration
-func CreateAgent(agentConfig AgentConfig, name string, mcpServers map[string]config.MCPServer) (Agent, error) {
+func CreateAgent(agentConfig AgentConfig, name string, mcpServers map[string]worker.MCPServer) (Agent, error) {
 	switch agentConfig.Type {
 	case AgentTypeClaudeCode:
 		agent := NewClaudeCode(name, agentConfig.Args, agentConfig.Env, mcpServers)

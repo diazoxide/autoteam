@@ -302,7 +302,20 @@ func setupContextWithLogger(ctx context.Context, cmd *cli.Command) (context.Cont
 		return ctx, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	log.Debug("Config loaded successfully", zap.String("team_name", cfg.Settings.GetTeamName()))
+	// Check if debug is enabled in config and update log level if needed
+	if cfg.Settings.GetDebug() && logLevel != logger.DebugLevel {
+		logLevel = logger.DebugLevel
+		ctx, err = logger.SetupContext(ctx, logLevel)
+		if err != nil {
+			return ctx, fmt.Errorf("failed to update logger to debug level: %w", err)
+		}
+		log = logger.FromContext(ctx)
+		log.Debug("Updated log level to debug based on configuration")
+	}
+
+	log.Debug("Config loaded successfully",
+		zap.String("team_name", cfg.Settings.GetTeamName()),
+		zap.Bool("debug_enabled", cfg.Settings.GetDebug()))
 	return context.WithValue(ctx, configContextKey, cfg), nil
 }
 

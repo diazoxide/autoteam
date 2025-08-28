@@ -1,21 +1,22 @@
 package agent
 
 import (
-	"autoteam/internal/config"
 	"context"
 	"fmt"
+
+	"autoteam/internal/worker"
 )
 
 // DebugAgent implements the Agent interface for debugging purposes
 type DebugAgent struct {
 	name       string
-	mcpServers map[string]config.MCPServer
+	mcpServers map[string]worker.MCPServer
 	args       []string
 	env        map[string]string
 }
 
 // NewDebugAgent creates a new Debug agent instance
-func NewDebugAgent(name string, args []string, env map[string]string, mcpServers map[string]config.MCPServer) Agent {
+func NewDebugAgent(name string, args []string, env map[string]string, mcpServers map[string]worker.MCPServer) Agent {
 	return &DebugAgent{
 		name:       name,
 		mcpServers: mcpServers,

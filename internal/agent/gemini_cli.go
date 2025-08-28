@@ -1,9 +1,8 @@
 package agent
 
 import (
-	"autoteam/internal/config"
 	"autoteam/internal/logger"
-	"autoteam/internal/server"
+	"autoteam/internal/worker"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -20,13 +19,13 @@ import (
 type GeminiCli struct {
 	name       string
 	binaryPath string
-	mcpServers map[string]config.MCPServer
+	mcpServers map[string]worker.MCPServer
 	agentArgs  []string
 	agentEnv   map[string]string
 }
 
 // NewGeminiCli creates a new Gemini agent instance
-func NewGeminiCli(name string, args []string, env map[string]string, mcpServers map[string]config.MCPServer) *GeminiCli {
+func NewGeminiCli(name string, args []string, env map[string]string, mcpServers map[string]worker.MCPServer) *GeminiCli {
 	return &GeminiCli{
 		name:       name,
 		binaryPath: "gemini", // Will be found in PATH after npm installation
@@ -245,16 +244,6 @@ func (q *GeminiCli) createMCPConfigFile(ctx context.Context) error {
 }
 
 // SetMCPServers sets the MCP servers for this agent
-func (q *GeminiCli) SetMCPServers(mcpServers map[string]config.MCPServer) {
+func (q *GeminiCli) SetMCPServers(mcpServers map[string]worker.MCPServer) {
 	q.mcpServers = mcpServers
-}
-
-// CreateHTTPServer creates an HTTP API server for this agent
-func (q *GeminiCli) CreateHTTPServer(workingDir string, port int, apiKey string) HTTPServer {
-	config := server.Config{
-		Port:       port,
-		APIKey:     apiKey,
-		WorkingDir: workingDir,
-	}
-	return server.NewServer(q, config)
 }
