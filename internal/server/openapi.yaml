@@ -288,18 +288,9 @@ components:
             uptime:
               type: string
               description: Agent uptime duration
-            tasks_processed:
-              type: integer
-              description: Total tasks processed
-            tasks_success:
-              type: integer
-              description: Successfully completed tasks
-            tasks_failed:
-              type: integer
-              description: Failed tasks
             avg_execution_time:
               type: string
-              description: Average task execution time
+              description: Average flow execution time
             last_activity:
               type: string
               format: date-time

@@ -67,9 +67,6 @@ type LogFile struct {
 // WorkerMetrics represents worker performance metrics
 type WorkerMetrics struct {
 	Uptime           *string    `json:"uptime,omitempty"`
-	TasksProcessed   *int       `json:"tasks_processed,omitempty"`
-	TasksSuccess     *int       `json:"tasks_success,omitempty"`
-	TasksFailed      *int       `json:"tasks_failed,omitempty"`
 	AvgExecutionTime *string    `json:"avg_execution_time,omitempty"`
 	LastActivity     *time.Time `json:"last_activity,omitempty"`
 }

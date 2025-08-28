@@ -227,7 +227,7 @@ settings:
         description: "Initializing Github credentials"
   flow:
     - name: collector
-      type: gemini
+      type: debug
       args: [ "--model", "gemini-2.5-flash" ]
       input: |
         You are a GitHub Notification Collector. Your workflow is:

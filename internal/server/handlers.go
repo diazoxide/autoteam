@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"autoteam/internal/task"
 	"autoteam/internal/worker"
 
 	"github.com/labstack/echo/v4"
@@ -24,19 +23,17 @@ var openAPISpec string
 
 // Handlers contains the HTTP handlers for the worker API
 type Handlers struct {
-	worker      *worker.WorkerImpl
-	workingDir  string
-	startTime   time.Time
-	taskService *task.Service
+	worker     *worker.WorkerImpl
+	workingDir string
+	startTime  time.Time
 }
 
 // NewHandlers creates a new handlers instance
 func NewHandlers(wk *worker.WorkerImpl, workingDir string, startTime time.Time) *Handlers {
 	return &Handlers{
-		worker:      wk,
-		workingDir:  workingDir,
-		startTime:   startTime,
-		taskService: task.NewService(workingDir),
+		worker:     wk,
+		workingDir: workingDir,
+		startTime:  startTime,
 	}
 }
 
@@ -220,11 +217,7 @@ func (h *Handlers) GetMetrics(c echo.Context) error {
 	uptime := h.worker.GetUptime().String()
 
 	metrics := WorkerMetrics{
-		Uptime: &uptime,
-		// In real implementation, these would be tracked
-		TasksProcessed:   intPtr(0),
-		TasksSuccess:     intPtr(0),
-		TasksFailed:      intPtr(0),
+		Uptime:           &uptime,
 		AvgExecutionTime: stringPtr("0s"),
 		LastActivity:     h.worker.GetLastActivity(),
 	}
