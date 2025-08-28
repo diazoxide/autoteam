@@ -3,29 +3,23 @@ package server
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
 
 	"autoteam/internal/logger"
+	"autoteam/internal/worker"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"go.uber.org/zap"
 )
 
-// WorkerInterface defines the minimal interface needed by the HTTP server
-type WorkerInterface interface {
-	Name() string
-	Type() string
-	IsAvailable(ctx context.Context) bool
-	Version(ctx context.Context) (string, error)
-}
-
 // Server represents the HTTP API server for a worker
 type Server struct {
 	echo       *echo.Echo
-	worker     WorkerInterface
+	worker     *worker.WorkerImpl
 	port       int
 	apiKey     string
 	workingDir string
@@ -42,7 +36,7 @@ type Config struct {
 }
 
 // NewServer creates a new HTTP API server for the given worker
-func NewServer(wk WorkerInterface, config Config) *Server {
+func NewServer(wk *worker.WorkerImpl, config Config) *Server {
 	e := echo.New()
 	e.HideBanner = true
 
@@ -114,13 +108,11 @@ func (s *Server) setupRoutes() {
 
 	// Log endpoints
 	api.GET("logs", s.handlers.GetLogs)
-	api.GET("logs/collector", s.handlers.GetCollectorLogs)
-	api.GET("logs/executor", s.handlers.GetExecutorLogs)
 	api.GET("logs/:filename", s.handlers.GetLogFile)
 
-	// Task endpoints
-	api.GET("tasks", s.handlers.GetTasks)
-	api.GET("tasks/:id", s.handlers.GetTask)
+	// Flow endpoints
+	api.GET("flow", s.handlers.GetFlow)
+	api.GET("flow/steps", s.handlers.GetFlowSteps)
 
 	// Metrics endpoint
 	api.GET("metrics", s.handlers.GetMetrics)
@@ -128,22 +120,33 @@ func (s *Server) setupRoutes() {
 	// Configuration endpoint
 	api.GET("config", s.handlers.GetConfig)
 
-	// Documentation redirect
+	// OpenAPI specification endpoint
+	api.GET("openapi.yaml", s.handlers.GetOpenAPISpec)
+	api.GET("openapi", s.handlers.GetOpenAPISpec) // Alternative endpoint
+
+	// Documentation redirect to Swagger UI
 	api.GET("docs", func(c echo.Context) error {
 		return c.Redirect(http.StatusMovedPermanently, "/docs/")
 	})
+	api.GET("docs/", s.handlers.GetSwaggerUI)
 
 	// Static docs serving (for Swagger UI if needed)
 	// Note: In production, you might want to embed static files or serve from CDN
 	api.Static("docs/", "docs/")
 }
 
-// Start starts the HTTP server
+// Start starts the HTTP server with dynamic port discovery if port is 0
 func (s *Server) Start(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
 
+	// Use dynamic port discovery if port is 0
+	addr := ":" + strconv.Itoa(s.port)
+	if s.port == 0 {
+		addr = ":0" // Let OS choose available port
+	}
+
 	s.server = &http.Server{
-		Addr:         ":" + strconv.Itoa(s.port),
+		Addr:         addr,
 		Handler:      s.echo,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -151,14 +154,26 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	lgr.Debug("Starting HTTP API server",
-		zap.String("agent", s.worker.Name()),
+		zap.String("worker", s.worker.Name),
 		zap.String("type", s.worker.Type()),
-		zap.Int("port", s.port),
+		zap.Int("requested_port", s.port),
 		zap.String("address", s.server.Addr))
 
-	// Start server in goroutine
+	// Start server and discover the actual port
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("failed to create listener: %w", err)
+	}
+
+	// Update port with discovered port
+	if tcpAddr, ok := listener.Addr().(*net.TCPAddr); ok {
+		s.port = tcpAddr.Port
+		lgr.Debug("HTTP server port discovered", zap.Int("actual_port", s.port))
+	}
+
+	// Start server in goroutine with the listener
 	go func() {
-		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := s.server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			lgr.Error("HTTP server error", zap.Error(err))
 		}
 	}()
@@ -175,7 +190,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	lgr.Debug("Stopping HTTP API server",
-		zap.String("agent", s.worker.Name()),
+		zap.String("agent", s.worker.Name),
 		zap.Int("port", s.port))
 
 	// Create context with timeout for shutdown

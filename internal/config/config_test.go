@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"autoteam/internal/testutil"
+	"autoteam/internal/util"
+	"autoteam/internal/worker"
 )
 
 func TestLoadConfig_Valid(t *testing.T) {
@@ -18,7 +20,7 @@ func TestLoadConfig_Valid(t *testing.T) {
 			name:     "valid config",
 			filename: "testdata/valid.yaml",
 			want: Config{
-				Workers: []Worker{
+				Workers: []worker.Worker{
 					{
 						Name:   "dev1",
 						Prompt: "You are a developer agent",
@@ -28,16 +30,16 @@ func TestLoadConfig_Valid(t *testing.T) {
 						Prompt: "You are an architect agent",
 					},
 				},
-				Settings: WorkerSettings{
+				Settings: worker.WorkerSettings{
 					Service: map[string]interface{}{
 						"image": "node:18.17.1",
 						"user":  "developer",
 					},
-					SleepDuration: IntPtr(60),
-					TeamName:      StringPtr("test-team"),
-					InstallDeps:   BoolPtr(true),
-					CommonPrompt:  StringPtr("Follow best practices"),
-					Flow: []FlowStep{
+					SleepDuration: util.IntPtr(60),
+					TeamName:      util.StringPtr("test-team"),
+					InstallDeps:   util.BoolPtr(true),
+					CommonPrompt:  util.StringPtr("Follow best practices"),
+					Flow: []worker.FlowStep{
 						{Name: "collector", Type: "gemini", Input: "Collect tasks"},
 						{Name: "executor", Type: "claude", DependsOn: []string{"collector"}, Input: "Execute tasks"},
 					},
@@ -48,21 +50,21 @@ func TestLoadConfig_Valid(t *testing.T) {
 			name:     "minimal config with defaults",
 			filename: "testdata/minimal.yaml",
 			want: Config{
-				Workers: []Worker{
+				Workers: []worker.Worker{
 					{
 						Name:   "dev1",
 						Prompt: "Developer",
 					},
 				},
-				Settings: WorkerSettings{
+				Settings: worker.WorkerSettings{
 					Service: map[string]interface{}{
 						"image": "node:18.17.1", // default
 						"user":  "developer",    // default
 					},
-					SleepDuration: IntPtr(60),            // default
-					TeamName:      StringPtr("autoteam"), // default
-					InstallDeps:   BoolPtr(false),        // default
-					Flow: []FlowStep{
+					SleepDuration: util.IntPtr(60),            // default
+					TeamName:      util.StringPtr("autoteam"), // default
+					InstallDeps:   util.BoolPtr(false),        // default
+					Flow: []worker.FlowStep{
 						{Name: "collector", Type: "gemini", Input: "Collect tasks"},
 						{Name: "executor", Type: "claude", DependsOn: []string{"collector"}, Input: "Execute tasks"},
 					},
@@ -197,11 +199,11 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "valid config",
 			config: Config{
-				Workers: []Worker{
+				Workers: []worker.Worker{
 					{Name: "dev1", Prompt: "prompt"},
 				},
-				Settings: WorkerSettings{
-					Flow: []FlowStep{
+				Settings: worker.WorkerSettings{
+					Flow: []worker.FlowStep{
 						{Name: "step1", Type: "claude", Input: "test"},
 					},
 				},
@@ -211,14 +213,14 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "no agents",
 			config: Config{
-				Workers: []Worker{},
+				Workers: []worker.Worker{},
 			},
 			wantErr: "at least one worker must be configured",
 		},
 		{
 			name: "agent missing name",
 			config: Config{
-				Workers: []Worker{
+				Workers: []worker.Worker{
 					{Prompt: "prompt"},
 				},
 			},
@@ -227,7 +229,7 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "agent missing prompt",
 			config: Config{
-				Workers: []Worker{
+				Workers: []worker.Worker{
 					{Name: "dev1"},
 				},
 			},
@@ -281,13 +283,13 @@ func TestSetDefaults(t *testing.T) {
 
 	// Test that existing values are not overridden
 	config2 := &Config{
-		Settings: WorkerSettings{
+		Settings: worker.WorkerSettings{
 			Service: map[string]interface{}{
 				"image": "custom:latest",
 				"user":  "custom-user",
 			},
-			SleepDuration: IntPtr(120),
-			TeamName:      StringPtr("custom-team"),
+			SleepDuration: util.IntPtr(120),
+			TeamName:      util.StringPtr("custom-team"),
 		},
 	}
 
@@ -310,28 +312,28 @@ func TestSetDefaults(t *testing.T) {
 func TestWorkerIsEnabled(t *testing.T) {
 	tests := []struct {
 		name   string
-		worker Worker
+		worker worker.Worker
 		want   bool
 	}{
 		{
 			name: "worker with enabled=true",
-			worker: Worker{
+			worker: worker.Worker{
 				Name:    "test",
-				Enabled: BoolPtr(true),
+				Enabled: util.BoolPtr(true),
 			},
 			want: true,
 		},
 		{
 			name: "agent with enabled=false",
-			worker: Worker{
+			worker: worker.Worker{
 				Name:    "test",
-				Enabled: BoolPtr(false),
+				Enabled: util.BoolPtr(false),
 			},
 			want: false,
 		},
 		{
 			name: "agent without enabled field (default)",
-			worker: Worker{
+			worker: worker.Worker{
 				Name: "test",
 			},
 			want: true,
@@ -349,16 +351,16 @@ func TestWorkerIsEnabled(t *testing.T) {
 
 func TestGetEnabledWorkersWithEffectiveSettings(t *testing.T) {
 	config := &Config{
-		Workers: []Worker{
+		Workers: []worker.Worker{
 			{
 				Name:    "dev1",
 				Prompt:  "Developer",
-				Enabled: BoolPtr(true),
+				Enabled: util.BoolPtr(true),
 			},
 			{
 				Name:    "dev2",
 				Prompt:  "Developer",
-				Enabled: BoolPtr(false),
+				Enabled: util.BoolPtr(false),
 			},
 			{
 				Name:   "dev3",
@@ -366,10 +368,10 @@ func TestGetEnabledWorkersWithEffectiveSettings(t *testing.T) {
 				// Enabled not set, defaults to true
 			},
 		},
-		Settings: WorkerSettings{
-			SleepDuration: IntPtr(60),
-			TeamName:      StringPtr("test"),
-			Flow: []FlowStep{
+		Settings: worker.WorkerSettings{
+			SleepDuration: util.IntPtr(60),
+			TeamName:      util.StringPtr("test"),
+			Flow: []worker.FlowStep{
 				{Name: "step1", Type: "claude", Input: "test"},
 			},
 		},
@@ -397,11 +399,11 @@ func TestValidateConfigWithDisabledAgents(t *testing.T) {
 		{
 			name: "all agents disabled",
 			config: Config{
-				Workers: []Worker{
+				Workers: []worker.Worker{
 					{
 						Name:    "dev1",
 						Prompt:  "prompt",
-						Enabled: BoolPtr(false),
+						Enabled: util.BoolPtr(false),
 					},
 				},
 			},
@@ -410,20 +412,20 @@ func TestValidateConfigWithDisabledAgents(t *testing.T) {
 		{
 			name: "disabled agent without required fields",
 			config: Config{
-				Workers: []Worker{
+				Workers: []worker.Worker{
 					{
 						Name:    "dev1",
-						Enabled: BoolPtr(false),
+						Enabled: util.BoolPtr(false),
 						// Missing required fields, but should be OK since agent is disabled
 					},
 					{
 						Name:    "dev2",
 						Prompt:  "prompt",
-						Enabled: BoolPtr(true),
+						Enabled: util.BoolPtr(true),
 					},
 				},
-				Settings: WorkerSettings{
-					Flow: []FlowStep{
+				Settings: worker.WorkerSettings{
+					Flow: []worker.FlowStep{
 						{Name: "step1", Type: "claude", Input: "test"},
 					},
 				},

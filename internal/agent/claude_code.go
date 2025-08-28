@@ -10,9 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"autoteam/internal/config"
 	"autoteam/internal/logger"
-	"autoteam/internal/server"
+	"autoteam/internal/worker"
 
 	"go.uber.org/zap"
 )
@@ -21,13 +20,13 @@ import (
 type ClaudeCode struct {
 	name       string
 	binaryPath string
-	mcpServers map[string]config.MCPServer
+	mcpServers map[string]worker.MCPServer
 	args       []string
 	env        map[string]string
 }
 
 // NewClaudeCode creates a new Claude Code agent instance
-func NewClaudeCode(name string, args []string, env map[string]string, mcpServers map[string]config.MCPServer) *ClaudeCode {
+func NewClaudeCode(name string, args []string, env map[string]string, mcpServers map[string]worker.MCPServer) *ClaudeCode {
 	return &ClaudeCode{
 		name:       name,
 		binaryPath: "claude", // Will be found in PATH after installation
@@ -247,16 +246,6 @@ func (c *ClaudeCode) createMCPConfigFile(ctx context.Context) error {
 }
 
 // SetMCPServers sets the MCP servers for this agent
-func (c *ClaudeCode) SetMCPServers(mcpServers map[string]config.MCPServer) {
+func (c *ClaudeCode) SetMCPServers(mcpServers map[string]worker.MCPServer) {
 	c.mcpServers = mcpServers
-}
-
-// CreateHTTPServer creates an HTTP API server for this agent
-func (c *ClaudeCode) CreateHTTPServer(workingDir string, port int, apiKey string) HTTPServer {
-	config := server.Config{
-		Port:       port,
-		APIKey:     apiKey,
-		WorkingDir: workingDir,
-	}
-	return server.NewServer(c, config)
 }

@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"autoteam/internal/agent"
-	"autoteam/internal/config"
 	"autoteam/internal/flow"
 	"autoteam/internal/logger"
 	"autoteam/internal/task"
+	"autoteam/internal/worker"
 
 	"go.uber.org/zap"
 )
@@ -20,33 +19,48 @@ type Config struct {
 	TeamName      string
 }
 
+// HTTPServer defines the interface for HTTP server management
+type HTTPServer interface {
+	Start(ctx context.Context) error
+	Stop(ctx context.Context) error
+	Port() int
+	IsRunning() bool
+	GetURL() string
+	GetDocsURL() string
+}
+
 // Monitor handles flow-based agent monitoring
 type Monitor struct {
 	flowExecutor *flow.FlowExecutor // Dynamic flow executor
-	flowSteps    []config.FlowStep  // Flow configuration
+	flowSteps    []worker.FlowStep  // Flow configuration
 	config       Config
-	worker       *config.Worker        // Worker configuration
-	settings     config.WorkerSettings // Effective settings
+	worker       *worker.Worker        // Worker configuration
+	settings     worker.WorkerSettings // Effective settings
 	taskService  *task.Service         // Service for task persistence operations
-	httpServer   agent.HTTPServer      // HTTP API server for monitoring
+	httpServer   HTTPServer            // HTTP API server for monitoring
 }
 
 // New creates a new flow-based monitor instance
-func New(worker *config.Worker, settings config.WorkerSettings, monitorConfig Config) *Monitor {
+func New(w *worker.Worker, settings worker.WorkerSettings, monitorConfig Config) *Monitor {
 	// Get agent directory for task service
-	agentDirectory := worker.GetWorkerDir()
+	agentDirectory := w.GetWorkerDir()
 
 	// Create flow executor with worker configuration and effective settings
-	flowExecutor := flow.New(settings.Flow, settings.MCPServers, agentDirectory, worker)
+	flowExecutor := flow.New(settings.Flow, settings.MCPServers, agentDirectory, w)
 
 	return &Monitor{
 		flowExecutor: flowExecutor,
 		flowSteps:    settings.Flow,
 		config:       monitorConfig,
-		worker:       worker,
+		worker:       w,
 		settings:     settings,
 		taskService:  task.NewService(agentDirectory),
 	}
+}
+
+// SetHTTPServer sets the HTTP server for this monitor
+func (m *Monitor) SetHTTPServer(server HTTPServer) {
+	m.httpServer = server
 }
 
 // Start starts the flow-based agent processing loop
@@ -144,10 +158,17 @@ func (m *Monitor) processFlowCycle(ctx context.Context) error {
 	return nil
 }
 
-// startHTTPServer starts the HTTP API server for agent monitoring
+// startHTTPServer starts the HTTP API server for worker monitoring
 func (m *Monitor) startHTTPServer(ctx context.Context) error {
+	if m.httpServer == nil {
+		return nil // HTTP server not configured
+	}
+
 	lgr := logger.FromContext(ctx)
-	lgr.Debug("HTTP API server not implemented for flow mode")
+	lgr.Info("HTTP API server already started",
+		zap.String("url", m.httpServer.GetURL()),
+		zap.Int("port", m.httpServer.Port()))
+
 	return nil
 }
 

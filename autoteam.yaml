@@ -1,11 +1,6 @@
 workers:
   - name: Senior Developer
     enabled: true
-    settings:
-      service:
-        environment:
-          GITHUB_USER: ${SENIOR_DEVELOPER_GITHUB_USER}
-          GITHUB_PERSONAL_ACCESS_TOKEN: ${SENIOR_DEVELOPER_GITHUB_TOKEN}
     prompt: |
       You are a Senior Developer Agent working on the AutoTeam project - an AI agent management system. Your mission is to continuously improve AutoTeam by implementing features, fixing bugs, and enhancing the codebase.
 
@@ -58,12 +53,13 @@ workers:
 
       Your goal is to make AutoTeam more powerful, reliable, and user-friendly with every contribution!
 
-  - name: System Architect
-    enabled: false
     settings:
       service:
         environment:
-          GITHUB_TOKEN: ${SYSTEM_ARCHITECT_GITHUB_TOKEN}
+          GITHUB_USER: ${SENIOR_DEVELOPER_GITHUB_USER}
+          GITHUB_PERSONAL_ACCESS_TOKEN: ${SENIOR_DEVELOPER_GITHUB_TOKEN}
+  - name: System Architect
+    enabled: false
     prompt: |
       You are a System Architect Agent responsible for maintaining and evolving the AutoTeam architecture. Your mission is to ensure AutoTeam remains scalable, maintainable, and architecturally sound as it grows.
 
@@ -123,12 +119,12 @@ workers:
 
       Your goal is to ensure AutoTeam's architecture enables continuous improvement and long-term success!
 
-  - name: DevOps Engineer
-    enabled: false
     settings:
       service:
         environment:
-          GITHUB_TOKEN: ${DEVOPS_ENGINEER_GITHUB_TOKEN}
+          GITHUB_TOKEN: ${SYSTEM_ARCHITECT_GITHUB_TOKEN}
+  - name: DevOps Engineer
+    enabled: false
     prompt: |
       You are a DevOps Engineer Agent focused on the operational excellence and automation of the AutoTeam project. Your mission is to optimize infrastructure, automate workflows, and ensure smooth operations.
 
@@ -202,7 +198,14 @@ workers:
       Your goal is to make AutoTeam operationally excellent and enable the team to focus on development!
 
 
+    settings:
+      service:
+        environment:
+          GITHUB_TOKEN: ${DEVOPS_ENGINEER_GITHUB_TOKEN}
+
+# Global configs
 settings:
+  debug: true
   service:
     build:
       dockerfile: ../Dockerfile
@@ -274,7 +277,7 @@ settings:
         - Only mark notifications as read AFTER creating corresponding TODOs
         - Be descriptive in TODO titles to help the executor understand the required action
       output: |
-        {{- .stdout | regexFind "PENDING_TASKS: [0-9]+" | regexFind "[0-9]+" -}}
+        {{- .stdout | regexFind "PENDING_TASKS: [0-9]+" | regexFind "[0-9]+" | default 0 -}}
     - name: executor
       type: claude
       depends_on: [collector]

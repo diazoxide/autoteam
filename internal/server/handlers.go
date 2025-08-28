@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	_ "embed"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -13,20 +14,24 @@ import (
 	"time"
 
 	"autoteam/internal/task"
+	"autoteam/internal/worker"
 
 	"github.com/labstack/echo/v4"
 )
 
+//go:embed openapi.yaml
+var openAPISpec string
+
 // Handlers contains the HTTP handlers for the worker API
 type Handlers struct {
-	worker      WorkerInterface
+	worker      *worker.WorkerImpl
 	workingDir  string
 	startTime   time.Time
 	taskService *task.Service
 }
 
 // NewHandlers creates a new handlers instance
-func NewHandlers(wk WorkerInterface, workingDir string, startTime time.Time) *Handlers {
+func NewHandlers(wk *worker.WorkerImpl, workingDir string, startTime time.Time) *Handlers {
 	return &Handlers{
 		worker:      wk,
 		workingDir:  workingDir,
@@ -41,7 +46,7 @@ func (h *Handlers) GetHealth(c echo.Context) error {
 
 	// Get agent info
 	agentInfo := WorkerInfo{
-		Name:    h.worker.Name(),
+		Name:    h.worker.Name,
 		Type:    h.worker.Type(),
 		Version: "unknown",
 	}
@@ -107,31 +112,36 @@ func (h *Handlers) GetHealth(c echo.Context) error {
 func (h *Handlers) GetStatus(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	// Get agent info
-	agentInfo := WorkerInfo{
-		Name:    h.worker.Name(),
+	// Get worker info
+	workerInfo := WorkerInfo{
+		Name:    h.worker.Name,
 		Type:    h.worker.Type(),
 		Version: "unknown",
 	}
 
-	// Get agent version
+	// Get worker version
 	if version, err := h.worker.Version(ctx); err == nil {
-		agentInfo.Version = version
+		workerInfo.Version = version
 	}
 
 	// Check availability
 	available := h.worker.IsAvailable(ctx)
-	agentInfo.Available = &available
+	workerInfo.Available = &available
 
-	// Calculate uptime
-	uptime := time.Since(h.startTime).String()
+	// Get uptime from worker
+	uptime := h.worker.GetUptime().String()
 
-	// For now, status is always idle - in real implementation this would track actual agent state
+	// Get actual worker status
+	status := WorkerStatusIdle
+	if h.worker.IsRunning() {
+		status = WorkerStatusRunning
+	}
+
 	response := StatusResponse{
-		Status:    AgentStatusIdle,
-		Mode:      AgentModeBoth,
+		Status:    status,
+		Mode:      WorkerModeBoth, // Workers handle both collection and execution
 		Timestamp: time.Now(),
-		Agent:     agentInfo,
+		Agent:     workerInfo,
 		Uptime:    uptime,
 	}
 
@@ -151,56 +161,6 @@ func (h *Handlers) GetLogs(c echo.Context) error {
 	}
 
 	logs, err := h.getLogFiles(role, limit)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-
-	response := LogsResponse{
-		Logs:      logs,
-		Total:     len(logs),
-		Timestamp: time.Now(),
-	}
-
-	return c.JSON(http.StatusOK, response)
-}
-
-// GetCollectorLogs handles GET /logs/collector
-func (h *Handlers) GetCollectorLogs(c echo.Context) error {
-	limitStr := c.QueryParam("limit")
-
-	limit := 50 // default
-	if limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
-			limit = l
-		}
-	}
-
-	logs, err := h.getLogFiles(LogRoleCollector, limit)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-
-	response := LogsResponse{
-		Logs:      logs,
-		Total:     len(logs),
-		Timestamp: time.Now(),
-	}
-
-	return c.JSON(http.StatusOK, response)
-}
-
-// GetExecutorLogs handles GET /logs/executor
-func (h *Handlers) GetExecutorLogs(c echo.Context) error {
-	limitStr := c.QueryParam("limit")
-
-	limit := 50 // default
-	if limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
-			limit = l
-		}
-	}
-
-	logs, err := h.getLogFiles(LogRoleExecutor, limit)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -255,33 +215,9 @@ func (h *Handlers) GetLogFile(c echo.Context) error {
 	return c.File(logPath)
 }
 
-// GetTasks handles GET /tasks
-func (h *Handlers) GetTasks(c echo.Context) error {
-	// For now, return empty tasks list - in real implementation this would query actual tasks
-	response := TasksResponse{
-		Tasks:     []TaskSummary{},
-		Total:     0,
-		Timestamp: time.Now(),
-	}
-
-	return c.JSON(http.StatusOK, response)
-}
-
-// GetTask handles GET /tasks/{id}
-func (h *Handlers) GetTask(c echo.Context) error {
-	id := c.Param("id")
-
-	if id == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "task id is required")
-	}
-
-	// For now, return not found - in real implementation this would query actual task
-	return echo.NewHTTPError(http.StatusNotFound, "task not found")
-}
-
 // GetMetrics handles GET /metrics
 func (h *Handlers) GetMetrics(c echo.Context) error {
-	uptime := time.Since(h.startTime).String()
+	uptime := h.worker.GetUptime().String()
 
 	metrics := WorkerMetrics{
 		Uptime: &uptime,
@@ -290,7 +226,7 @@ func (h *Handlers) GetMetrics(c echo.Context) error {
 		TasksSuccess:     intPtr(0),
 		TasksFailed:      intPtr(0),
 		AvgExecutionTime: stringPtr("0s"),
-		LastActivity:     timePtr(h.startTime),
+		LastActivity:     h.worker.GetLastActivity(),
 	}
 
 	response := MetricsResponse{
@@ -305,21 +241,78 @@ func (h *Handlers) GetMetrics(c echo.Context) error {
 func (h *Handlers) GetConfig(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	// Get agent version
+	// Get worker version
 	version := "unknown"
 	if v, err := h.worker.Version(ctx); err == nil {
 		version = v
 	}
 
+	// Get worker configuration details
+	workerConfig := h.worker.GetConfig()
+	settings := h.worker.GetSettings()
+
 	config := WorkerConfig{
-		Name:    stringPtr(h.worker.Name()),
-		Type:    stringPtr(h.worker.Type()),
-		Enabled: boolPtr(true),
-		Version: stringPtr(version),
+		Name:      stringPtr(h.worker.Name),
+		Type:      stringPtr(h.worker.Type()),
+		Enabled:   stringPtr(fmt.Sprintf("%v", workerConfig.IsEnabled())),
+		Version:   stringPtr(version),
+		TeamName:  stringPtr(h.worker.GetTeamName()),
+		FlowSteps: intPtr(len(settings.Flow)),
 	}
 
 	response := ConfigResponse{
 		Config:    config,
+		Timestamp: time.Now(),
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+// GetFlow handles GET /flow
+func (h *Handlers) GetFlow(c echo.Context) error {
+	// Get worker configuration to analyze flow
+	settings := h.worker.GetSettings()
+
+	flowInfo := FlowInfo{
+		TotalSteps:     len(settings.Flow),
+		EnabledSteps:   len(settings.Flow), // All steps are enabled by default
+		LastExecution:  h.worker.GetLastActivity(),
+		ExecutionCount: intPtr(0), // TODO: Track actual execution count
+		SuccessRate:    nil,       // TODO: Track success rate
+	}
+
+	response := FlowResponse{
+		Flow:      flowInfo,
+		Timestamp: time.Now(),
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+// GetFlowSteps handles GET /flow/steps
+func (h *Handlers) GetFlowSteps(c echo.Context) error {
+	// Get worker configuration to get flow steps
+	settings := h.worker.GetSettings()
+
+	var stepInfos []FlowStepInfo
+	for _, step := range settings.Flow {
+		stepInfo := FlowStepInfo{
+			FlowStep: step, // Embed original FlowStep directly
+			FlowStepRuntime: FlowStepRuntime{
+				Enabled:        boolPtr(true), // All steps are enabled by default
+				LastExecution:  nil,           // TODO: Track per-step execution times
+				ExecutionCount: intPtr(0),     // TODO: Track per-step execution count
+				SuccessCount:   intPtr(0),     // TODO: Track per-step success count
+				LastOutput:     nil,           // TODO: Track last output
+				LastError:      nil,           // TODO: Track last error
+			},
+		}
+		stepInfos = append(stepInfos, stepInfo)
+	}
+
+	response := FlowStepsResponse{
+		Steps:     stepInfos,
+		Total:     len(stepInfos),
 		Timestamp: time.Now(),
 	}
 
@@ -450,8 +443,59 @@ func (h *Handlers) tailFile(filepath string, lines int) (string, error) {
 	return strings.Join(result, "\n"), nil
 }
 
+// GetOpenAPISpec handles GET /openapi.yaml and /openapi
+func (h *Handlers) GetOpenAPISpec(c echo.Context) error {
+	// Replace hardcoded server URL with actual request host
+	actualURL := "http://" + c.Request().Host
+	spec := strings.ReplaceAll(openAPISpec, "http://localhost:8080", actualURL)
+
+	c.Response().Header().Set("Content-Type", "application/x-yaml")
+	return c.String(http.StatusOK, spec)
+}
+
+// GetSwaggerUI handles GET /docs/ - serves basic Swagger UI
+func (h *Handlers) GetSwaggerUI(c echo.Context) error {
+	// Simple Swagger UI HTML that loads the OpenAPI spec
+	swaggerHTML := `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AutoTeam Worker API Documentation</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui.css" />
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-bundle.js" crossorigin></script>
+    <script>
+        window.onload = () => {
+            window.ui = SwaggerUIBundle({
+                url: window.location.origin + '/openapi.yaml',
+                dom_id: '#swagger-ui',
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIBundle.presets.standalone,
+                ],
+            });
+        };
+    </script>
+</body>
+</html>`
+
+	c.Response().Header().Set("Content-Type", "text/html")
+	return c.String(http.StatusOK, swaggerHTML)
+}
+
 // Utility functions for pointer creation
 func stringPtr(s string) *string     { return &s }
 func intPtr(i int) *int              { return &i }
 func boolPtr(b bool) *bool           { return &b }
 func timePtr(t time.Time) *time.Time { return &t }
+
+// stringPtrIfNotEmpty returns a pointer to string if not empty, nil otherwise
+func stringPtrIfNotEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}

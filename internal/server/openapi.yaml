@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
-  title: AutoTeam Agent API
-  description: HTTP API for monitoring and managing AutoTeam agents
+  title: AutoTeam Worker API
+  description: HTTP API for monitoring and managing AutoTeam workers
   version: 1.0.0
   contact:
     name: AutoTeam
@@ -9,17 +9,17 @@ info:
 
 servers:
   - url: http://localhost:8080
-    description: Local agent server
+    description: Local worker server
 
 paths:
   /health:
     get:
-      summary: Agent health check
-      description: Returns the health status and availability of the agent
+      summary: Worker health check
+      description: Returns the health status and availability of the worker
       operationId: getHealth
       responses:
         '200':
-          description: Agent health status
+          description: Worker health status
           content:
             application/json:
               schema:
@@ -33,12 +33,12 @@ paths:
 
   /status:
     get:
-      summary: Agent status
-      description: Returns current agent operational status and mode
+      summary: Worker status
+      description: Returns current worker operational status and mode
       operationId: getStatus
       responses:
         '200':
-          description: Agent status information
+          description: Worker status information
           content:
             application/json:
               schema:
@@ -52,17 +52,16 @@ paths:
 
   /logs:
     get:
-      summary: List agent logs
-      description: Returns list of available log files for both collector and executor
+      summary: List worker logs
+      description: Returns list of available log files
       operationId: getLogs
       parameters:
         - name: role
           in: query
-          description: Filter logs by role (collector, executor)
+          description: Filter logs by role (collector, executor, both) - auto-determined from file paths and names
           required: false
           schema:
             type: string
-            enum: [collector, executor]
         - name: limit
           in: query
           description: Maximum number of log files to return
@@ -86,28 +85,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /logs/collector:
+  /flow:
     get:
-      summary: List collector logs
-      description: Returns list of collector-specific log files
-      operationId: getCollectorLogs
-      parameters:
-        - name: limit
-          in: query
-          description: Maximum number of log files to return
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 50
+      summary: Worker flow configuration
+      description: Returns the current flow configuration and execution status
+      operationId: getFlow
       responses:
         '200':
-          description: List of collector log files
+          description: Worker flow configuration and status
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogsResponse'
+                $ref: '#/components/schemas/FlowResponse'
         '500':
           description: Internal server error
           content:
@@ -115,28 +104,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /logs/executor:
+  /flow/steps:
     get:
-      summary: List executor logs
-      description: Returns list of executor-specific log files
-      operationId: getExecutorLogs
-      parameters:
-        - name: limit
-          in: query
-          description: Maximum number of log files to return
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 50
+      summary: Flow step details
+      description: Returns detailed information about each flow step
+      operationId: getFlowSteps
       responses:
         '200':
-          description: List of executor log files
+          description: Detailed flow step information
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogsResponse'
+                $ref: '#/components/schemas/FlowStepsResponse'
         '500':
           description: Internal server error
           content:
@@ -184,94 +163,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /tasks:
-    get:
-      summary: List tasks
-      description: Returns current task queue and execution history
-      operationId: getTasks
-      parameters:
-        - name: status
-          in: query
-          description: Filter tasks by status
-          required: false
-          schema:
-            type: string
-            enum: [pending, running, completed, failed]
-        - name: type
-          in: query
-          description: Filter tasks by type
-          required: false
-          schema:
-            type: string
-        - name: platform
-          in: query
-          description: Filter tasks by platform
-          required: false
-          schema:
-            type: string
-        - name: limit
-          in: query
-          description: Maximum number of tasks to return
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 500
-            default: 100
-      responses:
-        '200':
-          description: List of tasks
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TasksResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /tasks/{id}:
-    get:
-      summary: Get task details
-      description: Returns detailed information about a specific task
-      operationId: getTask
-      parameters:
-        - name: id
-          in: path
-          description: Task ID
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Task details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TaskResponse'
-        '404':
-          description: Task not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
   /metrics:
     get:
-      summary: Agent metrics
-      description: Returns performance metrics and statistics for the agent
+      summary: Worker metrics
+      description: Returns performance metrics and statistics for the worker
       operationId: getMetrics
       responses:
         '200':
-          description: Agent metrics
+          description: Worker metrics
           content:
             application/json:
               schema:
@@ -285,12 +185,12 @@ paths:
 
   /config:
     get:
-      summary: Agent configuration
-      description: Returns sanitized agent configuration (sensitive data removed)
+      summary: Worker configuration
+      description: Returns sanitized worker configuration (sensitive data removed)
       operationId: getConfig
       responses:
         '200':
-          description: Agent configuration
+          description: Worker configuration
           content:
             application/json:
               schema:
@@ -313,14 +213,13 @@ components:
       properties:
         status:
           type: string
-          enum: [healthy, unhealthy]
-          description: Overall health status
+          description: Overall health status (healthy, unhealthy)
         timestamp:
           type: string
           format: date-time
           description: Health check timestamp
         agent:
-          $ref: '#/components/schemas/AgentInfo'
+          $ref: '#/components/schemas/WorkerInfo'
         checks:
           type: object
           description: Individual health check results
@@ -329,7 +228,7 @@ components:
             properties:
               status:
                 type: string
-                enum: [pass, fail]
+                description: Health check result (pass, fail)
               message:
                 type: string
 
@@ -343,23 +242,19 @@ components:
       properties:
         status:
           type: string
-          enum: [idle, collecting, executing, error]
-          description: Current operational status
+          description: Current operational status (idle, running, error, etc.)
         mode:
           type: string
-          enum: [collector, executor, both]
-          description: Current operational mode
+          description: Current operational mode (both for workers)
         timestamp:
           type: string
           format: date-time
           description: Status timestamp
         agent:
-          $ref: '#/components/schemas/AgentInfo'
-        current_task:
-          $ref: '#/components/schemas/TaskSummary'
+          $ref: '#/components/schemas/WorkerInfo'
         uptime:
           type: string
-          description: Agent uptime duration
+          description: Worker uptime duration
 
     LogsResponse:
       type: object
@@ -380,37 +275,6 @@ components:
           format: date-time
           description: Response timestamp
 
-    TasksResponse:
-      type: object
-      required:
-        - tasks
-        - total
-        - timestamp
-      properties:
-        tasks:
-          type: array
-          items:
-            $ref: '#/components/schemas/TaskSummary'
-        total:
-          type: integer
-          description: Total number of tasks
-        timestamp:
-          type: string
-          format: date-time
-          description: Response timestamp
-
-    TaskResponse:
-      type: object
-      required:
-        - task
-        - timestamp
-      properties:
-        task:
-          $ref: '#/components/schemas/Task'
-        timestamp:
-          type: string
-          format: date-time
-          description: Response timestamp
 
     MetricsResponse:
       type: object
@@ -452,23 +316,13 @@ components:
         - timestamp
       properties:
         config:
-          type: object
-          description: Sanitized agent configuration
-          properties:
-            name:
-              type: string
-            type:
-              type: string
-            enabled:
-              type: boolean
-            version:
-              type: string
+          $ref: '#/components/schemas/WorkerConfig'
         timestamp:
           type: string
           format: date-time
           description: Response timestamp
 
-    AgentInfo:
+    WorkerInfo:
       type: object
       required:
         - name
@@ -477,16 +331,16 @@ components:
       properties:
         name:
           type: string
-          description: Agent name
+          description: Worker name
         type:
           type: string
-          description: Agent type
+          description: Worker type (derived from primary agent type)
         version:
           type: string
-          description: Agent version
+          description: Worker version
         available:
           type: boolean
-          description: Agent availability status
+          description: Worker availability status
 
     LogFile:
       type: object
@@ -507,99 +361,143 @@ components:
           description: Last modified timestamp
         role:
           type: string
-          enum: [collector, executor, both]
-          description: Agent role associated with log
+          description: Worker role associated with log (collector, executor, both) - auto-determined
 
-    Task:
+    FlowResponse:
       type: object
       required:
-        - id
-        - type
-        - priority
-        - title
-        - description
-        - platform
-        - created_at
+        - flow
+        - timestamp
       properties:
-        id:
+        flow:
+          $ref: '#/components/schemas/FlowInfo'
+        timestamp:
           type: string
-          description: Unique task identifier
+          format: date-time
+          description: Response timestamp
+
+    FlowStepsResponse:
+      type: object
+      required:
+        - steps
+        - total
+        - timestamp
+      properties:
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlowStep'
+        total:
+          type: integer
+          description: Total number of flow steps
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    FlowInfo:
+      type: object
+      required:
+        - total_steps
+        - enabled_steps
+      properties:
+        total_steps:
+          type: integer
+          description: Total number of steps in the flow
+        enabled_steps:
+          type: integer
+          description: Number of enabled/active steps
+        last_execution:
+          type: string
+          format: date-time
+          description: Timestamp of last flow execution
+        execution_count:
+          type: integer
+          description: Total number of flow executions
+        success_rate:
+          type: number
+          format: float
+          description: Success rate of flow executions (0.0-1.0)
+
+    FlowStep:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          description: Unique step name
         type:
           type: string
-          description: Task type
-        priority:
-          type: integer
-          minimum: 1
-          maximum: 4
-          description: Task priority (1=critical, 4=low)
-        title:
+          description: Agent type (claude, gemini, qwen, debug, custom, etc.)
+        enabled:
+          type: boolean
+          description: Whether the step is enabled
+          default: true
+        depends_on:
+          type: array
+          items:
+            type: string
+          description: List of step names this step depends on
+        input:
           type: string
-          description: Task title
-        description:
+          description: Input prompt for the step (may contain templates)
+        output:
           type: string
-          description: Task description
-        platform:
+          description: Output transformation template
+        skip_when:
           type: string
-          description: Source platform
-        completion_cmd:
-          type: string
-          description: Command to mark task complete
-        context:
+          description: Skip condition template
+        args:
+          type: array
+          items:
+            type: string
+          description: Agent-specific arguments
+        env:
           type: object
           additionalProperties:
             type: string
-          description: Additional task context
-        created_at:
+          description: Environment variables for the step
+        last_execution:
           type: string
           format: date-time
-          description: Task creation timestamp
-        status:
+          description: Timestamp of last execution
+        execution_count:
+          type: integer
+          description: Number of times this step has been executed
+        success_count:
+          type: integer
+          description: Number of successful executions
+        last_output:
           type: string
-          enum: [pending, running, completed, failed]
-          description: Current task status
-        started_at:
+          description: Output from last execution (truncated)
+        last_error:
           type: string
-          format: date-time
-          description: Task start timestamp
-        completed_at:
-          type: string
-          format: date-time
-          description: Task completion timestamp
-        output:
-          type: string
-          description: Task execution output
-        error:
-          type: string
-          description: Error message if failed
+          description: Error from last execution (if any)
 
-    TaskSummary:
+    WorkerConfig:
       type: object
-      required:
-        - id
-        - type
-        - title
-        - priority
-        - platform
-        - created_at
+      description: Sanitized worker configuration matching Go struct
       properties:
-        id:
+        name:
           type: string
+          description: Worker name
         type:
           type: string
-        title:
+          description: Worker type (derived from primary agent type)
+        enabled:
           type: string
-        priority:
+          description: Worker enabled status as string
+        version:
+          type: string
+          description: Worker version
+        team_name:
+          type: string
+          description: Team name for this worker
+        flow_steps:
           type: integer
-          minimum: 1
-          maximum: 4
-        platform:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-        status:
-          type: string
-          enum: [pending, running, completed, failed]
+          description: Number of flow steps configured
 
     ErrorResponse:
       type: object

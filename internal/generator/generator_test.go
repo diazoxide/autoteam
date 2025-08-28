@@ -7,6 +7,8 @@ import (
 
 	"autoteam/internal/config"
 	"autoteam/internal/testutil"
+	"autoteam/internal/util"
+	"autoteam/internal/worker"
 
 	"gopkg.in/yaml.v3"
 )
@@ -28,7 +30,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 
 	// Create test config with new service structure
 	cfg := &config.Config{
-		Workers: []config.Worker{
+		Workers: []worker.Worker{
 			{
 				Name:   "dev1",
 				Prompt: "You are a developer agent",
@@ -36,7 +38,7 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 			{
 				Name:   "arch1",
 				Prompt: "You are an architect agent",
-				Settings: &config.WorkerSettings{
+				Settings: &worker.WorkerSettings{
 					Service: map[string]interface{}{
 						"image":   "python:3.11",
 						"volumes": []string{"./custom-vol:/app/custom"},
@@ -44,15 +46,15 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 				},
 			},
 		},
-		Settings: config.WorkerSettings{
+		Settings: worker.WorkerSettings{
 			Service: map[string]interface{}{
 				"image":   "node:18",
 				"user":    "testuser",
 				"volumes": []string{"./shared:/app/shared"},
 			},
-			SleepDuration: config.IntPtr(30),
-			TeamName:      config.StringPtr("test-team"),
-			InstallDeps:   config.BoolPtr(false),
+			SleepDuration: util.IntPtr(30),
+			TeamName:      util.StringPtr("test-team"),
+			InstallDeps:   util.BoolPtr(false),
 		},
 	}
 
@@ -160,7 +162,7 @@ func TestGenerator_CreateWorkerDirectories(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Workers: []config.Worker{
+		Workers: []worker.Worker{
 			{Name: "test1"},
 			{Name: "test2"},
 		},
@@ -199,14 +201,14 @@ func TestGenerator_GenerateComposeYAML(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Settings: config.WorkerSettings{
+		Settings: worker.WorkerSettings{
 			Service: map[string]interface{}{
 				"image": "node:18",
 				"user":  "developer",
 			},
-			TeamName: config.StringPtr("test-team"),
+			TeamName: util.StringPtr("test-team"),
 		},
-		Workers: []config.Worker{
+		Workers: []worker.Worker{
 			{
 				Name:   "dev1",
 				Prompt: "Developer agent",

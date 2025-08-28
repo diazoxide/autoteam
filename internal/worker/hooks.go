@@ -8,14 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"autoteam/internal/config"
 	"autoteam/internal/logger"
 
 	"go.uber.org/zap"
 )
 
 // ExecuteHooks executes hooks for a specific lifecycle event
-func ExecuteHooks(ctx context.Context, hookConfig *config.HookConfig, hookType string) error {
+func ExecuteHooks(ctx context.Context, hookConfig *HookConfig, hookType string) error {
 	hooks := GetHooksForEvent(hookConfig, hookType)
 	if len(hooks) == 0 {
 		return nil
@@ -59,7 +58,7 @@ func ExecuteHooks(ctx context.Context, hookConfig *config.HookConfig, hookType s
 }
 
 // executeHook executes a single hook command
-func executeHook(ctx context.Context, hookType string, index int, hook config.HookCommand) error {
+func executeHook(ctx context.Context, hookType string, index int, hook HookCommand) error {
 	lgr := logger.FromContext(ctx)
 
 	description := fmt.Sprintf("Hook %d", index)
@@ -129,7 +128,7 @@ func executeHook(ctx context.Context, hookType string, index int, hook config.Ho
 }
 
 // GetHooksForEvent retrieves hooks for a specific event from hook configuration
-func GetHooksForEvent(hookConfig *config.HookConfig, eventType string) []config.HookCommand {
+func GetHooksForEvent(hookConfig *HookConfig, eventType string) []HookCommand {
 	if hookConfig == nil {
 		return nil
 	}

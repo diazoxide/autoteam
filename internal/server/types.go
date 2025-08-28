@@ -2,6 +2,8 @@ package server
 
 import (
 	"time"
+
+	"autoteam/internal/worker"
 )
 
 // HealthResponse represents agent health status
@@ -18,33 +20,19 @@ type HealthCheck struct {
 	Message string `json:"message,omitempty"`
 }
 
-// StatusResponse represents current agent status
+// StatusResponse represents current worker status
 type StatusResponse struct {
-	Status      string       `json:"status"`
-	Mode        string       `json:"mode"`
-	Timestamp   time.Time    `json:"timestamp"`
-	Agent       WorkerInfo   `json:"agent"`
-	CurrentTask *TaskSummary `json:"current_task,omitempty"`
-	Uptime      string       `json:"uptime,omitempty"`
+	Status    string     `json:"status"`
+	Mode      string     `json:"mode"`
+	Timestamp time.Time  `json:"timestamp"`
+	Agent     WorkerInfo `json:"agent"`
+	Uptime    string     `json:"uptime,omitempty"`
 }
 
 // LogsResponse represents list of log files
 type LogsResponse struct {
 	Logs      []LogFile `json:"logs"`
 	Total     int       `json:"total"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-// TasksResponse represents list of tasks
-type TasksResponse struct {
-	Tasks     []TaskSummary `json:"tasks"`
-	Total     int           `json:"total"`
-	Timestamp time.Time     `json:"timestamp"`
-}
-
-// TaskResponse represents detailed task information
-type TaskResponse struct {
-	Task      Task      `json:"task"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
@@ -76,35 +64,6 @@ type LogFile struct {
 	Role     *string   `json:"role,omitempty"`
 }
 
-// Task represents a detailed task
-type Task struct {
-	ID            string            `json:"id"`
-	Type          string            `json:"type"`
-	Priority      int               `json:"priority"`
-	Title         string            `json:"title"`
-	Description   string            `json:"description"`
-	Platform      string            `json:"platform"`
-	CompletionCmd string            `json:"completion_cmd,omitempty"`
-	Context       map[string]string `json:"context,omitempty"`
-	CreatedAt     time.Time         `json:"created_at"`
-	Status        *string           `json:"status,omitempty"`
-	StartedAt     *time.Time        `json:"started_at,omitempty"`
-	CompletedAt   *time.Time        `json:"completed_at,omitempty"`
-	Output        *string           `json:"output,omitempty"`
-	Error         *string           `json:"error,omitempty"`
-}
-
-// TaskSummary represents a task summary
-type TaskSummary struct {
-	ID        string    `json:"id"`
-	Type      string    `json:"type"`
-	Title     string    `json:"title"`
-	Priority  int       `json:"priority"`
-	Platform  string    `json:"platform"`
-	CreatedAt time.Time `json:"created_at"`
-	Status    *string   `json:"status,omitempty"`
-}
-
 // WorkerMetrics represents worker performance metrics
 type WorkerMetrics struct {
 	Uptime           *string    `json:"uptime,omitempty"`
@@ -117,10 +76,50 @@ type WorkerMetrics struct {
 
 // WorkerConfig represents sanitized worker configuration
 type WorkerConfig struct {
-	Name    *string `json:"name,omitempty"`
-	Type    *string `json:"type,omitempty"`
-	Enabled *bool   `json:"enabled,omitempty"`
-	Version *string `json:"version,omitempty"`
+	Name      *string `json:"name,omitempty"`
+	Type      *string `json:"type,omitempty"`
+	Enabled   *string `json:"enabled,omitempty"`
+	Version   *string `json:"version,omitempty"`
+	TeamName  *string `json:"team_name,omitempty"`
+	FlowSteps *int    `json:"flow_steps,omitempty"`
+}
+
+// FlowResponse represents flow configuration and status
+type FlowResponse struct {
+	Flow      FlowInfo  `json:"flow"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// FlowStepsResponse represents detailed flow step information
+type FlowStepsResponse struct {
+	Steps     []FlowStepInfo `json:"steps"`
+	Total     int            `json:"total"`
+	Timestamp time.Time      `json:"timestamp"`
+}
+
+// FlowInfo contains flow summary information
+type FlowInfo struct {
+	TotalSteps     int        `json:"total_steps"`
+	EnabledSteps   int        `json:"enabled_steps"`
+	LastExecution  *time.Time `json:"last_execution,omitempty"`
+	ExecutionCount *int       `json:"execution_count,omitempty"`
+	SuccessRate    *float64   `json:"success_rate,omitempty"`
+}
+
+// FlowStepRuntime contains runtime execution information for a flow step
+type FlowStepRuntime struct {
+	Enabled        *bool      `json:"enabled,omitempty"`
+	LastExecution  *time.Time `json:"last_execution,omitempty"`
+	ExecutionCount *int       `json:"execution_count,omitempty"`
+	SuccessCount   *int       `json:"success_count,omitempty"`
+	LastOutput     *string    `json:"last_output,omitempty"`
+	LastError      *string    `json:"last_error,omitempty"`
+}
+
+// FlowStepInfo represents detailed information about a flow step using composition
+type FlowStepInfo struct {
+	worker.FlowStep `json:",inline"` // Embed original FlowStep with inline JSON
+	FlowStepRuntime `json:",inline"` // Embed runtime fields inline
 }
 
 // ErrorResponse represents an API error
@@ -136,7 +135,14 @@ const (
 	HealthStatusUnhealthy = "unhealthy"
 )
 
-// Agent status constants
+// Worker status constants
+const (
+	WorkerStatusIdle    = "idle"
+	WorkerStatusRunning = "running"
+	WorkerStatusError   = "error"
+)
+
+// Agent status constants (deprecated - use Worker status)
 const (
 	AgentStatusIdle       = "idle"
 	AgentStatusCollecting = "collecting"
@@ -144,19 +150,16 @@ const (
 	AgentStatusError      = "error"
 )
 
-// Agent mode constants
+// Worker mode constants
+const (
+	WorkerModeBoth = "both"
+)
+
+// Agent mode constants (deprecated - use Worker mode)
 const (
 	AgentModeCollector = "collector"
 	AgentModeExecutor  = "executor"
 	AgentModeBoth      = "both"
-)
-
-// Task status constants
-const (
-	TaskStatusPending   = "pending"
-	TaskStatusRunning   = "running"
-	TaskStatusCompleted = "completed"
-	TaskStatusFailed    = "failed"
 )
 
 // Health check status constants
