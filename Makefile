@@ -152,7 +152,7 @@ prod-mode: ## Switch to production build mode (optimized, stripped)
 dev: dev-mode ## Build and install for development
 
 # Test targets
-test: ## Run all tests
+test: codegen ## Run all tests
 	@echo "$(BLUE)Running tests...$(NC)"
 	go test -v ./...
 	@echo "$(GREEN)✓ All tests passed$(NC)"
