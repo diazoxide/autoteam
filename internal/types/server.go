@@ -1,10 +1,14 @@
-package server
+package types
 
 import (
 	"time"
 
 	"autoteam/internal/worker"
 )
+
+// NOTE: This file contains types used by the server API responses.
+// These types are referenced by the OpenAPI-generated code via x-go-type extensions
+// and used by the server handlers to construct API responses.
 
 // HealthResponse represents agent health status
 type HealthResponse struct {
@@ -139,24 +143,9 @@ const (
 	WorkerStatusError   = "error"
 )
 
-// Agent status constants (deprecated - use Worker status)
-const (
-	AgentStatusIdle       = "idle"
-	AgentStatusCollecting = "collecting"
-	AgentStatusExecuting  = "executing"
-	AgentStatusError      = "error"
-)
-
 // Worker mode constants
 const (
 	WorkerModeBoth = "both"
-)
-
-// Agent mode constants (deprecated - use Worker mode)
-const (
-	AgentModeCollector = "collector"
-	AgentModeExecutor  = "executor"
-	AgentModeBoth      = "both"
 )
 
 // Health check status constants

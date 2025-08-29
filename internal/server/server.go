@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	workerapi "autoteam/api/worker"
 	"autoteam/internal/logger"
 	"autoteam/internal/worker"
 
@@ -26,6 +27,7 @@ type Server struct {
 	startTime  time.Time
 	server     *http.Server
 	handlers   *Handlers
+	apiAdapter *APIAdapter
 }
 
 // Config contains server configuration
@@ -49,8 +51,9 @@ func NewServer(wk *worker.WorkerImpl, config Config) *Server {
 		startTime:  time.Now(),
 	}
 
-	// Create handlers
+	// Create handlers and API adapter
 	server.handlers = NewHandlers(wk, server.workingDir, server.startTime)
+	server.apiAdapter = NewAPIAdapter(server.handlers)
 
 	// Setup middleware
 	server.setupMiddleware()
@@ -98,41 +101,16 @@ func (s *Server) apiKeyMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 
-// setupRoutes configures API routes
+// setupRoutes configures API routes using generated OpenAPI routes
 func (s *Server) setupRoutes() {
-	api := s.echo.Group("/")
+	// Use the generated RegisterHandlers to set up all routes
+	workerapi.RegisterHandlers(s.echo, s.apiAdapter)
 
-	// Health endpoints
-	api.GET("health", s.handlers.GetHealth)
-	api.GET("status", s.handlers.GetStatus)
-
-	// Log endpoints
-	api.GET("logs", s.handlers.GetLogs)
-	api.GET("logs/:filename", s.handlers.GetLogFile)
-
-	// Flow endpoints
-	api.GET("flow", s.handlers.GetFlow)
-	api.GET("flow/steps", s.handlers.GetFlowSteps)
-
-	// Metrics endpoint
-	api.GET("metrics", s.handlers.GetMetrics)
-
-	// Configuration endpoint
-	api.GET("config", s.handlers.GetConfig)
-
-	// OpenAPI specification endpoint
-	api.GET("openapi.yaml", s.handlers.GetOpenAPISpec)
-	api.GET("openapi", s.handlers.GetOpenAPISpec) // Alternative endpoint
-
-	// Documentation redirect to Swagger UI
-	api.GET("docs", func(c echo.Context) error {
+	// Add legacy routes for backward compatibility
+	s.echo.GET("openapi", s.handlers.GetOpenAPISpec) // Alternative endpoint
+	s.echo.GET("docs", func(c echo.Context) error {
 		return c.Redirect(http.StatusMovedPermanently, "/docs/")
 	})
-	api.GET("docs/", s.handlers.GetSwaggerUI)
-
-	// Static docs serving (for Swagger UI if needed)
-	// Note: In production, you might want to embed static files or serve from CDN
-	api.Static("docs/", "docs/")
 }
 
 // Start starts the HTTP server with dynamic port discovery if port is 0

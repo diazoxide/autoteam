@@ -13,11 +13,14 @@ import (
 	"strings"
 	"time"
 
+	"autoteam/internal/types"
 	"autoteam/internal/worker"
 
 	"github.com/labstack/echo/v4"
 )
 
+// Embed the OpenAPI specification
+//
 //go:embed openapi.yaml
 var openAPISpec string
 
@@ -42,7 +45,7 @@ func (h *Handlers) GetHealth(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get agent info
-	agentInfo := WorkerInfo{
+	agentInfo := types.WorkerInfo{
 		Name:    h.worker.Name,
 		Type:    h.worker.Type(),
 		Version: "unknown",
@@ -58,44 +61,44 @@ func (h *Handlers) GetHealth(c echo.Context) error {
 	agentInfo.Available = &available
 
 	// Perform health checks
-	checks := make(map[string]HealthCheck)
+	checks := make(map[string]types.HealthCheck)
 
 	// Agent availability check
 	if available {
-		checks["agent_available"] = HealthCheck{
-			Status:  HealthCheckPass,
+		checks["agent_available"] = types.HealthCheck{
+			Status:  types.HealthCheckPass,
 			Message: "Agent is available and ready",
 		}
 	} else {
-		checks["agent_available"] = HealthCheck{
-			Status:  HealthCheckFail,
+		checks["agent_available"] = types.HealthCheck{
+			Status:  types.HealthCheckFail,
 			Message: "Agent is not available",
 		}
 	}
 
 	// Working directory check
 	if _, err := os.Stat(h.workingDir); err == nil {
-		checks["working_directory"] = HealthCheck{
-			Status:  HealthCheckPass,
+		checks["working_directory"] = types.HealthCheck{
+			Status:  types.HealthCheckPass,
 			Message: "Working directory accessible",
 		}
 	} else {
-		checks["working_directory"] = HealthCheck{
-			Status:  HealthCheckFail,
+		checks["working_directory"] = types.HealthCheck{
+			Status:  types.HealthCheckFail,
 			Message: fmt.Sprintf("Working directory not accessible: %v", err),
 		}
 	}
 
 	// Determine overall health status
-	status := HealthStatusHealthy
+	status := types.HealthStatusHealthy
 	for _, check := range checks {
-		if check.Status == HealthCheckFail {
-			status = HealthStatusUnhealthy
+		if check.Status == types.HealthCheckFail {
+			status = types.HealthStatusUnhealthy
 			break
 		}
 	}
 
-	response := HealthResponse{
+	response := types.HealthResponse{
 		Status:    status,
 		Timestamp: time.Now(),
 		Agent:     agentInfo,
@@ -110,7 +113,7 @@ func (h *Handlers) GetStatus(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get worker info
-	workerInfo := WorkerInfo{
+	workerInfo := types.WorkerInfo{
 		Name:    h.worker.Name,
 		Type:    h.worker.Type(),
 		Version: "unknown",
@@ -129,14 +132,14 @@ func (h *Handlers) GetStatus(c echo.Context) error {
 	uptime := h.worker.GetUptime().String()
 
 	// Get actual worker status
-	status := WorkerStatusIdle
+	status := types.WorkerStatusIdle
 	if h.worker.IsRunning() {
-		status = WorkerStatusRunning
+		status = types.WorkerStatusRunning
 	}
 
-	response := StatusResponse{
+	response := types.StatusResponse{
 		Status:    status,
-		Mode:      WorkerModeBoth, // Workers handle both collection and execution
+		Mode:      types.WorkerModeBoth, // Workers handle both collection and execution
 		Timestamp: time.Now(),
 		Agent:     workerInfo,
 		Uptime:    uptime,
@@ -162,7 +165,7 @@ func (h *Handlers) GetLogs(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	response := LogsResponse{
+	response := types.LogsResponse{
 		Logs:      logs,
 		Total:     len(logs),
 		Timestamp: time.Now(),
@@ -216,13 +219,13 @@ func (h *Handlers) GetLogFile(c echo.Context) error {
 func (h *Handlers) GetMetrics(c echo.Context) error {
 	uptime := h.worker.GetUptime().String()
 
-	metrics := WorkerMetrics{
+	metrics := types.WorkerMetrics{
 		Uptime:           &uptime,
 		AvgExecutionTime: stringPtr("0s"),
 		LastActivity:     h.worker.GetLastActivity(),
 	}
 
-	response := MetricsResponse{
+	response := types.MetricsResponse{
 		Metrics:   metrics,
 		Timestamp: time.Now(),
 	}
@@ -244,7 +247,7 @@ func (h *Handlers) GetConfig(c echo.Context) error {
 	workerConfig := h.worker.GetConfig()
 	settings := h.worker.GetSettings()
 
-	config := WorkerConfig{
+	config := types.WorkerConfig{
 		Name:      stringPtr(h.worker.Name),
 		Type:      stringPtr(h.worker.Type()),
 		Enabled:   stringPtr(fmt.Sprintf("%v", workerConfig.IsEnabled())),
@@ -253,7 +256,7 @@ func (h *Handlers) GetConfig(c echo.Context) error {
 		FlowSteps: intPtr(len(settings.Flow)),
 	}
 
-	response := ConfigResponse{
+	response := types.ConfigResponse{
 		Config:    config,
 		Timestamp: time.Now(),
 	}
@@ -266,7 +269,7 @@ func (h *Handlers) GetFlow(c echo.Context) error {
 	// Get worker configuration to analyze flow
 	settings := h.worker.GetSettings()
 
-	flowInfo := FlowInfo{
+	flowInfo := types.FlowInfo{
 		TotalSteps:     len(settings.Flow),
 		EnabledSteps:   len(settings.Flow), // All steps are enabled by default
 		LastExecution:  h.worker.GetLastActivity(),
@@ -274,7 +277,7 @@ func (h *Handlers) GetFlow(c echo.Context) error {
 		SuccessRate:    nil,       // TODO: Track success rate
 	}
 
-	response := FlowResponse{
+	response := types.FlowResponse{
 		Flow:      flowInfo,
 		Timestamp: time.Now(),
 	}
@@ -287,11 +290,11 @@ func (h *Handlers) GetFlowSteps(c echo.Context) error {
 	// Get worker configuration to get flow steps
 	settings := h.worker.GetSettings()
 
-	var stepInfos []FlowStepInfo
+	var stepInfos []types.FlowStepInfo
 	for _, step := range settings.Flow {
-		stepInfo := FlowStepInfo{
+		stepInfo := types.FlowStepInfo{
 			FlowStep: step, // Embed original FlowStep directly
-			FlowStepRuntime: FlowStepRuntime{
+			FlowStepRuntime: types.FlowStepRuntime{
 				Enabled:        boolPtr(true), // All steps are enabled by default
 				LastExecution:  nil,           // TODO: Track per-step execution times
 				ExecutionCount: intPtr(0),     // TODO: Track per-step execution count
@@ -303,7 +306,7 @@ func (h *Handlers) GetFlowSteps(c echo.Context) error {
 		stepInfos = append(stepInfos, stepInfo)
 	}
 
-	response := FlowStepsResponse{
+	response := types.FlowStepsResponse{
 		Steps:     stepInfos,
 		Total:     len(stepInfos),
 		Timestamp: time.Now(),
@@ -313,15 +316,15 @@ func (h *Handlers) GetFlowSteps(c echo.Context) error {
 }
 
 // getLogFiles retrieves log files based on role filter and limit
-func (h *Handlers) getLogFiles(role string, limit int) ([]LogFile, error) {
+func (h *Handlers) getLogFiles(role string, limit int) ([]types.LogFile, error) {
 	logsDir := filepath.Join(h.workingDir, "logs")
 
 	// Check if logs directory exists
 	if _, err := os.Stat(logsDir); os.IsNotExist(err) {
-		return []LogFile{}, nil
+		return []types.LogFile{}, nil
 	}
 
-	var logFiles []LogFile
+	var logFiles []types.LogFile
 
 	err := filepath.WalkDir(logsDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -351,7 +354,7 @@ func (h *Handlers) getLogFiles(role string, limit int) ([]LogFile, error) {
 			return nil
 		}
 
-		logFile := LogFile{
+		logFile := types.LogFile{
 			Filename: d.Name(),
 			Size:     info.Size(),
 			Modified: info.ModTime(),
@@ -387,22 +390,22 @@ func (h *Handlers) getLogFiles(role string, limit int) ([]LogFile, error) {
 func (h *Handlers) determineLogRole(filename, path string) string {
 	// Check if path contains collector or executor subdirectory
 	if strings.Contains(path, "/collector/") {
-		return LogRoleCollector
+		return types.LogRoleCollector
 	}
 	if strings.Contains(path, "/executor/") {
-		return LogRoleExecutor
+		return types.LogRoleExecutor
 	}
 
 	// Check filename patterns (fallback)
 	lower := strings.ToLower(filename)
 	if strings.Contains(lower, "collector") {
-		return LogRoleCollector
+		return types.LogRoleCollector
 	}
 	if strings.Contains(lower, "executor") {
-		return LogRoleExecutor
+		return types.LogRoleExecutor
 	}
 
-	return LogRoleBoth
+	return types.LogRoleBoth
 }
 
 // tailFile reads the last n lines from a file
@@ -436,7 +439,7 @@ func (h *Handlers) tailFile(filepath string, lines int) (string, error) {
 	return strings.Join(result, "\n"), nil
 }
 
-// GetOpenAPISpec handles GET /openapi.yaml and /openapi
+// GetOpenAPISpec handles GET /openapi.yaml
 func (h *Handlers) GetOpenAPISpec(c echo.Context) error {
 	// Replace hardcoded server URL with actual request host
 	actualURL := "http://" + c.Request().Host

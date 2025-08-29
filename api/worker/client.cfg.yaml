@@ -1,0 +1,6 @@
+# oapi-codegen v2 configuration for client generation
+package: worker
+output: client.gen.go
+generate:
+  client: true
+  models: false  # Models are already generated in server.gen.go

@@ -74,7 +74,7 @@ help: ## Show this help
 	@echo "  Go Version:  $(GO_VERSION)"
 
 # Development build (current platform) - with dependency tracking
-$(BUILD_DIR)/$(BINARY_NAME): $(GO_SOURCES) $(MAIN_SOURCES) | $(BUILD_DIR)
+$(BUILD_DIR)/$(BINARY_NAME): $(GO_SOURCES) $(MAIN_SOURCES) | $(BUILD_DIR) codegen
 	@echo "$(BLUE)Building $(BINARY_NAME) for current platform...$(NC)"
 	$(GO_BUILD) -o $@ $(MAIN_PATH)
 	@echo "$(GREEN)✓ Built: $@$(NC)"
@@ -152,7 +152,7 @@ prod-mode: ## Switch to production build mode (optimized, stripped)
 dev: dev-mode ## Build and install for development
 
 # Test targets
-test: ## Run all tests
+test: codegen ## Run all tests
 	@echo "$(BLUE)Running tests...$(NC)"
 	go test -v ./...
 	@echo "$(GREEN)✓ All tests passed$(NC)"
@@ -386,7 +386,15 @@ vet: ## Run go vet
 	go vet ./...
 	@echo "$(GREEN)✓ go vet passed$(NC)"
 
-# Development workflow
+# Code generation
+codegen: ## Generate API code from OpenAPI spec
+	@echo "$(BLUE)Generating Worker API code from OpenAPI specification...$(NC)"
+	@cd api/worker && go generate .
+	@echo "$(BLUE)Copying OpenAPI spec for server embedding...$(NC)"
+	@cd internal/server && go generate .
+	@echo "$(GREEN)✓ Worker API code generated$(NC)"
+
+# Development workflow  
 check: fmt vet test ## Run all checks (format, vet, test)
 	@echo "$(GREEN)✓ All checks passed$(NC)"
 
