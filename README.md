@@ -429,12 +429,6 @@ make test
 make build
 ```
 
-### Community
-
-- 💬 [Discord Server](https://discord.gg/autoteam) - Join the conversation
-- 🐦 [Twitter/X](https://twitter.com/autoteam) - Follow for updates
-- 📧 [Mailing List](https://groups.google.com/g/autoteam) - Announcements and discussions
-
 ## 🔒 Security
 
 For security issues, please email security@autoteam.io instead of using the issue tracker. See our [Security Policy](SECURITY.md) for more details.
@@ -456,6 +450,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Ready to orchestrate your AI agents?**
 
-[🚀 Get Started](docs/installation.md) • [📖 Read Docs](docs/) • [💬 Join Community](https://discord.gg/autoteam)
+[🚀 Get Started](docs/installation.md) • [📖 Read Docs](docs/)
 
 </div>
