@@ -82,6 +82,9 @@ jobs:
     - name: Download dependencies
       run: make mod-tidy
     
+    - name: Generate code
+      run: make codegen
+    
     - name: Run tests with coverage
       run: make test-coverage
     
