@@ -58,7 +58,7 @@ This API allows external systems to:
 This API is generated from the OpenAPI specification using oapi-codegen:
 
 ```bash
-# Generate server code
+# Generate both server and client code
 go generate .
 
 # Or use make target
@@ -69,8 +69,10 @@ make codegen
 
 - `openapi.yaml` - OpenAPI 3.0 specification (source of truth)
 - `server.cfg.yaml` - Server code generation configuration
+- `client.cfg.yaml` - Client code generation configuration
 - `generate.go` - Go generate directives  
 - `server.gen.go` - Generated server interface and types
+- `client.gen.go` - Generated client interface and types
 
 ## Integration
 
@@ -102,7 +104,28 @@ All request/response types are generated from the OpenAPI spec, providing compil
 The API can be tested using:
 - Generated Swagger UI at `/docs/`  
 - Direct HTTP requests to endpoints
-- Generated client code (when enabled)
+- Generated client code for programmatic access
+
+### Client Usage
+
+Use the generated client for type-safe API calls:
+
+```go
+import "autoteam/api/worker"
+
+// Create client
+client, err := worker.NewClient("http://localhost:8080")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Get worker health
+ctx := context.Background()
+response, err := client.GetHealth(ctx)
+if err != nil {
+    log.Fatal(err)
+}
+```
 
 ### Monitoring
 

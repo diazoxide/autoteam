@@ -257,9 +257,6 @@ paths:
             application/x-yaml:
               schema:
                 type: string
-            text/yaml:
-              schema:
-                type: string
 
   /docs/:
     get:

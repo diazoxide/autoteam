@@ -1,8 +1,6 @@
-# oapi-codegen configuration for client generation (for testing)
+# oapi-codegen v2 configuration for client generation
 package: worker
 output: client.gen.go
 generate:
   client: true
-  models: false  # Use models from server generation
-output-options:
-  skip-prune: true
+  models: false  # Models are already generated in server.gen.go
