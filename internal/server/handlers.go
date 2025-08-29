@@ -19,6 +19,11 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// Embed the OpenAPI specification
+//
+//go:embed openapi.yaml
+var openAPISpec string
+
 // Handlers contains the HTTP handlers for the worker API
 type Handlers struct {
 	worker     *worker.WorkerImpl
@@ -436,15 +441,9 @@ func (h *Handlers) tailFile(filepath string, lines int) (string, error) {
 
 // GetOpenAPISpec handles GET /openapi.yaml
 func (h *Handlers) GetOpenAPISpec(c echo.Context) error {
-	// Read OpenAPI spec from the api directory
-	specBytes, err := os.ReadFile("api/worker/openapi.yaml")
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "could not read OpenAPI spec")
-	}
-
 	// Replace hardcoded server URL with actual request host
 	actualURL := "http://" + c.Request().Host
-	spec := strings.ReplaceAll(string(specBytes), "http://localhost:8080", actualURL)
+	spec := strings.ReplaceAll(openAPISpec, "http://localhost:8080", actualURL)
 
 	c.Response().Header().Set("Content-Type", "application/x-yaml")
 	return c.String(http.StatusOK, spec)

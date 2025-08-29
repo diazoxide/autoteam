@@ -390,6 +390,8 @@ vet: ## Run go vet
 codegen: ## Generate API code from OpenAPI spec
 	@echo "$(BLUE)Generating Worker API code from OpenAPI specification...$(NC)"
 	@cd api/worker && go generate .
+	@echo "$(BLUE)Copying OpenAPI spec for server embedding...$(NC)"
+	@cd internal/server && go generate .
 	@echo "$(GREEN)✓ Worker API code generated$(NC)"
 
 # Development workflow  

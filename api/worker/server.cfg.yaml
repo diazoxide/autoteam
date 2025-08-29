@@ -1,9 +1,7 @@
-# oapi-codegen configuration for server generation
+# oapi-codegen v2 configuration for server generation
 package: worker
 output: server.gen.go
 generate:
   echo-server: true
   models: true
   embedded-spec: true
-output-options:
-  skip-prune: true
