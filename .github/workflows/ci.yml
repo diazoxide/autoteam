@@ -187,7 +187,7 @@ jobs:
         # Test generate command with created config
         ./build/autoteam generate
         test -f .autoteam/compose.yaml
-        test -d .autoteam/workers
+        test -d .autoteam/autoteam
         test -f .autoteam/bin/entrypoint.sh
     
     - name: Validate generated Docker Compose
