@@ -4,6 +4,8 @@
 
 # Generated files and directories
 .autoteam/
+api/worker/server.gen.go
+api/worker/client.gen.go
 
 # Build artifacts
 build/
