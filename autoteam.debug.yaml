@@ -1,0 +1,65 @@
+workers:
+  - name: Worker 1
+    enabled: true
+    prompt: "Worker 1 Prompt"
+  - name: Worker 2
+    enabled: true
+    prompt: "Worker 2 Prompt"
+  - name: Worker 3
+    enabled: true
+    prompt: "Worker 3 Prompt"
+# Global configs
+settings:
+  debug: true
+  service:
+    build:
+      dockerfile: ../Dockerfile
+      context: ./
+    user: root
+  sleep_duration: 5
+  team_name: autoteam-debug-team
+  flow:
+    - name: start
+      type: debug
+      args: [ ]
+      input: |
+        Test
+      output: |
+        Test
+    - name: mid-job-1
+      type: debug
+      depends_on: [start]
+      args: [ ]
+      input: |
+        Test
+      output: |
+        Test
+    - name: mid-job-2
+      type: debug
+      depends_on: [ start ]
+      args: [ ]
+      input: |
+        Test
+      output: |
+        Test
+    - name: mid-job-3
+      type: debug
+      depends_on: [ start ]
+      args: [ ]
+      input: |
+        Test
+      output: |
+        Test
+    - name: finish
+      type: debug
+      depends_on: [ mid-job-1, mid-job-2, mid-job-3 ]
+      args: [ ]
+      input: |
+        Test
+      output: |
+        Test
+
+# Control plane configuration
+control_plane:
+  enabled: true
+  port: 9090

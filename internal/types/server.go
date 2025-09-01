@@ -161,3 +161,44 @@ const (
 	LogRoleExecutor  = "executor"
 	LogRoleBoth      = "both"
 )
+
+// Control plane specific types
+type ControlPlaneHealthResponse struct {
+	Status        string            `json:"status"`
+	Timestamp     time.Time         `json:"timestamp"`
+	WorkersHealth map[string]string `json:"workers_health"`
+	Message       *string           `json:"message,omitempty"`
+}
+
+type WorkersResponse struct {
+	Workers   []WorkerDetails `json:"workers"`
+	Total     int             `json:"total"`
+	Timestamp time.Time       `json:"timestamp"`
+}
+
+type WorkerDetailsResponse struct {
+	Worker    WorkerDetails `json:"worker"`
+	Timestamp time.Time     `json:"timestamp"`
+}
+
+type WorkerDetails struct {
+	ID         string      `json:"id"`
+	URL        string      `json:"url"`
+	Status     string      `json:"status"`
+	LastCheck  *time.Time  `json:"last_check,omitempty"`
+	WorkerInfo *WorkerInfo `json:"worker_info,omitempty"`
+}
+
+// Control plane health status constants
+const (
+	ControlPlaneStatusHealthy   = "healthy"
+	ControlPlaneStatusDegraded  = "degraded"
+	ControlPlaneStatusUnhealthy = "unhealthy"
+)
+
+// Worker connectivity status constants
+const (
+	WorkerStatusReachable   = "reachable"
+	WorkerStatusUnreachable = "unreachable"
+	WorkerStatusUnknown     = "unknown"
+)

@@ -246,3 +246,34 @@
 - Codebase is mounted at `/opt/autoteam/codebase` (standard application directory)
 - Claude configuration files remain in user home directory: `/home/{user}/.claude` and `/home/{user}/.claude.json`
 - Custom volumes can be mounted anywhere as specified in agent settings
+
+## Control Plane API Implementation
+- **NEW**: Central orchestrator HTTP API for managing multiple AutoTeam workers
+- **Read-Only Operations**: Only monitoring and status endpoints (matches worker-api capabilities)
+- **Worker Proxy**: All worker-api endpoints accessible via `/workers/{worker_id}/` prefix
+- **Configuration**: Configured in standard `autoteam.yaml` file under `control_plane` section
+- **Health Monitoring**: Automatic periodic health checks for all configured workers
+- **Type Reuse**: All response types reused from `internal/types` package for consistency
+- **Generated API**: Uses OpenAPI 3.0 specification with oapi-codegen for server/client generation
+- **Build Command**: Use `make build-control-plane` to build the control-plane binary
+- **Binary Name**: `autoteam-control-plane` - separate binary for control plane operations
+- **Default Port**: 9090 (configurable via config file or CLI flags)
+- **Worker Registry**: Loads worker endpoints from `autoteam.yaml` configuration
+- **Proxy Architecture**: Uses generated worker-api client for all worker communication
+- **Service Discovery**: Static configuration-based worker discovery (from autoteam.yaml)
+- **Example Endpoints**: 
+  - `GET /workers` - List all workers
+  - `GET /workers/{id}/status` - Get worker status
+  - `GET /workers/{id}/logs` - Get worker logs  
+  - `GET /workers/{id}/health` - Check worker health
+- **Example Configuration**:
+  ```yaml
+  control_plane:
+    enabled: true
+    port: 9090
+    api_key: "optional-api-key"
+    workers:
+      - id: "senior-dev"
+        url: "http://localhost:8080"
+        api_key: "worker-api-key"
+  ```

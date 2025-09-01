@@ -16,10 +16,19 @@ const (
 )
 
 type Config struct {
-	Workers    []worker.Worker                   `yaml:"workers"`
-	Services   map[string]map[string]interface{} `yaml:"services,omitempty"`
-	Settings   worker.WorkerSettings             `yaml:"settings"`
-	MCPServers map[string]worker.MCPServer       `yaml:"mcp_servers,omitempty"`
+	Workers      []worker.Worker                   `yaml:"workers"`
+	Services     map[string]map[string]interface{} `yaml:"services,omitempty"`
+	Settings     worker.WorkerSettings             `yaml:"settings"`
+	MCPServers   map[string]worker.MCPServer       `yaml:"mcp_servers,omitempty"`
+	ControlPlane *ControlPlaneConfig               `yaml:"control_plane,omitempty"`
+}
+
+// ControlPlaneConfig represents the control plane configuration
+type ControlPlaneConfig struct {
+	Enabled    bool   `yaml:"enabled"`
+	Port       int    `yaml:"port"`
+	APIKey     string `yaml:"api_key,omitempty"`
+	WorkersDir string `yaml:"workers_dir,omitempty"` // Directory to scan for worker configs (default: .autoteam/workers)
 }
 
 func LoadConfig(filename string) (*Config, error) {
@@ -141,6 +150,16 @@ func setDefaults(config *Config) {
 			"user":  "developer",
 		}
 	}
+
+	// Set control plane defaults if enabled
+	if config.ControlPlane != nil && config.ControlPlane.Enabled {
+		if config.ControlPlane.Port == 0 {
+			config.ControlPlane.Port = 9090
+		}
+		if config.ControlPlane.WorkersDir == "" {
+			config.ControlPlane.WorkersDir = ".autoteam/workers"
+		}
+	}
 }
 
 func CreateSampleConfig(filename string) error {
@@ -251,6 +270,11 @@ func CreateSampleConfig(filename string) error {
 				Args:    []string{"-y", "mcp-memory-service"},
 			},
 		},
+		ControlPlane: &ControlPlaneConfig{
+			Enabled:    false, // Disabled by default
+			Port:       9090,
+			WorkersDir: ".autoteam/workers", // Auto-discover workers from this directory
+		},
 	}
 
 	data, err := yaml.Marshal(&sampleConfig)
@@ -289,4 +313,27 @@ func (c *Config) GetEnabledWorkersWithEffectiveSettings() []worker.WorkerWithSet
 		}
 	}
 	return workers
+}
+
+// GetTeamName returns the team name from settings, or default if not set
+func (c *Config) GetTeamName() string {
+	if c.Settings.TeamName != nil && *c.Settings.TeamName != "" {
+		return *c.Settings.TeamName
+	}
+	return DefaultTeamName
+}
+
+// GetWorkersDir returns the team-specific workers directory path
+func (c *Config) GetWorkersDir() string {
+	return fmt.Sprintf(WorkersBaseDir, c.GetTeamName())
+}
+
+// GetControlPlaneDir returns the team-specific control-plane directory path
+func (c *Config) GetControlPlaneDir() string {
+	return fmt.Sprintf(ControlPlaneBaseDir, c.GetTeamName())
+}
+
+// GetControlPlaneConfigPath returns the team-specific control-plane config file path
+func (c *Config) GetControlPlaneConfigPath() string {
+	return fmt.Sprintf("%s/config.yaml", c.GetControlPlaneDir())
 }

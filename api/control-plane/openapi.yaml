@@ -1,0 +1,894 @@
+openapi: 3.0.3
+info:
+  title: AutoTeam Control Plane API
+  description: |
+    HTTP API for managing and monitoring multiple AutoTeam workers.
+    
+    This API acts as a central orchestrator that proxies requests to individual worker APIs.
+    All endpoints are read-only, providing monitoring and status information only.
+  version: 1.0.0
+  contact:
+    name: AutoTeam
+    url: https://github.com/your-org/auto-team
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:9090
+    description: Local control plane server
+
+tags:
+  - name: workers
+    description: Worker management and discovery endpoints
+  - name: health
+    description: Health check endpoints
+  - name: proxy
+    description: Proxied worker API endpoints
+
+paths:
+  /health:
+    get:
+      summary: Control plane health check
+      description: Returns the health status of the control plane and aggregated worker health
+      operationId: getHealth
+      tags: [health]
+      responses:
+        '200':
+          description: Control plane health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlPlaneHealthResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers:
+    get:
+      summary: List workers
+      description: Returns list of all configured workers and their status
+      operationId: getWorkers
+      tags: [workers]
+      responses:
+        '200':
+          description: List of workers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkersResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers/{worker_id}:
+    get:
+      summary: Get worker details
+      description: Returns details about a specific worker
+      operationId: getWorker
+      tags: [workers]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerDetailsResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Proxied worker API endpoints
+  /workers/{worker_id}/health:
+    get:
+      summary: Worker health check
+      description: Proxy to worker's health endpoint
+      operationId: getWorkerHealth
+      tags: [proxy]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Worker unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers/{worker_id}/status:
+    get:
+      summary: Worker status
+      description: Proxy to worker's status endpoint
+      operationId: getWorkerStatus
+      tags: [proxy]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Worker unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers/{worker_id}/config:
+    get:
+      summary: Worker configuration
+      description: Proxy to worker's config endpoint
+      operationId: getWorkerConfig
+      tags: [proxy]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Worker unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers/{worker_id}/logs:
+    get:
+      summary: Worker logs
+      description: Proxy to worker's logs endpoint
+      operationId: getWorkerLogs
+      tags: [proxy]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+        - name: role
+          in: query
+          description: Filter logs by role (collector, executor, both)
+          required: false
+          schema:
+            type: string
+            enum: [collector, executor, both]
+        - name: limit
+          in: query
+          description: Maximum number of log files to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Worker logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Worker unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers/{worker_id}/logs/{filename}:
+    get:
+      summary: Worker log file
+      description: Proxy to worker's log file endpoint
+      operationId: getWorkerLogFile
+      tags: [proxy]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+        - name: filename
+          in: path
+          description: Log filename
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_.-]+\.log$'
+        - name: tail
+          in: query
+          description: Number of last lines to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
+      responses:
+        '200':
+          description: Log file content
+          content:
+            text/plain:
+              schema:
+                type: string
+        '404':
+          description: Worker or log file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Worker unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers/{worker_id}/flow:
+    get:
+      summary: Worker flow configuration
+      description: Proxy to worker's flow endpoint
+      operationId: getWorkerFlow
+      tags: [proxy]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker flow configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlowResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Worker unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers/{worker_id}/flow/steps:
+    get:
+      summary: Worker flow steps
+      description: Proxy to worker's flow steps endpoint
+      operationId: getWorkerFlowSteps
+      tags: [proxy]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker flow steps
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlowStepsResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Worker unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers/{worker_id}/metrics:
+    get:
+      summary: Worker metrics
+      description: Proxy to worker's metrics endpoint
+      operationId: getWorkerMetrics
+      tags: [proxy]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Worker unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /openapi.yaml:
+    get:
+      summary: OpenAPI specification
+      description: Returns the OpenAPI specification for this API
+      operationId: getOpenAPISpec
+      tags: [docs]
+      responses:
+        '200':
+          description: OpenAPI specification
+          content:
+            application/x-yaml:
+              schema:
+                type: string
+
+  /docs/:
+    get:
+      summary: API documentation
+      description: Swagger UI for interactive API documentation
+      operationId: getSwaggerUI
+      tags: [docs]
+      responses:
+        '200':
+          description: Swagger UI HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+
+components:
+  schemas:
+    # Control plane specific types
+    ControlPlaneHealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - workers_health
+      properties:
+        status:
+          type: string
+          description: Overall control plane health status
+          enum: [healthy, degraded, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+        workers_health:
+          type: object
+          description: Health status of each configured worker
+          additionalProperties:
+            type: string
+            enum: [healthy, unhealthy, unreachable]
+        message:
+          type: string
+          description: Additional health information
+
+    WorkersResponse:
+      type: object
+      required:
+        - workers
+        - total
+        - timestamp
+      properties:
+        workers:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkerDetails'
+        total:
+          type: integer
+          description: Total number of configured workers
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    WorkerDetailsResponse:
+      type: object
+      required:
+        - worker
+        - timestamp
+      properties:
+        worker:
+          $ref: '#/components/schemas/WorkerDetails'
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    WorkerDetails:
+      type: object
+      required:
+        - id
+        - url
+        - status
+      properties:
+        id:
+          type: string
+          description: Worker ID from configuration
+        url:
+          type: string
+          description: Worker API URL
+        status:
+          type: string
+          description: Worker connectivity status
+          enum: [reachable, unreachable, unknown]
+        last_check:
+          type: string
+          format: date-time
+          description: Last health check timestamp
+        worker_info:
+          $ref: '#/components/schemas/WorkerInfo'
+          description: Worker information (if reachable)
+
+    # Reused types from worker API (same as internal/types)
+    HealthResponse:
+      type: object
+      x-go-type: types.HealthResponse
+      x-go-type-import:
+        path: autoteam/internal/types
+      required:
+        - status
+        - timestamp
+        - agent
+      properties:
+        status:
+          type: string
+          description: Overall health status
+          enum: [healthy, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+        agent:
+          $ref: '#/components/schemas/WorkerInfo'
+        checks:
+          type: object
+          description: Individual health check results
+          additionalProperties:
+            $ref: '#/components/schemas/HealthCheck'
+
+    StatusResponse:
+      type: object
+      x-go-type: types.StatusResponse
+      x-go-type-import:
+        path: autoteam/internal/types
+      required:
+        - status
+        - mode
+        - timestamp
+        - agent
+      properties:
+        status:
+          type: string
+          description: Current operational status
+          enum: [idle, running, error]
+        mode:
+          type: string
+          description: Current operational mode
+          enum: [both]
+        timestamp:
+          type: string
+          format: date-time
+          description: Status timestamp
+        agent:
+          $ref: '#/components/schemas/WorkerInfo'
+        uptime:
+          type: string
+          description: Worker uptime duration
+
+    LogsResponse:
+      type: object
+      x-go-type: types.LogsResponse
+      x-go-type-import:
+        path: autoteam/internal/types
+      required:
+        - logs
+        - total
+        - timestamp
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogFile'
+        total:
+          type: integer
+          description: Total number of log files
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    MetricsResponse:
+      type: object
+      x-go-type: types.MetricsResponse
+      x-go-type-import:
+        path: autoteam/internal/types
+      required:
+        - metrics
+        - timestamp
+      properties:
+        metrics:
+          $ref: '#/components/schemas/WorkerMetrics'
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    ConfigResponse:
+      type: object
+      x-go-type: types.ConfigResponse
+      x-go-type-import:
+        path: autoteam/internal/types
+      required:
+        - config
+        - timestamp
+      properties:
+        config:
+          $ref: '#/components/schemas/WorkerConfig'
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    FlowResponse:
+      type: object
+      x-go-type: types.FlowResponse
+      x-go-type-import:
+        path: autoteam/internal/types
+      required:
+        - flow
+        - timestamp
+      properties:
+        flow:
+          $ref: '#/components/schemas/FlowInfo'
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    FlowStepsResponse:
+      type: object
+      x-go-type: types.FlowStepsResponse
+      x-go-type-import:
+        path: autoteam/internal/types
+      required:
+        - steps
+        - total
+        - timestamp
+      properties:
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlowStepInfo'
+        total:
+          type: integer
+          description: Total number of flow steps
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    # Core types (reused from worker API)
+    WorkerInfo:
+      type: object
+      x-go-type: types.WorkerInfo
+      x-go-type-import:
+        path: autoteam/internal/types
+      required:
+        - name
+        - type
+        - version
+      properties:
+        name:
+          type: string
+          description: Worker name
+        type:
+          type: string
+          description: Worker type
+        version:
+          type: string
+          description: Worker version
+        available:
+          type: boolean
+          description: Worker availability status
+
+    HealthCheck:
+      type: object
+      x-go-type: types.HealthCheck
+      x-go-type-import:
+        path: autoteam/internal/types
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          description: Health check result
+          enum: [pass, fail]
+        message:
+          type: string
+          description: Health check message
+
+    LogFile:
+      type: object
+      x-go-type: types.LogFile
+      x-go-type-import:
+        path: autoteam/internal/types
+      required:
+        - filename
+        - size
+        - modified
+      properties:
+        filename:
+          type: string
+          description: Log file name
+        size:
+          type: integer
+          format: int64
+          description: File size in bytes
+        modified:
+          type: string
+          format: date-time
+          description: Last modified timestamp
+        role:
+          type: string
+          description: Worker role associated with log
+          enum: [collector, executor, both]
+
+    WorkerMetrics:
+      type: object
+      x-go-type: types.WorkerMetrics
+      x-go-type-import:
+        path: autoteam/internal/types
+      properties:
+        uptime:
+          type: string
+          description: Agent uptime duration
+        avg_execution_time:
+          type: string
+          description: Average flow execution time
+        last_activity:
+          type: string
+          format: date-time
+          description: Timestamp of last activity
+
+    WorkerConfig:
+      type: object
+      x-go-type: types.WorkerConfig
+      x-go-type-import:
+        path: autoteam/internal/types
+      description: Sanitized worker configuration
+      properties:
+        name:
+          type: string
+          description: Worker name
+        type:
+          type: string
+          description: Worker type
+        enabled:
+          type: string
+          description: Worker enabled status as string
+        version:
+          type: string
+          description: Worker version
+        team_name:
+          type: string
+          description: Team name for this worker
+        flow_steps:
+          type: integer
+          description: Number of flow steps configured
+
+    FlowInfo:
+      type: object
+      x-go-type: types.FlowInfo
+      x-go-type-import:
+        path: autoteam/internal/types
+      required:
+        - total_steps
+        - enabled_steps
+      properties:
+        total_steps:
+          type: integer
+          description: Total number of steps in the flow
+        enabled_steps:
+          type: integer
+          description: Number of enabled/active steps
+        last_execution:
+          type: string
+          format: date-time
+          description: Timestamp of last flow execution
+        execution_count:
+          type: integer
+          description: Total number of flow executions
+        success_rate:
+          type: number
+          format: float
+          description: Success rate of flow executions
+
+    FlowStepInfo:
+      type: object
+      x-go-type: types.FlowStepInfo
+      x-go-type-import:
+        path: autoteam/internal/types
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          description: Unique step name
+        type:
+          type: string
+          description: Agent type
+        args:
+          type: array
+          items:
+            type: string
+          description: Agent-specific arguments
+        env:
+          type: object
+          additionalProperties:
+            type: string
+          description: Environment variables for the step
+        depends_on:
+          type: array
+          items:
+            type: string
+          description: List of step names this step depends on
+        input:
+          type: string
+          description: Input prompt for the step
+        output:
+          type: string
+          description: Output transformation template
+        skip_when:
+          type: string
+          description: Skip condition template
+        enabled:
+          type: boolean
+          description: Whether the step is enabled
+        active:
+          type: boolean
+          description: Whether the step is currently executing
+        last_execution:
+          type: string
+          format: date-time
+          description: Timestamp of last execution
+        execution_count:
+          type: integer
+          description: Number of times this step has been executed
+        success_count:
+          type: integer
+          description: Number of successful executions
+        last_output:
+          type: string
+          description: Output from last execution
+        last_error:
+          type: string
+          description: Error from last execution
+
+    ErrorResponse:
+      type: object
+      x-go-type: types.ErrorResponse
+      x-go-type-import:
+        path: autoteam/internal/types
+      required:
+        - error
+        - timestamp
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Optional API key for authentication
+
+# Optional API key security (with fallback to unauthenticated access)
+security:
+  - ApiKeyAuth: []
+  - {} # Allow unauthenticated access as fallback

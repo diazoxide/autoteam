@@ -334,3 +334,8 @@ settings:
   common_prompt: ""
 
 services: { }
+
+# Control plane configuration
+control_plane:
+  enabled: true
+  port: 9090

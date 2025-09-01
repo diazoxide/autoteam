@@ -58,6 +58,12 @@ func main() {
 				Action: upCommand,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
+						Name:    "config-file",
+						Aliases: []string{"c"},
+						Usage:   "Path to configuration file",
+						Value:   "autoteam.yaml",
+					},
+					&cli.StringFlag{
 						Name:    "docker-compose-args",
 						Aliases: []string{"args"},
 						Usage:   "Additional arguments to pass to docker compose command",
@@ -115,11 +121,19 @@ func generateCommand(ctx context.Context, cmd *cli.Command) error {
 
 func upCommand(ctx context.Context, cmd *cli.Command) error {
 	log := logger.FromContext(ctx)
-	cfg := getConfigFromContext(ctx)
-	if cfg == nil {
-		log.Error("Config not available in context")
-		return fmt.Errorf("config not available in context")
+
+	// Load config using the specified config file
+	configFile := cmd.String("config-file")
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
+		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
 	}
+
+	log.Debug("Config loaded successfully",
+		zap.String("config_file", configFile),
+		zap.String("team_name", cfg.Settings.GetTeamName()),
+		zap.Bool("debug_enabled", cfg.Settings.GetDebug()))
 
 	// Find free ports for enabled workers
 	enabledWorkersWithSettings := cfg.GetEnabledWorkersWithEffectiveSettings()
@@ -177,7 +191,7 @@ func upCommand(ctx context.Context, cmd *cli.Command) error {
 		args = append(args, additionalArgs...)
 	}
 
-	if err := runDockerCompose(ctx, args...); err != nil {
+	if err := runDockerComposeWithConfig(ctx, cfg, args...); err != nil {
 		return fmt.Errorf("failed to start containers: %w", err)
 	}
 
@@ -251,7 +265,10 @@ func workersCommand(ctx context.Context, cmd *cli.Command) error {
 
 func runDockerCompose(ctx context.Context, args ...string) error {
 	cfg := getConfigFromContext(ctx)
+	return runDockerComposeWithConfig(ctx, cfg, args...)
+}
 
+func runDockerComposeWithConfig(ctx context.Context, cfg *config.Config, args ...string) error {
 	// Use the compose.yaml file from .autoteam directory
 	composeArgs := []string{"-f", config.ComposeFilePath}
 
@@ -296,7 +313,16 @@ func setupContextWithLogger(ctx context.Context, cmd *cli.Command) (context.Cont
 		return ctx, nil
 	}
 
-	cfg, err := config.LoadConfig("autoteam.yaml")
+	// Determine config file path
+	configFile := "autoteam.yaml" // default
+	if len(os.Args) > 1 && os.Args[1] == "up" {
+		// For up command, check if --config-file flag was provided
+		if configFlag := cmd.String("config-file"); configFlag != "" {
+			configFile = configFlag
+		}
+	}
+
+	cfg, err := config.LoadConfig(configFile)
 	if err != nil {
 		log.Error("Failed to load config", zap.Error(err))
 		return ctx, fmt.Errorf("failed to load config: %w", err)

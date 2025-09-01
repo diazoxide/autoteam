@@ -10,8 +10,10 @@ GO_VERSION := $(shell go version | awk '{print $$3}')
 # Build configuration
 BINARY_NAME := autoteam
 WORKER_BINARY_NAME := autoteam-worker
+CONTROL_PLANE_BINARY_NAME := autoteam-control-plane
 MAIN_PATH := ./cmd/autoteam
 WORKER_MAIN_PATH := ./cmd/worker
+CONTROL_PLANE_MAIN_PATH := ./cmd/control-plane
 BUILD_DIR := build
 DIST_DIR := dist
 
@@ -33,6 +35,7 @@ endif
 GO_SOURCES := $(shell find . -name "*.go" -not -path "./vendor/*" -not -path "./.git/*")
 MAIN_SOURCES := $(shell find $(MAIN_PATH) -name "*.go")
 WORKER_SOURCES := $(shell find $(WORKER_MAIN_PATH) -name "*.go")
+CONTROL_PLANE_SOURCES := $(shell find $(CONTROL_PLANE_MAIN_PATH) -name "*.go")
 
 # Platform and architecture combinations
 PLATFORMS := \
@@ -85,9 +88,16 @@ $(BUILD_DIR)/$(WORKER_BINARY_NAME): $(GO_SOURCES) $(WORKER_SOURCES) | $(BUILD_DI
 	$(GO_BUILD) -o $@ $(WORKER_MAIN_PATH)
 	@echo "$(GREEN)✓ Built: $@$(NC)"
 
+# Build control-plane binary (current platform) - with dependency tracking
+$(BUILD_DIR)/$(CONTROL_PLANE_BINARY_NAME): $(GO_SOURCES) $(CONTROL_PLANE_SOURCES) | $(BUILD_DIR) codegen
+	@echo "$(BLUE)Building $(CONTROL_PLANE_BINARY_NAME) for current platform...$(NC)"
+	$(GO_BUILD) -o $@ $(CONTROL_PLANE_MAIN_PATH)
+	@echo "$(GREEN)✓ Built: $@$(NC)"
+
 # Convenience targets
 build: $(BUILD_DIR)/$(BINARY_NAME) ## Build binary for current platform
 build-worker: $(BUILD_DIR)/$(WORKER_BINARY_NAME) ## Build worker binary for current platform
+build-control-plane: $(BUILD_DIR)/$(CONTROL_PLANE_BINARY_NAME) ## Build control-plane binary for current platform
 
 # Ensure build directory exists
 $(BUILD_DIR):
@@ -98,9 +108,9 @@ build-worker-all: $(PLATFORMS:=/worker) ## Build worker binaries for all platfor
 	@echo "$(GREEN)✓ All worker builds completed in $(BUILD_DIR)/$(NC)"
 
 # Build for all platforms (main + worker binaries) - with parallel execution
-build-all: clean-build ## Build main and worker binaries for all supported platforms
+build-all: clean-build ## Build main, worker, and control-plane binaries for all supported platforms
 	@echo "$(BLUE)Building all platforms in parallel...$(NC)"
-	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) $(PLATFORMS) $(PLATFORMS:=/worker)
+	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) $(PLATFORMS) $(PLATFORMS:=/worker) $(PLATFORMS:=/control-plane)
 	@echo "$(GREEN)✓ All builds completed in $(BUILD_DIR)/$(NC)"
 
 # Build for macOS platforms - with parallel execution
@@ -134,6 +144,16 @@ $(PLATFORMS:=/worker):
 	@echo "$(PURPLE)Building worker for $(GOOS)/$(GOARCH)...$(NC)"
 	@mkdir -p $(BUILD_DIR)
 	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o $(BINARY) $(WORKER_MAIN_PATH)
+	@echo "$(GREEN)  ✓ $(BINARY)$(NC)"
+
+# Individual control-plane platform targets
+$(PLATFORMS:=/control-plane):
+	$(eval GOOS := $(word 1,$(subst /, ,$(subst /control-plane,,$@))))
+	$(eval GOARCH := $(word 2,$(subst /, ,$(subst /control-plane,,$@))))
+	$(eval BINARY := $(BUILD_DIR)/$(CONTROL_PLANE_BINARY_NAME)-$(GOOS)-$(GOARCH))
+	@echo "$(PURPLE)Building control-plane for $(GOOS)/$(GOARCH)...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o $(BINARY) $(CONTROL_PLANE_MAIN_PATH)
 	@echo "$(GREEN)  ✓ $(BINARY)$(NC)"
 
 # Development mode builds

@@ -62,6 +62,13 @@ func (g *Generator) GenerateComposeWithPorts(cfg *config.Config, portAllocation 
 		return fmt.Errorf("failed to generate worker config files: %w", err)
 	}
 
+	// Generate control-plane config file if control plane is enabled
+	if cfg.ControlPlane != nil && cfg.ControlPlane.Enabled {
+		if err := g.generateControlPlaneConfig(cfg); err != nil {
+			return fmt.Errorf("failed to generate control-plane config: %w", err)
+		}
+	}
+
 	// Generate compose.yaml programmatically
 	if err := g.generateComposeYAML(cfg, portAllocation); err != nil {
 		return fmt.Errorf("failed to generate compose.yaml: %w", err)
@@ -70,6 +77,13 @@ func (g *Generator) GenerateComposeWithPorts(cfg *config.Config, portAllocation 
 	// Copy system bin directory
 	if err := g.copyBinDirectory(); err != nil {
 		return fmt.Errorf("failed to copy bin directory: %w", err)
+	}
+
+	// Build and copy control-plane binary if enabled
+	if cfg.ControlPlane != nil && cfg.ControlPlane.Enabled {
+		if err := g.buildControlPlaneBinary(); err != nil {
+			return fmt.Errorf("failed to build control-plane binary: %w", err)
+		}
 	}
 
 	return nil
@@ -103,9 +117,10 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 		serviceConfig["tty"] = true
 		serviceConfig["stdin_open"] = true
 
-		// Build volumes array
+		// Build volumes array with team-based paths
+		teamName := cfg.GetTeamName()
 		volumes := []string{
-			fmt.Sprintf("./workers/%s:%s", serviceName, worker.GetWorkerDir()),
+			fmt.Sprintf("./%s/workers/%s:%s", teamName, serviceName, worker.GetWorkerDir()),
 			"./bin:/opt/autoteam/bin",
 		}
 
@@ -186,6 +201,12 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 		compose.Services[serviceName] = serviceConfig
 	}
 
+	// Add control-plane service if enabled
+	if cfg.ControlPlane != nil && cfg.ControlPlane.Enabled {
+		controlPlaneService := g.generateControlPlaneService(cfg)
+		compose.Services["control-plane"] = controlPlaneService
+	}
+
 	// Add custom services from configuration
 	if cfg.Services != nil {
 		for serviceName, serviceConfig := range cfg.Services {
@@ -224,9 +245,9 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 }
 
 func (g *Generator) copyBinDirectory() error {
-	// Ensure workers directory exists
-	if err := g.fileOps.EnsureDirectory(config.WorkersDir, config.DirPerm); err != nil {
-		return fmt.Errorf("failed to create workers directory: %w", err)
+	// Ensure .autoteam directory exists (workers directory will be created in createWorkerDirectories)
+	if err := g.fileOps.EnsureDirectory(config.AutoTeamDir, config.DirPerm); err != nil {
+		return fmt.Errorf("failed to create .autoteam directory: %w", err)
 	}
 
 	// Remove existing directory if it exists
@@ -288,13 +309,14 @@ Supported platforms: linux-amd64, linux-arm64, darwin-amd64, darwin-arm64
 }
 
 func (g *Generator) createWorkerDirectories(cfg *config.Config) error {
+	workersDir := cfg.GetWorkersDir()
 	for _, w := range cfg.Workers {
 		// Skip disabled workers
 		if !w.IsEnabled() {
 			continue
 		}
 		normalizedName := w.GetNormalizedName()
-		if err := g.fileOps.CreateWorkerDirectoryStructure(normalizedName); err != nil {
+		if err := g.fileOps.CreateWorkerDirectoryStructure(workersDir, normalizedName); err != nil {
 			return fmt.Errorf("failed to create directory structure for worker %s (normalized: %s): %w", w.Name, normalizedName, err)
 		}
 	}
@@ -363,8 +385,9 @@ func (g *Generator) generateWorkerConfigFiles(cfg *config.Config, portAllocation
 			Settings: &settings,
 		}
 
-		// Create worker config directory
-		workerDir := filepath.Join(config.WorkersDir, serviceName)
+		// Create worker config directory using team-based path
+		workersDir := cfg.GetWorkersDir()
+		workerDir := filepath.Join(workersDir, serviceName)
 		if err := os.MkdirAll(workerDir, 0755); err != nil {
 			return fmt.Errorf("failed to create worker config directory %s: %w", workerDir, err)
 		}
@@ -379,6 +402,90 @@ func (g *Generator) generateWorkerConfigFiles(cfg *config.Config, portAllocation
 		if err := os.WriteFile(configPath, configData, 0644); err != nil {
 			return fmt.Errorf("failed to write config file %s: %w", configPath, err)
 		}
+	}
+
+	return nil
+}
+
+// buildControlPlaneBinary builds the Linux control-plane binary and copies it to bin directory
+func (g *Generator) buildControlPlaneBinary() error {
+	targetBinaryPath := filepath.Join(config.LocalBinPath, "autoteam-control-plane")
+	
+	// Try to find Linux binary first (preferred for containers)
+	linuxBinaryPath := "build/autoteam-control-plane-linux-amd64"
+	if g.fileOps.FileExists(linuxBinaryPath) {
+		return g.fileOps.CopyFile(linuxBinaryPath, targetBinaryPath)
+	}
+	
+	// Fallback to current platform binary
+	if g.fileOps.FileExists("build/autoteam-control-plane") {
+		return g.fileOps.CopyFile("build/autoteam-control-plane", targetBinaryPath)
+	}
+	
+	return fmt.Errorf("control-plane binary not found - please run 'make build-control-plane' or 'make build-all' first")
+}
+
+// generateControlPlaneService creates the Docker Compose service configuration for control-plane
+func (g *Generator) generateControlPlaneService(cfg *config.Config) map[string]interface{} {
+	teamName := cfg.GetTeamName()
+	
+	service := map[string]interface{}{
+		"build": map[string]interface{}{
+			"context":    "./",
+			"dockerfile": "../Dockerfile",
+		},
+		"tty":        true,
+		"stdin_open": true,
+		"user":       "root",
+		"working_dir": "/opt/autoteam",
+		"volumes": []string{
+			fmt.Sprintf("./%s/control-plane:/opt/autoteam/control-plane", teamName),
+			fmt.Sprintf("./%s/workers:/opt/autoteam/workers", teamName),
+			"./bin:/opt/autoteam/bin",
+			"../autoteam.yaml:/opt/autoteam/autoteam.yaml:ro",
+		},
+		"environment": map[string]string{
+			"CONFIG_FILE": "/opt/autoteam/control-plane/config.yaml",
+			"CONTROL_PLANE_CONFIG": "/opt/autoteam/control-plane/config.yaml",
+		},
+		"entrypoint": []string{"/opt/autoteam/bin/autoteam-control-plane"},
+		"command": []string{
+			"--config-file", "/opt/autoteam/autoteam.yaml",
+			"--log-level", "${LOG_LEVEL:-info}",
+		},
+		"ports": []string{
+			fmt.Sprintf("%d:%d", cfg.ControlPlane.Port, cfg.ControlPlane.Port),
+		},
+	}
+
+	return service
+}
+
+// generateControlPlaneConfig creates a control-plane config file in the team-specific directory
+func (g *Generator) generateControlPlaneConfig(cfg *config.Config) error {
+	// Create control-plane config directory
+	controlPlaneDir := cfg.GetControlPlaneDir()
+	if err := os.MkdirAll(controlPlaneDir, 0755); err != nil {
+		return fmt.Errorf("failed to create control-plane config directory %s: %w", controlPlaneDir, err)
+	}
+
+	// Build control-plane config with workers directory reference
+	controlPlaneConfig := &config.ControlPlaneConfig{
+		Enabled:    cfg.ControlPlane.Enabled,
+		Port:       cfg.ControlPlane.Port,
+		APIKey:     cfg.ControlPlane.APIKey,
+		WorkersDir: "/opt/autoteam/workers", // Use container mount path
+	}
+
+	// Write config file
+	configPath := cfg.GetControlPlaneConfigPath()
+	configData, err := yaml.Marshal(controlPlaneConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal control-plane config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, configData, 0644); err != nil {
+		return fmt.Errorf("failed to write control-plane config file %s: %w", configPath, err)
 	}
 
 	return nil

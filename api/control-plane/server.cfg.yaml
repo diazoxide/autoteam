@@ -1,0 +1,7 @@
+# oapi-codegen v2 configuration for server generation
+package: controlplane
+output: server.gen.go
+generate:
+  echo-server: true
+  models: true
+  embedded-spec: true
