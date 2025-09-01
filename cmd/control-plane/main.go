@@ -36,15 +36,6 @@ func main() {
 		Version: fmt.Sprintf("%s (built %s, commit %s)", Version, BuildTime, GitCommit),
 		Action:  runControlPlane,
 		Flags: []cli.Flag{
-			// Primary configuration file
-			&cli.StringFlag{
-				Name:     "config-file",
-				Aliases:  []string{"c"},
-				Usage:    "Path to autoteam configuration file (YAML)",
-				Required: true,
-				Sources:  cli.EnvVars("AUTOTEAM_CONFIG_FILE"),
-			},
-
 			// Runtime Configuration
 			&cli.StringFlag{
 				Name:    "log-level",
@@ -102,18 +93,10 @@ func runControlPlane(ctx context.Context, cmd *cli.Command) error {
 		zap.String("log_level", string(logLevel)),
 	)
 
-	// Load main configuration from file
-	configPath := cmd.String("config-file")
-	cfg, err := config.LoadConfig(configPath)
-	if err != nil {
-		log.Error("Failed to load configuration", zap.String("config_path", configPath), zap.Error(err))
-		return fmt.Errorf("failed to load configuration from %s: %w", configPath, err)
-	}
-
-	// Load control-plane specific config - check environment variable first
+	// Load control-plane specific config from environment variable
 	controlPlaneConfigPath := os.Getenv("CONTROL_PLANE_CONFIG")
 	if controlPlaneConfigPath == "" {
-		controlPlaneConfigPath = cfg.GetControlPlaneConfigPath()
+		controlPlaneConfigPath = "/opt/autoteam/control-plane/config.yaml"
 	}
 	controlPlaneData, err := os.ReadFile(controlPlaneConfigPath)
 	if err != nil {

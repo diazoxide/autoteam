@@ -440,9 +440,7 @@ func (g *Generator) generateControlPlaneService(cfg *config.Config) map[string]i
 		"working_dir": "/opt/autoteam",
 		"volumes": []string{
 			fmt.Sprintf("./%s/control-plane:/opt/autoteam/control-plane", teamName),
-			fmt.Sprintf("./%s/workers:/opt/autoteam/workers", teamName),
 			"./bin:/opt/autoteam/bin",
-			"../autoteam.yaml:/opt/autoteam/autoteam.yaml:ro",
 		},
 		"environment": map[string]string{
 			"CONFIG_FILE":          "/opt/autoteam/control-plane/config.yaml",
@@ -450,7 +448,6 @@ func (g *Generator) generateControlPlaneService(cfg *config.Config) map[string]i
 		},
 		"entrypoint": []string{"/opt/autoteam/bin/autoteam-control-plane"},
 		"command": []string{
-			"--config-file", "/opt/autoteam/autoteam.yaml",
 			"--log-level", "${LOG_LEVEL:-info}",
 		},
 		"ports": []string{
