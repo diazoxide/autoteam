@@ -45,6 +45,12 @@ func main() {
 				Usage:   "Set log level (debug, info, warn, error)",
 				Value:   "warn",
 			},
+			&cli.StringFlag{
+				Name:    "config-file",
+				Aliases: []string{"c"},
+				Usage:   "Path to configuration file",
+				Value:   "autoteam.yaml",
+			},
 		},
 		Commands: []*cli.Command{
 			{
@@ -57,12 +63,6 @@ func main() {
 				Usage:  "Generate and start containers",
 				Action: upCommand,
 				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:    "config-file",
-						Aliases: []string{"c"},
-						Usage:   "Path to configuration file",
-						Value:   "autoteam.yaml",
-					},
 					&cli.StringFlag{
 						Name:    "docker-compose-args",
 						Aliases: []string{"args"},
@@ -103,10 +103,11 @@ func generateCommand(ctx context.Context, cmd *cli.Command) error {
 	log := logger.FromContext(ctx)
 
 	// Load config
-	cfg, err := config.LoadConfig("autoteam.yaml")
+	configFile := cmd.String("config-file")
+	cfg, err := config.LoadConfig(configFile)
 	if err != nil {
-		log.Error("Failed to load config", zap.Error(err))
-		return fmt.Errorf("failed to load config: %w", err)
+		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
+		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
 	}
 
 	log.Debug("Generating compose.yaml", zap.String("team_name", cfg.Settings.GetTeamName()))
@@ -224,10 +225,11 @@ func workersCommand(ctx context.Context, cmd *cli.Command) error {
 	log := logger.FromContext(ctx)
 
 	// Load config
-	cfg, err := config.LoadConfig("autoteam.yaml")
+	configFile := cmd.String("config-file")
+	cfg, err := config.LoadConfig(configFile)
 	if err != nil {
-		log.Error("Failed to load config", zap.Error(err))
-		return fmt.Errorf("failed to load config: %w", err)
+		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
+		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
 	}
 
 	fmt.Println("Workers configuration:")
