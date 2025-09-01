@@ -13,6 +13,7 @@ graph TB
         Config[Configuration Engine]
         Generator[Template Generator]
         Orchestrator[Container Orchestrator]
+        ControlPlane[Control Plane API]
     end
     
     subgraph "Execution Layer"
@@ -52,6 +53,7 @@ graph TB
     Config --> Generator
     Generator --> Orchestrator
     Orchestrator --> FlowEngine
+    Orchestrator --> ControlPlane
     
     FlowEngine --> DependencyResolver
     DependencyResolver --> ParallelExecutor
