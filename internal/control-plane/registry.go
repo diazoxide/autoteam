@@ -32,23 +32,18 @@ type RegisteredWorker struct {
 	WorkerInfo *types.WorkerInfo
 }
 
-// NewWorkerRegistry creates a new worker registry from configuration with dynamic discovery
+// NewWorkerRegistry creates a new worker registry from configuration with direct API URLs
 func NewWorkerRegistry(config *config.ControlPlaneConfig) (*WorkerRegistry, error) {
 	registry := &WorkerRegistry{
 		workers: make(map[string]*RegisteredWorker),
 	}
 
-	// Discover workers from filesystem
-	discoveredWorkers, err := DiscoverWorkers(config.WorkersDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to discover workers from %s: %w", config.WorkersDir, err)
-	}
-
-	// Register discovered workers
-	for _, worker := range discoveredWorkers {
-		err := registry.RegisterWorker(worker.ID, worker.URL, worker.APIKey)
+	// Register workers from direct API URLs
+	for i, apiURL := range config.WorkersAPIs {
+		workerID := fmt.Sprintf("worker-%d", i+1)
+		err := registry.RegisterWorker(workerID, apiURL, config.APIKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to register discovered worker %s: %w", worker.ID, err)
+			return nil, fmt.Errorf("failed to register worker %s: %w", workerID, err)
 		}
 	}
 

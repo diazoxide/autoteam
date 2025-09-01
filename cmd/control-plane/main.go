@@ -135,7 +135,7 @@ func runControlPlane(ctx context.Context, cmd *cli.Command) error {
 
 	log.Info("Control plane configuration loaded",
 		zap.String("config_path", controlPlaneConfigPath),
-		zap.String("workers_dir", controlPlaneConfig.WorkersDir),
+		zap.Strings("workers_apis", controlPlaneConfig.WorkersAPIs),
 		zap.Int("configured_port", controlPlaneConfig.Port))
 
 	// Override configuration with CLI flags if provided

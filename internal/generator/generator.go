@@ -64,7 +64,7 @@ func (g *Generator) GenerateComposeWithPorts(cfg *config.Config, portAllocation 
 
 	// Generate control-plane config file if control plane is enabled
 	if cfg.ControlPlane != nil && cfg.ControlPlane.Enabled {
-		if err := g.generateControlPlaneConfig(cfg); err != nil {
+		if err := g.generateControlPlaneConfig(cfg, portAllocation); err != nil {
 			return fmt.Errorf("failed to generate control-plane config: %w", err)
 		}
 	}
@@ -462,19 +462,33 @@ func (g *Generator) generateControlPlaneService(cfg *config.Config) map[string]i
 }
 
 // generateControlPlaneConfig creates a control-plane config file in the team-specific directory
-func (g *Generator) generateControlPlaneConfig(cfg *config.Config) error {
+func (g *Generator) generateControlPlaneConfig(cfg *config.Config, portAllocation ports.PortAllocation) error {
 	// Create control-plane config directory
 	controlPlaneDir := cfg.GetControlPlaneDir()
 	if err := os.MkdirAll(controlPlaneDir, 0755); err != nil {
 		return fmt.Errorf("failed to create control-plane config directory %s: %w", controlPlaneDir, err)
 	}
 
-	// Build control-plane config with workers directory reference
+	// Build worker API URLs from enabled workers and their allocated ports
+	var workersAPIs []string
+	if portAllocation != nil {
+		for _, worker := range cfg.Workers {
+			if worker.IsEnabled() {
+				serviceName := worker.GetNormalizedName()
+				if port, hasPort := portAllocation[serviceName]; hasPort {
+					workerURL := fmt.Sprintf("http://localhost:%d", port)
+					workersAPIs = append(workersAPIs, workerURL)
+				}
+			}
+		}
+	}
+
+	// Build control-plane config with worker API URLs
 	controlPlaneConfig := &config.ControlPlaneConfig{
-		Enabled:    cfg.ControlPlane.Enabled,
-		Port:       cfg.ControlPlane.Port,
-		APIKey:     cfg.ControlPlane.APIKey,
-		WorkersDir: "/opt/autoteam/workers", // Use container mount path
+		Enabled:     cfg.ControlPlane.Enabled,
+		Port:        cfg.ControlPlane.Port,
+		APIKey:      cfg.ControlPlane.APIKey,
+		WorkersAPIs: workersAPIs,
 	}
 
 	// Write config file

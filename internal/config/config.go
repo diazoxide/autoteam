@@ -25,10 +25,10 @@ type Config struct {
 
 // ControlPlaneConfig represents the control plane configuration
 type ControlPlaneConfig struct {
-	Enabled    bool   `yaml:"enabled"`
-	Port       int    `yaml:"port"`
-	APIKey     string `yaml:"api_key,omitempty"`
-	WorkersDir string `yaml:"workers_dir,omitempty"` // Directory to scan for worker configs (default: .autoteam/workers)
+	Enabled     bool     `yaml:"enabled"`
+	Port        int      `yaml:"port"`
+	APIKey      string   `yaml:"api_key,omitempty"`
+	WorkersAPIs []string `yaml:"workers_apis,omitempty"` // Direct worker API URLs
 }
 
 func LoadConfig(filename string) (*Config, error) {
@@ -156,9 +156,6 @@ func setDefaults(config *Config) {
 		if config.ControlPlane.Port == 0 {
 			config.ControlPlane.Port = 9090
 		}
-		if config.ControlPlane.WorkersDir == "" {
-			config.ControlPlane.WorkersDir = ".autoteam/workers"
-		}
 	}
 }
 
@@ -271,9 +268,8 @@ func CreateSampleConfig(filename string) error {
 			},
 		},
 		ControlPlane: &ControlPlaneConfig{
-			Enabled:    false, // Disabled by default
-			Port:       9090,
-			WorkersDir: ".autoteam/workers", // Auto-discover workers from this directory
+			Enabled: false, // Disabled by default
+			Port:    9090,
 		},
 	}
 
