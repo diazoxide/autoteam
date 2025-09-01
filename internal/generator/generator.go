@@ -476,7 +476,7 @@ func (g *Generator) generateControlPlaneConfig(cfg *config.Config, portAllocatio
 			if worker.IsEnabled() {
 				serviceName := worker.GetNormalizedName()
 				if port, hasPort := portAllocation[serviceName]; hasPort {
-					workerURL := fmt.Sprintf("http://localhost:%d", port)
+					workerURL := fmt.Sprintf("http://%s:%d", serviceName, port)
 					workersAPIs = append(workersAPIs, workerURL)
 				}
 			}
