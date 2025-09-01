@@ -602,6 +602,9 @@ components:
         enabled:
           type: boolean
           description: Whether the step is enabled
+        active:
+          type: boolean
+          description: Whether the step is currently executing
         last_execution:
           type: string
           format: date-time

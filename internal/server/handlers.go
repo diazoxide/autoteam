@@ -26,13 +26,13 @@ var openAPISpec string
 
 // Handlers contains the HTTP handlers for the worker API
 type Handlers struct {
-	worker     *worker.WorkerImpl
+	worker     *worker.WorkerRuntime
 	workingDir string
 	startTime  time.Time
 }
 
 // NewHandlers creates a new handlers instance
-func NewHandlers(wk *worker.WorkerImpl, workingDir string, startTime time.Time) *Handlers {
+func NewHandlers(wk *worker.WorkerRuntime, workingDir string, startTime time.Time) *Handlers {
 	return &Handlers{
 		worker:     wk,
 		workingDir: workingDir,
@@ -268,13 +268,21 @@ func (h *Handlers) GetConfig(c echo.Context) error {
 func (h *Handlers) GetFlow(c echo.Context) error {
 	// Get worker configuration to analyze flow
 	settings := h.worker.GetSettings()
+	flowStats := h.worker.GetFlowStats()
+
+	// Calculate success rate
+	var successRate *float64
+	if flowStats.ExecutionCount > 0 {
+		rate := float64(flowStats.SuccessCount) / float64(flowStats.ExecutionCount)
+		successRate = &rate
+	}
 
 	flowInfo := types.FlowInfo{
 		TotalSteps:     len(settings.Flow),
 		EnabledSteps:   len(settings.Flow), // All steps are enabled by default
-		LastExecution:  h.worker.GetLastActivity(),
-		ExecutionCount: intPtr(0), // TODO: Track actual execution count
-		SuccessRate:    nil,       // TODO: Track success rate
+		LastExecution:  flowStats.LastExecution,
+		ExecutionCount: intPtr(flowStats.ExecutionCount),
+		SuccessRate:    successRate,
 	}
 
 	response := types.FlowResponse{
@@ -292,16 +300,33 @@ func (h *Handlers) GetFlowSteps(c echo.Context) error {
 
 	var stepInfos []types.FlowStepInfo
 	for _, step := range settings.Flow {
+		// Get runtime stats for this step
+		stepStats := h.worker.GetStepStats(step.Name)
+
+		var runtime types.FlowStepRuntime
+		if stepStats != nil {
+			runtime = types.FlowStepRuntime{
+				Enabled:        boolPtr(stepStats.Enabled),
+				Active:         boolPtr(stepStats.Active),
+				LastExecution:  stepStats.LastExecution,
+				ExecutionCount: intPtr(stepStats.ExecutionCount),
+				SuccessCount:   intPtr(stepStats.SuccessCount),
+				LastOutput:     stepStats.LastOutput,
+				LastError:      stepStats.LastError,
+			}
+		} else {
+			// Fallback if stats not available
+			runtime = types.FlowStepRuntime{
+				Enabled:        boolPtr(true),
+				Active:         boolPtr(false),
+				ExecutionCount: intPtr(0),
+				SuccessCount:   intPtr(0),
+			}
+		}
+
 		stepInfo := types.FlowStepInfo{
-			FlowStep: step, // Embed original FlowStep directly
-			FlowStepRuntime: types.FlowStepRuntime{
-				Enabled:        boolPtr(true), // All steps are enabled by default
-				LastExecution:  nil,           // TODO: Track per-step execution times
-				ExecutionCount: intPtr(0),     // TODO: Track per-step execution count
-				SuccessCount:   intPtr(0),     // TODO: Track per-step success count
-				LastOutput:     nil,           // TODO: Track last output
-				LastError:      nil,           // TODO: Track last error
-			},
+			FlowStep:        step, // Embed original FlowStep directly
+			FlowStepRuntime: runtime,
 		}
 		stepInfos = append(stepInfos, stepInfo)
 	}

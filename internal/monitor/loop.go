@@ -31,30 +31,39 @@ type HTTPServer interface {
 
 // Monitor handles flow-based agent monitoring
 type Monitor struct {
-	flowExecutor *flow.FlowExecutor // Dynamic flow executor
-	flowSteps    []worker.FlowStep  // Flow configuration
-	config       Config
-	worker       *worker.Worker        // Worker configuration
-	settings     worker.WorkerSettings // Effective settings
-	taskService  *task.Service         // Service for task persistence operations
-	httpServer   HTTPServer            // HTTP API server for monitoring
+	flowExecutor  *flow.FlowExecutor // Dynamic flow executor
+	flowSteps     []worker.FlowStep  // Flow configuration
+	config        Config
+	worker        *worker.Worker        // Worker configuration
+	workerRuntime *worker.WorkerRuntime // Worker runtime for statistics tracking
+	settings      worker.WorkerSettings // Effective settings
+	taskService   *task.Service         // Service for task persistence operations
+	httpServer    HTTPServer            // HTTP API server for monitoring
 }
 
 // New creates a new flow-based monitor instance
-func New(w *worker.Worker, settings worker.WorkerSettings, monitorConfig Config) *Monitor {
+func New(workerRuntime *worker.WorkerRuntime, monitorConfig Config) *Monitor {
+	// Get worker and settings from runtime
+	w := workerRuntime.GetConfig()
+	settings := workerRuntime.GetSettings()
+
 	// Get agent directory for task service
-	agentDirectory := w.GetWorkerDir()
+	agentDirectory := workerRuntime.GetWorkingDir()
 
 	// Create flow executor with worker configuration and effective settings
 	flowExecutor := flow.New(settings.Flow, settings.MCPServers, agentDirectory, w)
 
+	// Set worker runtime for step tracking
+	flowExecutor.SetWorkerRuntime(workerRuntime)
+
 	return &Monitor{
-		flowExecutor: flowExecutor,
-		flowSteps:    settings.Flow,
-		config:       monitorConfig,
-		worker:       w,
-		settings:     settings,
-		taskService:  task.NewService(agentDirectory),
+		flowExecutor:  flowExecutor,
+		flowSteps:     settings.Flow,
+		config:        monitorConfig,
+		worker:        w,
+		workerRuntime: workerRuntime,
+		settings:      settings,
+		taskService:   task.NewService(agentDirectory),
 	}
 }
 
@@ -129,8 +138,21 @@ func (m *Monitor) processFlowCycle(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Debug("Processing flow cycle")
 
+	// Mark worker as running
+	if m.workerRuntime != nil {
+		m.workerRuntime.SetRunning(true)
+		defer m.workerRuntime.SetRunning(false)
+	}
+
 	// Execute the flow
 	result, err := m.flowExecutor.Execute(ctx)
+
+	// Record flow execution statistics
+	if m.workerRuntime != nil {
+		success := err == nil && result != nil && result.Success
+		m.workerRuntime.RecordFlowExecution(success)
+	}
+
 	if err != nil {
 		lgr.Error("Flow execution failed", zap.Error(err))
 		return fmt.Errorf("flow execution failed: %w", err)
