@@ -31,8 +31,8 @@ type HTTPServer interface {
 
 // Monitor handles flow-based agent monitoring
 type Monitor struct {
-	flowExecutor  *flow.FlowExecutor  // Dynamic flow executor
-	flowSteps     []worker.FlowStep   // Flow configuration
+	flowExecutor  *flow.FlowExecutor // Dynamic flow executor
+	flowSteps     []worker.FlowStep  // Flow configuration
 	config        Config
 	worker        *worker.Worker        // Worker configuration
 	workerRuntime *worker.WorkerRuntime // Worker runtime for statistics tracking
@@ -46,13 +46,13 @@ func New(workerRuntime *worker.WorkerRuntime, monitorConfig Config) *Monitor {
 	// Get worker and settings from runtime
 	w := workerRuntime.GetConfig()
 	settings := workerRuntime.GetSettings()
-	
+
 	// Get agent directory for task service
 	agentDirectory := workerRuntime.GetWorkingDir()
 
 	// Create flow executor with worker configuration and effective settings
 	flowExecutor := flow.New(settings.Flow, settings.MCPServers, agentDirectory, w)
-	
+
 	// Set worker runtime for step tracking
 	flowExecutor.SetWorkerRuntime(workerRuntime)
 
@@ -146,7 +146,7 @@ func (m *Monitor) processFlowCycle(ctx context.Context) error {
 
 	// Execute the flow
 	result, err := m.flowExecutor.Execute(ctx)
-	
+
 	// Record flow execution statistics
 	if m.workerRuntime != nil {
 		success := err == nil && result != nil && result.Success

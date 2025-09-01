@@ -326,14 +326,14 @@ func (rs *WorkerRuntimeState) GetFlowStats() FlowStats {
 func (rs *WorkerRuntimeState) GetStepStats(stepName string) *StepStats {
 	rs.stepStatsMutex.Lock()
 	defer rs.stepStatsMutex.Unlock()
-	
+
 	return rs.stepStats[stepName]
 }
 
 func (rs *WorkerRuntimeState) GetAllStepStats() map[string]*StepStats {
 	rs.stepStatsMutex.Lock()
 	defer rs.stepStatsMutex.Unlock()
-	
+
 	// Return a copy of the map to avoid race conditions
 	result := make(map[string]*StepStats, len(rs.stepStats))
 	for k, v := range rs.stepStats {
@@ -346,7 +346,7 @@ func (rs *WorkerRuntimeState) GetAllStepStats() map[string]*StepStats {
 func (rs *WorkerRuntimeState) SetStepActive(stepName string, active bool) {
 	rs.stepStatsMutex.Lock()
 	defer rs.stepStatsMutex.Unlock()
-	
+
 	if stats, exists := rs.stepStats[stepName]; exists {
 		stats.Active = active
 	}
@@ -355,7 +355,7 @@ func (rs *WorkerRuntimeState) SetStepActive(stepName string, active bool) {
 func (rs *WorkerRuntimeState) RecordStepExecution(stepName string, success bool, output *string, errorMsg *string) {
 	rs.stepStatsMutex.Lock()
 	defer rs.stepStatsMutex.Unlock()
-	
+
 	if stats, exists := rs.stepStats[stepName]; exists {
 		now := time.Now()
 		stats.LastExecution = &now
