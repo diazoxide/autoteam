@@ -132,8 +132,8 @@ func TestGenerateCommand_MissingConfig(t *testing.T) {
 		t.Errorf("generateCommand() should fail when config is not available")
 	}
 
-	if !strings.Contains(err.Error(), "config not available in context") {
-		t.Errorf("error should mention config not available, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to load config") {
+		t.Errorf("error should mention failed to load config, got: %v", err)
 	}
 }
 

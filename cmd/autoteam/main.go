@@ -101,8 +101,8 @@ func main() {
 
 func generateCommand(ctx context.Context, cmd *cli.Command) error {
 	log := logger.FromContext(ctx)
-	
-	// Load config 
+
+	// Load config
 	cfg, err := config.LoadConfig("autoteam.yaml")
 	if err != nil {
 		log.Error("Failed to load config", zap.Error(err))
@@ -222,7 +222,7 @@ func initCommand(ctx context.Context, cmd *cli.Command) error {
 
 func workersCommand(ctx context.Context, cmd *cli.Command) error {
 	log := logger.FromContext(ctx)
-	
+
 	// Load config
 	cfg, err := config.LoadConfig("autoteam.yaml")
 	if err != nil {
