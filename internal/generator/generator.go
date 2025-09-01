@@ -410,33 +410,33 @@ func (g *Generator) generateWorkerConfigFiles(cfg *config.Config, portAllocation
 // buildControlPlaneBinary builds the Linux control-plane binary and copies it to bin directory
 func (g *Generator) buildControlPlaneBinary() error {
 	targetBinaryPath := filepath.Join(config.LocalBinPath, "autoteam-control-plane")
-	
+
 	// Try to find Linux binary first (preferred for containers)
 	linuxBinaryPath := "build/autoteam-control-plane-linux-amd64"
 	if g.fileOps.FileExists(linuxBinaryPath) {
 		return g.fileOps.CopyFile(linuxBinaryPath, targetBinaryPath)
 	}
-	
+
 	// Fallback to current platform binary
 	if g.fileOps.FileExists("build/autoteam-control-plane") {
 		return g.fileOps.CopyFile("build/autoteam-control-plane", targetBinaryPath)
 	}
-	
+
 	return fmt.Errorf("control-plane binary not found - please run 'make build-control-plane' or 'make build-all' first")
 }
 
 // generateControlPlaneService creates the Docker Compose service configuration for control-plane
 func (g *Generator) generateControlPlaneService(cfg *config.Config) map[string]interface{} {
 	teamName := cfg.GetTeamName()
-	
+
 	service := map[string]interface{}{
 		"build": map[string]interface{}{
 			"context":    "./",
 			"dockerfile": "../Dockerfile",
 		},
-		"tty":        true,
-		"stdin_open": true,
-		"user":       "root",
+		"tty":         true,
+		"stdin_open":  true,
+		"user":        "root",
 		"working_dir": "/opt/autoteam",
 		"volumes": []string{
 			fmt.Sprintf("./%s/control-plane:/opt/autoteam/control-plane", teamName),
@@ -445,7 +445,7 @@ func (g *Generator) generateControlPlaneService(cfg *config.Config) map[string]i
 			"../autoteam.yaml:/opt/autoteam/autoteam.yaml:ro",
 		},
 		"environment": map[string]string{
-			"CONFIG_FILE": "/opt/autoteam/control-plane/config.yaml",
+			"CONFIG_FILE":          "/opt/autoteam/control-plane/config.yaml",
 			"CONTROL_PLANE_CONFIG": "/opt/autoteam/control-plane/config.yaml",
 		},
 		"entrypoint": []string{"/opt/autoteam/bin/autoteam-control-plane"},

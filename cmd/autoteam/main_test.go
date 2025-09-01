@@ -253,8 +253,8 @@ echo "Integration test"`
 	expectedFiles := []string{
 		"autoteam.yaml",
 		".autoteam/compose.yaml",
-		".autoteam/workers/dev1",
-		".autoteam/workers/arch1",
+		".autoteam/autoteam/workers/dev1",
+		".autoteam/autoteam/workers/arch1",
 	}
 
 	for _, file := range expectedFiles {

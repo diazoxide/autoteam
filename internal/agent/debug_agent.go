@@ -52,7 +52,7 @@ func (d *DebugAgent) Run(ctx context.Context, prompt string, options RunOptions)
 
 	return &AgentOutput{
 		Stdout: "",
-		Stderr: fmt.Sprintf("Error happened"),
+		Stderr: "Error happened",
 	}, nil
 }
 

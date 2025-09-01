@@ -14,7 +14,7 @@ const (
 	// WorkersBaseDir is the base directory pattern for worker-specific directories
 	// Actual path will be: .autoteam/{team_name}/workers
 	WorkersBaseDir = AutoTeamDir + "/%s/workers"
-	
+
 	// ControlPlaneBaseDir is the base directory pattern for control-plane config
 	// Actual path will be: .autoteam/{team_name}/control-plane
 	ControlPlaneBaseDir = AutoTeamDir + "/%s/control-plane"

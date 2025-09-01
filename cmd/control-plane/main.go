@@ -122,9 +122,9 @@ func runControlPlane(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	var controlPlaneConfig config.ControlPlaneConfig
-	if err := yaml.Unmarshal(controlPlaneData, &controlPlaneConfig); err != nil {
-		log.Error("Failed to parse control-plane config", zap.String("config_path", controlPlaneConfigPath), zap.Error(err))
-		return fmt.Errorf("failed to parse control-plane config: %w", err)
+	if unmarshalErr := yaml.Unmarshal(controlPlaneData, &controlPlaneConfig); unmarshalErr != nil {
+		log.Error("Failed to parse control-plane config", zap.String("config_path", controlPlaneConfigPath), zap.Error(unmarshalErr))
+		return fmt.Errorf("failed to parse control-plane config: %w", unmarshalErr)
 	}
 
 	// Check if control plane is enabled
@@ -216,7 +216,7 @@ func runControlPlane(ctx context.Context, cmd *cli.Command) error {
 		log.Info("Shutting down gracefully", zap.String("signal", sig.String()))
 		cancel()
 	case <-ctx.Done():
-		log.Info("Context cancelled, shutting down")
+		log.Info("Context canceled, shutting down")
 	}
 
 	log.Info("Control plane shutdown completed")
