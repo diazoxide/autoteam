@@ -141,7 +141,7 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 	)
 
 	// Create Worker instance for HTTP server
-	workerImpl := worker.NewWorker(workerConfig, effectiveSettings)
+	workerRuntime := worker.NewWorkerRuntime(workerConfig, effectiveSettings)
 
 	// Start HTTP server if not disabled
 	var httpServer *server.Server
@@ -155,10 +155,10 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 		serverConfig := server.Config{
 			Port:       httpPort,
 			APIKey:     cmd.String("http-api-key"),
-			WorkingDir: workerImpl.GetWorkingDir(),
+			WorkingDir: workerRuntime.GetWorkingDir(),
 		}
 
-		httpServer = server.NewServer(workerImpl, serverConfig)
+		httpServer = server.NewServer(workerRuntime, serverConfig)
 
 		if startErr := httpServer.Start(ctx); startErr != nil {
 			log.Error("Failed to start HTTP server", zap.Error(startErr))
@@ -217,7 +217,7 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	log.Info("Creating flow-based monitor", zap.Int("flow_steps", len(effectiveSettings.Flow)))
-	mon := monitor.New(workerConfig, effectiveSettings, monitorConfig)
+	mon := monitor.New(workerRuntime, monitorConfig)
 
 	// Pass the HTTP server to monitor for management
 	if httpServer != nil {

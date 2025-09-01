@@ -19,18 +19,20 @@ import (
 
 // FlowExecutor executes dynamic flows with dependency resolution
 type FlowExecutor struct {
-	Steps      []worker.FlowStep
-	Agents     map[string]agent.Agent
-	MCPServers map[string]worker.MCPServer
-	WorkingDir string
-	Worker     *worker.Worker // Worker configuration for template context
+	Steps         []worker.FlowStep
+	Agents        map[string]agent.Agent
+	MCPServers    map[string]worker.MCPServer
+	WorkingDir    string
+	Worker        *worker.Worker        // Worker configuration for template context
+	WorkerRuntime *worker.WorkerRuntime // Runtime for step tracking (optional)
 }
 
 // StepOutput represents the output of a flow step
 type StepOutput struct {
-	Name   string
-	Stdout string
-	Stderr string
+	Name    string
+	Stdout  string
+	Stderr  string
+	Skipped bool // Indicates if the step was skipped due to skip_when condition
 }
 
 // FlowResult represents the result of executing a flow
@@ -49,6 +51,11 @@ func New(steps []worker.FlowStep, mcpServers map[string]worker.MCPServer, workin
 		WorkingDir: workingDir,
 		Worker:     worker,
 	}
+}
+
+// SetWorkerRuntime sets the worker runtime for step tracking
+func (fe *FlowExecutor) SetWorkerRuntime(workerRuntime *worker.WorkerRuntime) {
+	fe.WorkerRuntime = workerRuntime
 }
 
 // Execute runs the flow with dependency resolution and parallel execution
@@ -139,7 +146,7 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 
 		output, err := fe.executeStep(ctx, *step, stepOutputsCopy)
 		if err != nil {
-			return []StepOutput{{Name: step.Name, Stdout: "", Stderr: err.Error()}}, err
+			return []StepOutput{{Name: step.Name, Stdout: "", Stderr: err.Error(), Skipped: false}}, err
 		}
 
 		return []StepOutput{*output}, nil
@@ -165,7 +172,7 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 			step := fe.getStepByName(stepName)
 			if step == nil {
 				resultChan <- stepResult{
-					output: StepOutput{Name: stepName, Stdout: "", Stderr: "step not found"},
+					output: StepOutput{Name: stepName, Stdout: "", Stderr: "step not found", Skipped: false},
 					err:    fmt.Errorf("step not found: %s", stepName),
 				}
 				return
@@ -189,7 +196,7 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 					zap.Error(err),
 					zap.String("error_type", fmt.Sprintf("%T", err)))
 				resultChan <- stepResult{
-					output: StepOutput{Name: step.Name, Stdout: "", Stderr: err.Error()},
+					output: StepOutput{Name: step.Name, Stdout: "", Stderr: err.Error(), Skipped: false},
 					err:    err,
 				}
 				return
@@ -389,9 +396,10 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step worker.FlowStep, p
 
 		// Return empty output for skipped step
 		return &StepOutput{
-			Name:   step.Name,
-			Stdout: "",
-			Stderr: "",
+			Name:    step.Name,
+			Stdout:  "",
+			Stderr:  "",
+			Skipped: true,
 		}, nil
 	}
 
@@ -426,6 +434,12 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step worker.FlowStep, p
 		}
 	}
 
+	// Mark step as active
+	if fe.WorkerRuntime != nil {
+		fe.WorkerRuntime.SetStepActive(step.Name, true)
+		defer fe.WorkerRuntime.SetStepActive(step.Name, false)
+	}
+
 	// Log step execution start
 	lgr.Info("Executing step",
 		zap.String("step_name", step.Name),
@@ -445,6 +459,11 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step worker.FlowStep, p
 	// Execute agent
 	output, err := stepAgent.Run(ctx, prompt, runOptions)
 	if err != nil {
+		// Record failed execution statistics
+		if fe.WorkerRuntime != nil {
+			errorMsg := err.Error()
+			fe.WorkerRuntime.RecordStepExecution(step.Name, false, nil, &errorMsg)
+		}
 		return nil, fmt.Errorf("agent execution failed for step %s: %w", step.Name, err)
 	}
 
@@ -484,10 +503,25 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step worker.FlowStep, p
 		zap.String("step_name", step.Name),
 		zap.Bool("success", true))
 
+	// Record step execution statistics directly
+	if fe.WorkerRuntime != nil {
+		success := output.Stderr == ""
+		var outputPtr *string
+		if stdout != "" {
+			outputPtr = &stdout
+		}
+		var errorPtr *string
+		if output.Stderr != "" {
+			errorPtr = &output.Stderr
+		}
+		fe.WorkerRuntime.RecordStepExecution(step.Name, success, outputPtr, errorPtr)
+	}
+
 	return &StepOutput{
-		Name:   step.Name,
-		Stdout: stdout,
-		Stderr: output.Stderr,
+		Name:    step.Name,
+		Stdout:  stdout,
+		Stderr:  output.Stderr,
+		Skipped: false,
 	}, nil
 }
 

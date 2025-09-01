@@ -110,6 +110,7 @@ type FlowInfo struct {
 // FlowStepRuntime contains runtime execution information for a flow step
 type FlowStepRuntime struct {
 	Enabled        *bool      `json:"enabled,omitempty"`
+	Active         *bool      `json:"active,omitempty"`
 	LastExecution  *time.Time `json:"last_execution,omitempty"`
 	ExecutionCount *int       `json:"execution_count,omitempty"`
 	SuccessCount   *int       `json:"success_count,omitempty"`

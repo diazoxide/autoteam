@@ -20,7 +20,7 @@ import (
 // Server represents the HTTP API server for a worker
 type Server struct {
 	echo       *echo.Echo
-	worker     *worker.WorkerImpl
+	worker     *worker.WorkerRuntime
 	port       int
 	apiKey     string
 	workingDir string
@@ -38,7 +38,7 @@ type Config struct {
 }
 
 // NewServer creates a new HTTP API server for the given worker
-func NewServer(wk *worker.WorkerImpl, config Config) *Server {
+func NewServer(wk *worker.WorkerRuntime, config Config) *Server {
 	e := echo.New()
 	e.HideBanner = true
 

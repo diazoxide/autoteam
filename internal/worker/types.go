@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -203,6 +204,24 @@ func (s *WorkerSettings) GetDebug() bool {
 	return false // default
 }
 
+// StepStats tracks execution statistics for a single flow step
+type StepStats struct {
+	Enabled        bool       `json:"enabled"`
+	Active         bool       `json:"active"`
+	LastExecution  *time.Time `json:"last_execution,omitempty"`
+	ExecutionCount int        `json:"execution_count"`
+	SuccessCount   int        `json:"success_count"`
+	LastOutput     *string    `json:"last_output,omitempty"`
+	LastError      *string    `json:"last_error,omitempty"`
+}
+
+// FlowStats tracks overall flow execution statistics
+type FlowStats struct {
+	ExecutionCount int        `json:"execution_count"`
+	SuccessCount   int        `json:"success_count"`
+	LastExecution  *time.Time `json:"last_execution,omitempty"`
+}
+
 // Runtime state fields - these would typically be added when the worker is instantiated
 type WorkerRuntimeState struct {
 	effectiveSettings WorkerSettings
@@ -210,16 +229,36 @@ type WorkerRuntimeState struct {
 	startTime         time.Time
 	isRunning         bool
 	lastActivity      *time.Time
+	flowStats         FlowStats
+	stepStats         map[string]*StepStats
+	stepStatsMutex    sync.Mutex // Protects stepStats map and individual StepStats fields
 }
 
 // Runtime methods for Worker - these operate on runtime state
 func (w *Worker) InitRuntime(effectiveSettings WorkerSettings) *WorkerRuntimeState {
+	stepStats := make(map[string]*StepStats)
+
+	// Initialize step stats for all flow steps
+	for _, step := range effectiveSettings.Flow {
+		stepStats[step.Name] = &StepStats{
+			Enabled:        true,
+			Active:         false,
+			ExecutionCount: 0,
+			SuccessCount:   0,
+		}
+	}
+
 	return &WorkerRuntimeState{
 		effectiveSettings: effectiveSettings,
 		workingDir:        w.GetWorkerDir(),
 		startTime:         time.Now(),
 		isRunning:         false,
 		lastActivity:      nil,
+		flowStats: FlowStats{
+			ExecutionCount: 0,
+			SuccessCount:   0,
+		},
+		stepStats: stepStats,
 	}
 }
 
@@ -279,45 +318,134 @@ func (rs *WorkerRuntimeState) UpdateLastActivity() {
 	rs.lastActivity = &now
 }
 
-// WorkerImpl provides runtime functionality for a Worker, satisfying server interface requirements
-type WorkerImpl struct {
+// Flow and step statistics access methods
+func (rs *WorkerRuntimeState) GetFlowStats() FlowStats {
+	return rs.flowStats
+}
+
+func (rs *WorkerRuntimeState) GetStepStats(stepName string) *StepStats {
+	rs.stepStatsMutex.Lock()
+	defer rs.stepStatsMutex.Unlock()
+	
+	return rs.stepStats[stepName]
+}
+
+func (rs *WorkerRuntimeState) GetAllStepStats() map[string]*StepStats {
+	rs.stepStatsMutex.Lock()
+	defer rs.stepStatsMutex.Unlock()
+	
+	// Return a copy of the map to avoid race conditions
+	result := make(map[string]*StepStats, len(rs.stepStats))
+	for k, v := range rs.stepStats {
+		result[k] = v
+	}
+	return result
+}
+
+// Methods to update step statistics
+func (rs *WorkerRuntimeState) SetStepActive(stepName string, active bool) {
+	rs.stepStatsMutex.Lock()
+	defer rs.stepStatsMutex.Unlock()
+	
+	if stats, exists := rs.stepStats[stepName]; exists {
+		stats.Active = active
+	}
+}
+
+func (rs *WorkerRuntimeState) RecordStepExecution(stepName string, success bool, output *string, errorMsg *string) {
+	rs.stepStatsMutex.Lock()
+	defer rs.stepStatsMutex.Unlock()
+	
+	if stats, exists := rs.stepStats[stepName]; exists {
+		now := time.Now()
+		stats.LastExecution = &now
+		stats.ExecutionCount++
+		if success {
+			stats.SuccessCount++
+		}
+		if output != nil {
+			// Truncate output if too long
+			truncated := *output
+			if len(truncated) > 500 {
+				truncated = truncated[:500] + "..."
+			}
+			stats.LastOutput = &truncated
+		}
+		if errorMsg != nil {
+			stats.LastError = errorMsg
+		}
+	}
+}
+
+// Method to update flow statistics
+func (rs *WorkerRuntimeState) RecordFlowExecution(success bool) {
+	now := time.Now()
+	rs.flowStats.LastExecution = &now
+	rs.flowStats.ExecutionCount++
+	if success {
+		rs.flowStats.SuccessCount++
+	}
+}
+
+// WorkerRuntime provides runtime functionality for a Worker, satisfying server interface requirements
+type WorkerRuntime struct {
 	*Worker
 	*WorkerRuntimeState
 }
 
-// NewWorkerImpl creates a new WorkerImpl with runtime functionality
-func NewWorkerImpl(w *Worker, settings WorkerSettings) *WorkerImpl {
+// NewWorkerRuntime creates a new WorkerRuntime with runtime functionality
+func NewWorkerRuntime(w *Worker, settings WorkerSettings) *WorkerRuntime {
 	runtimeState := w.InitRuntime(settings)
-	return &WorkerImpl{
+	return &WorkerRuntime{
 		Worker:             w,
 		WorkerRuntimeState: runtimeState,
 	}
 }
 
-// NewWorker creates a new WorkerImpl instance (alias for NewWorkerImpl for compatibility)
-func NewWorker(w *Worker, settings WorkerSettings) *WorkerImpl {
-	return NewWorkerImpl(w, settings)
-}
-
-// Server interface methods for WorkerImpl
+// Server interface methods for WorkerRuntime
 // These methods adapt the Worker and WorkerRuntimeState methods to match server expectations
 
 // Type returns the worker type based on effective settings (with server-compatible signature)
-func (wi *WorkerImpl) Type() string {
+func (wi *WorkerRuntime) Type() string {
 	return wi.Worker.Type(wi.effectiveSettings)
 }
 
 // Version returns worker version (with server-compatible signature)
-func (wi *WorkerImpl) Version(ctx context.Context) (string, error) {
+func (wi *WorkerRuntime) Version(ctx context.Context) (string, error) {
 	return wi.Worker.Version()
 }
 
 // IsAvailable checks if worker is available (with server-compatible signature)
-func (wi *WorkerImpl) IsAvailable(ctx context.Context) bool {
+func (wi *WorkerRuntime) IsAvailable(ctx context.Context) bool {
 	return wi.Worker.IsAvailable(wi.effectiveSettings)
 }
 
 // GetConfig returns the underlying Worker configuration
-func (wi *WorkerImpl) GetConfig() *Worker {
+func (wi *WorkerRuntime) GetConfig() *Worker {
 	return wi.Worker
+}
+
+// Additional methods for WorkerRuntime to support handler functionality
+func (wi *WorkerRuntime) GetFlowStats() FlowStats {
+	return wi.WorkerRuntimeState.GetFlowStats()
+}
+
+func (wi *WorkerRuntime) GetStepStats(stepName string) *StepStats {
+	return wi.WorkerRuntimeState.GetStepStats(stepName)
+}
+
+func (wi *WorkerRuntime) GetAllStepStats() map[string]*StepStats {
+	return wi.WorkerRuntimeState.GetAllStepStats()
+}
+
+func (wi *WorkerRuntime) SetStepActive(stepName string, active bool) {
+	wi.WorkerRuntimeState.SetStepActive(stepName, active)
+}
+
+func (wi *WorkerRuntime) RecordStepExecution(stepName string, success bool, output *string, errorMsg *string) {
+	wi.WorkerRuntimeState.RecordStepExecution(stepName, success, output, errorMsg)
+}
+
+func (wi *WorkerRuntime) RecordFlowExecution(success bool) {
+	wi.WorkerRuntimeState.RecordFlowExecution(success)
 }
