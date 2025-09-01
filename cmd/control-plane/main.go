@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"autoteam/internal/config"
-	"autoteam/internal/control-plane"
+	controlplane "autoteam/internal/control-plane"
 	"autoteam/internal/logger"
 
 	"github.com/joho/godotenv"
