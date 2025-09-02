@@ -1,7 +1,6 @@
 import React from "react";
 import {
   Show,
-  TextFieldComponent as TextField,
 } from "@refinedev/mui";
 import { useShow, useCustom } from "@refinedev/core";
 import {
@@ -14,6 +13,7 @@ import {
   Box,
   Alert,
   CircularProgress,
+  TextField,
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
@@ -79,14 +79,24 @@ export const WorkersShow = () => {
             <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
                 <TextField
-                  value={worker?.data?.id}
+                  value={worker?.data?.id || ""}
                   label="Worker ID"
+                  variant="outlined"
+                  fullWidth
+                  InputProps={{
+                    readOnly: true,
+                  }}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
                 <TextField
-                  value={worker?.data?.api_url}
+                  value={worker?.data?.api_url || ""}
                   label="API URL"
+                  variant="outlined"
+                  fullWidth
+                  InputProps={{
+                    readOnly: true,
+                  }}
                 />
               </Grid>
             </Grid>
@@ -139,12 +149,22 @@ export const WorkersShow = () => {
                   <TextField
                     value={statusData.data.version || "Unknown"}
                     label="Version"
+                    variant="outlined"
+                    fullWidth
+                    InputProps={{
+                      readOnly: true,
+                    }}
                   />
                 </Grid>
                 <Grid item xs={12} md={6}>
                   <TextField
                     value={statusData.data.uptime || "Unknown"}
                     label="Uptime"
+                    variant="outlined"
+                    fullWidth
+                    InputProps={{
+                      readOnly: true,
+                    }}
                   />
                 </Grid>
                 {statusData.data.config && (
@@ -153,12 +173,22 @@ export const WorkersShow = () => {
                       <TextField
                         value={statusData.data.config.agent_name || "Unknown"}
                         label="Agent Name"
+                        variant="outlined"
+                        fullWidth
+                        InputProps={{
+                          readOnly: true,
+                        }}
                       />
                     </Grid>
                     <Grid item xs={12} md={6}>
                       <TextField
                         value={statusData.data.config.github_user || "Unknown"}
                         label="GitHub User"
+                        variant="outlined"
+                        fullWidth
+                        InputProps={{
+                          readOnly: true,
+                        }}
                       />
                     </Grid>
                   </>
