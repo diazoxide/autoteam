@@ -159,8 +159,8 @@ func (f *FileOperations) ValidatePath(path string) error {
 }
 
 // CreateWorkerDirectoryStructure creates the complete directory structure for a worker
-func (f *FileOperations) CreateWorkerDirectoryStructure(workerName string) error {
-	workerDir := filepath.Join(config.WorkersDir, workerName)
+func (f *FileOperations) CreateWorkerDirectoryStructure(workersDir, workerName string) error {
+	workerDir := filepath.Join(workersDir, workerName)
 
 	// Create main worker directory - subdirectories will be created as needed by individual layers
 	if err := f.EnsureDirectory(workerDir, config.DirPerm); err != nil {

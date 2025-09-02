@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"time"
 
 	"autoteam/internal/worker"
 )
@@ -37,9 +39,20 @@ func (d *DebugAgent) Type() string {
 
 // Run executes the debug agent with the given prompt
 func (d *DebugAgent) Run(ctx context.Context, prompt string, options RunOptions) (*AgentOutput, error) {
+	randState := rand.Float32() < 0.5
+
+	time.Sleep(10 * time.Second)
+
+	if randState {
+		return &AgentOutput{
+			Stdout: fmt.Sprintf("Debug agent '%s' executed with prompt: %s", d.name, prompt),
+			Stderr: "",
+		}, nil
+	}
+
 	return &AgentOutput{
-		Stdout: fmt.Sprintf("Debug agent '%s' executed with prompt: %s", d.name, prompt),
-		Stderr: "",
+		Stdout: "",
+		Stderr: "Error happened",
 	}, nil
 }
 

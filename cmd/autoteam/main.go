@@ -45,6 +45,12 @@ func main() {
 				Usage:   "Set log level (debug, info, warn, error)",
 				Value:   "warn",
 			},
+			&cli.StringFlag{
+				Name:    "config-file",
+				Aliases: []string{"c"},
+				Usage:   "Path to configuration file",
+				Value:   "autoteam.yaml",
+			},
 		},
 		Commands: []*cli.Command{
 			{
@@ -95,10 +101,13 @@ func main() {
 
 func generateCommand(ctx context.Context, cmd *cli.Command) error {
 	log := logger.FromContext(ctx)
-	cfg := getConfigFromContext(ctx)
-	if cfg == nil {
-		log.Error("Config not available in context")
-		return fmt.Errorf("config not available in context")
+
+	// Load config
+	configFile := cmd.String("config-file")
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
+		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
 	}
 
 	log.Debug("Generating compose.yaml", zap.String("team_name", cfg.Settings.GetTeamName()))
@@ -115,11 +124,19 @@ func generateCommand(ctx context.Context, cmd *cli.Command) error {
 
 func upCommand(ctx context.Context, cmd *cli.Command) error {
 	log := logger.FromContext(ctx)
-	cfg := getConfigFromContext(ctx)
-	if cfg == nil {
-		log.Error("Config not available in context")
-		return fmt.Errorf("config not available in context")
+
+	// Load config using the specified config file
+	configFile := cmd.String("config-file")
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
+		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
 	}
+
+	log.Debug("Config loaded successfully",
+		zap.String("config_file", configFile),
+		zap.String("team_name", cfg.Settings.GetTeamName()),
+		zap.Bool("debug_enabled", cfg.Settings.GetDebug()))
 
 	// Find free ports for enabled workers
 	enabledWorkersWithSettings := cfg.GetEnabledWorkersWithEffectiveSettings()
@@ -177,7 +194,7 @@ func upCommand(ctx context.Context, cmd *cli.Command) error {
 		args = append(args, additionalArgs...)
 	}
 
-	if err := runDockerCompose(ctx, args...); err != nil {
+	if err := runDockerComposeWithConfig(ctx, cfg, args...); err != nil {
 		return fmt.Errorf("failed to start containers: %w", err)
 	}
 
@@ -206,10 +223,13 @@ func initCommand(ctx context.Context, cmd *cli.Command) error {
 
 func workersCommand(ctx context.Context, cmd *cli.Command) error {
 	log := logger.FromContext(ctx)
-	cfg := getConfigFromContext(ctx)
-	if cfg == nil {
-		log.Error("Config not available in context")
-		return fmt.Errorf("config not available in context")
+
+	// Load config
+	configFile := cmd.String("config-file")
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
+		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
 	}
 
 	fmt.Println("Workers configuration:")
@@ -251,7 +271,10 @@ func workersCommand(ctx context.Context, cmd *cli.Command) error {
 
 func runDockerCompose(ctx context.Context, args ...string) error {
 	cfg := getConfigFromContext(ctx)
+	return runDockerComposeWithConfig(ctx, cfg, args...)
+}
 
+func runDockerComposeWithConfig(ctx context.Context, cfg *config.Config, args ...string) error {
 	// Use the compose.yaml file from .autoteam directory
 	composeArgs := []string{"-f", config.ComposeFilePath}
 
@@ -291,32 +314,13 @@ func setupContextWithLogger(ctx context.Context, cmd *cli.Command) (context.Cont
 	)
 
 	// Skip loading config for init command as it creates the config file
-	// Check command line arguments since Before hook runs on root command
+	// For other commands, let them handle their own config loading
 	if len(os.Args) > 1 && os.Args[1] == "init" {
 		return ctx, nil
 	}
 
-	cfg, err := config.LoadConfig("autoteam.yaml")
-	if err != nil {
-		log.Error("Failed to load config", zap.Error(err))
-		return ctx, fmt.Errorf("failed to load config: %w", err)
-	}
-
-	// Check if debug is enabled in config and update log level if needed
-	if cfg.Settings.GetDebug() && logLevel != logger.DebugLevel {
-		logLevel = logger.DebugLevel
-		ctx, err = logger.SetupContext(ctx, logLevel)
-		if err != nil {
-			return ctx, fmt.Errorf("failed to update logger to debug level: %w", err)
-		}
-		log = logger.FromContext(ctx)
-		log.Debug("Updated log level to debug based on configuration")
-	}
-
-	log.Debug("Config loaded successfully",
-		zap.String("team_name", cfg.Settings.GetTeamName()),
-		zap.Bool("debug_enabled", cfg.Settings.GetDebug()))
-	return context.WithValue(ctx, configContextKey, cfg), nil
+	// For commands that need config, they will load it themselves with proper flag handling
+	return ctx, nil
 }
 
 // getConfigFromContext retrieves the config from context

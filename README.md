@@ -249,6 +249,7 @@ graph TB
 | ⚙️ **Configuration-Driven** | Define complex workflows in simple YAML |
 | 🔌 **Extensible Plugin System** | Add custom MCP servers and AI agents |
 | 📊 **Real-time Monitoring** | Track agent performance and workflow execution |
+| 🎛️ **Control Plane API** | Centralized worker management with Swagger UI |
 | 🔐 **Enterprise Security** | Role-based access control and secure credentials |  
 
 ## 🏗️ Architecture Overview
@@ -335,6 +336,12 @@ settings:
 autoteam up
 ```
 
+### 5. Monitor (Optional)
+```bash
+# Access control plane API at http://localhost:9090
+# View Swagger UI at http://localhost:9090/docs/
+```
+
 ## 📚 Documentation
 
 ### Getting Started
@@ -350,6 +357,7 @@ autoteam up
 
 ### Quick Links
 - [API Reference](https://pkg.go.dev/github.com/diazoxide/autoteam)
+- [Control Plane API](docs/control-plane.md)
 - [CLI Commands](docs/cli.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [FAQ](docs/faq.md)  

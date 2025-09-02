@@ -136,8 +136,8 @@ func TestGenerator_GenerateCompose(t *testing.T) {
 
 	// Verify worker directories were created
 	agentDirs := []string{
-		".autoteam/workers/dev1",
-		".autoteam/workers/arch1",
+		".autoteam/test-team/workers/dev1",
+		".autoteam/test-team/workers/arch1",
 	}
 
 	for _, dir := range agentDirs {
@@ -166,6 +166,9 @@ func TestGenerator_CreateWorkerDirectories(t *testing.T) {
 			{Name: "test1"},
 			{Name: "test2"},
 		},
+		Settings: worker.WorkerSettings{
+			TeamName: util.StringPtr("test-team"),
+		},
 	}
 
 	gen := New()
@@ -175,8 +178,8 @@ func TestGenerator_CreateWorkerDirectories(t *testing.T) {
 
 	// Verify directories were created
 	expectedDirs := []string{
-		".autoteam/workers/test1",
-		".autoteam/workers/test2",
+		".autoteam/test-team/workers/test1",
+		".autoteam/test-team/workers/test2",
 	}
 
 	for _, dir := range expectedDirs {

@@ -11,8 +11,13 @@ const (
 	// LocalBinPath is the local path where binaries are copied during generation
 	LocalBinPath = AutoTeamDir + "/bin"
 
-	// WorkersDir is the base directory for all worker-specific directories
-	WorkersDir = AutoTeamDir + "/workers"
+	// WorkersBaseDir is the base directory pattern for worker-specific directories
+	// Actual path will be: .autoteam/{team_name}/workers
+	WorkersBaseDir = AutoTeamDir + "/%s/workers"
+
+	// ControlPlaneBaseDir is the base directory pattern for control-plane config
+	// Actual path will be: .autoteam/{team_name}/control-plane
+	ControlPlaneBaseDir = AutoTeamDir + "/%s/control-plane"
 
 	// CodebaseSubdir is the subdirectory name for agent codebase
 	CodebaseSubdir = "codebase"
