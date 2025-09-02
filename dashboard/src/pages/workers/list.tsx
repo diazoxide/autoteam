@@ -10,6 +10,12 @@ import { Chip, Box, Typography } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 
+interface WorkerHealth {
+  worker_id: string;
+  status: string;
+  last_check?: string;
+}
+
 export const WorkersList = () => {
   const { dataGridProps } = useDataGrid({
     syncWithLocation: true,
@@ -60,7 +66,7 @@ export const WorkersList = () => {
       minWidth: 180,
       renderCell: ({ row }) => {
         const workerHealth = healthData?.data?.workers_health?.find(
-          (w: any) => w.worker_id === row.id
+          (w: WorkerHealth) => w.worker_id === row.id
         );
 
         if (workerHealth?.last_check) {
