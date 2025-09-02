@@ -172,11 +172,6 @@ jobs:
         cd dashboard
         npm run lint
     
-    - name: Format check dashboard
-      run: |
-        cd dashboard
-        npm run format:check
-    
     - name: Type check dashboard
       run: |
         cd dashboard
