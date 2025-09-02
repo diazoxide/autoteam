@@ -78,7 +78,11 @@ export const WorkersList = () => {
           );
         }
 
-        return <Typography variant="body2" color="textSecondary">Never</Typography>;
+        return (
+          <Typography variant="body2" color="textSecondary">
+            Never
+          </Typography>
+        );
       },
     },
     {
