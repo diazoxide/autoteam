@@ -63,3 +63,10 @@ settings:
 control_plane:
   enabled: true
   port: 9090
+
+# Dashboard configuration
+dashboard:
+  enabled: true
+  port: 8081
+  api_url: "http://localhost:9090"
+  title: "AutoTeam Dashboard (Debug)"

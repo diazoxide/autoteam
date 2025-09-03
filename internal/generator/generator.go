@@ -86,6 +86,13 @@ func (g *Generator) GenerateComposeWithPorts(cfg *config.Config, portAllocation 
 		}
 	}
 
+	// Build and copy dashboard binary if enabled
+	if cfg.Dashboard != nil && cfg.Dashboard.Enabled {
+		if err := g.buildDashboardBinary(); err != nil {
+			return fmt.Errorf("failed to build dashboard binary: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -205,6 +212,12 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 	if cfg.ControlPlane != nil && cfg.ControlPlane.Enabled {
 		controlPlaneService := g.generateControlPlaneService(cfg)
 		compose.Services["control-plane"] = controlPlaneService
+	}
+
+	// Add dashboard service if enabled
+	if cfg.Dashboard != nil && cfg.Dashboard.Enabled {
+		dashboardService := g.generateDashboardService(cfg)
+		compose.Services["dashboard"] = dashboardService
 	}
 
 	// Add custom services from configuration
@@ -500,4 +513,58 @@ func (g *Generator) generateControlPlaneConfig(cfg *config.Config, portAllocatio
 	}
 
 	return nil
+}
+
+// buildDashboardBinary builds the Linux dashboard binary and copies it to bin directory
+func (g *Generator) buildDashboardBinary() error {
+	targetBinaryPath := filepath.Join(config.LocalBinPath, "autoteam-dashboard")
+
+	// Try to copy from build/autoteam-dashboard-linux-amd64 first (cross-compiled)
+	linuxBinaryPath := "build/autoteam-dashboard-linux-amd64"
+	if g.fileOps.FileExists(linuxBinaryPath) {
+		return g.fileOps.CopyFile(linuxBinaryPath, targetBinaryPath)
+	}
+
+	// Fall back to current platform binary
+	if g.fileOps.FileExists("build/autoteam-dashboard") {
+		return g.fileOps.CopyFile("build/autoteam-dashboard", targetBinaryPath)
+	}
+
+	return fmt.Errorf("dashboard binary not found - please run 'make build-dashboard' or 'make build-all' first")
+}
+
+// generateDashboardService creates the Docker Compose service configuration for dashboard
+func (g *Generator) generateDashboardService(cfg *config.Config) map[string]interface{} {
+
+	// Determine API URL - default to control plane if available, otherwise use configured URL
+	apiUrl := cfg.Dashboard.APIUrl
+	if apiUrl == "" && cfg.ControlPlane != nil && cfg.ControlPlane.Enabled {
+		apiUrl = fmt.Sprintf("http://control-plane:%d", cfg.ControlPlane.Port)
+	}
+	if apiUrl == "" {
+		apiUrl = "http://localhost:9090" // fallback
+	}
+
+	service := map[string]interface{}{
+		"image": "alpine:latest",
+		"volumes": []string{
+			"./bin/autoteam-dashboard:/autoteam-dashboard:ro",
+		},
+		"environment": map[string]string{
+			"DASHBOARD_PORT":  fmt.Sprintf("%d", cfg.Dashboard.Port),
+			"API_URL":         apiUrl,
+			"DASHBOARD_TITLE": cfg.Dashboard.Title,
+		},
+		"entrypoint": []string{"/autoteam-dashboard"},
+		"ports": []string{
+			fmt.Sprintf("%d:%d", cfg.Dashboard.Port, cfg.Dashboard.Port),
+		},
+	}
+
+	// Add dependency on control-plane if it's enabled
+	if cfg.ControlPlane != nil && cfg.ControlPlane.Enabled {
+		service["depends_on"] = []string{"control-plane"}
+	}
+
+	return service
 }

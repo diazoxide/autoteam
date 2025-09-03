@@ -19,11 +19,75 @@ import routerBindings, {
 import { BrowserRouter, Outlet, Route, Routes } from "react-router";
 import { Header } from "./components/header";
 import { ColorModeContextProvider } from "./contexts/color-mode";
-import { controlPlaneDataProvider } from "./providers/dataProvider";
+import { ConfigProvider, useConfig } from "./providers/ConfigProvider";
+import { createControlPlaneDataProvider } from "./providers/dataProvider";
 import {
   WorkersList,
   WorkersShow,
 } from "./pages/workers";
+
+function AppContent() {
+  const { config } = useConfig();
+  const dataProvider = createControlPlaneDataProvider(config.apiUrl);
+
+  return (
+    <Refine
+      dataProvider={dataProvider}
+      notificationProvider={useNotificationProvider}
+      routerProvider={routerBindings}
+      authProvider={{
+        check: async () => ({ authenticated: true }),
+        login: async () => ({ success: true }),
+        logout: async () => ({ success: true }),
+        onError: async () => ({}),
+        getIdentity: async () => null,
+        getPermissions: async () => null,
+      }}
+      resources={[
+        {
+          name: "workers",
+          list: "/workers",
+          show: "/workers/show/:id",
+          meta: {
+            canDelete: false,
+            canCreate: false,
+            canEdit: false,
+          },
+        },
+      ]}
+      options={{
+        syncWithLocation: true,
+        warnWhenUnsavedChanges: true,
+        useNewQueryKeys: true,
+        projectId: "09tCO1-vnSeiH-EyLItM",
+      }}
+    >
+      <Routes>
+        <Route
+          element={
+            <ThemedLayoutV2 Header={() => <Header sticky />}>
+              <Outlet />
+            </ThemedLayoutV2>
+          }
+        >
+          <Route
+            index
+            element={<NavigateToResource resource="workers" />}
+          />
+          <Route path="/workers">
+            <Route index element={<WorkersList />} />
+            <Route path="show/:id" element={<WorkersShow />} />
+          </Route>
+          <Route path="*" element={<ErrorComponent />} />
+        </Route>
+      </Routes>
+
+      <RefineKbar />
+      <UnsavedChangesNotifier />
+      <DocumentTitleHandler />
+    </Refine>
+  );
+}
 
 function App() {
   return (
@@ -34,61 +98,9 @@ function App() {
           <GlobalStyles styles={{ html: { WebkitFontSmoothing: "auto" } }} />
           <RefineSnackbarProvider>
             <DevtoolsProvider>
-              <Refine
-                dataProvider={controlPlaneDataProvider}
-                notificationProvider={useNotificationProvider}
-                routerProvider={routerBindings}
-                authProvider={{
-                  check: async () => ({ authenticated: true }),
-                  login: async () => ({ success: true }),
-                  logout: async () => ({ success: true }),
-                  onError: async () => ({}),
-                  getIdentity: async () => null,
-                  getPermissions: async () => null,
-                }}
-                resources={[
-                  {
-                    name: "workers",
-                    list: "/workers",
-                    show: "/workers/show/:id",
-                    meta: {
-                      canDelete: false,
-                      canCreate: false,
-                      canEdit: false,
-                    },
-                  },
-                ]}
-                options={{
-                  syncWithLocation: true,
-                  warnWhenUnsavedChanges: true,
-                  useNewQueryKeys: true,
-                  projectId: "09tCO1-vnSeiH-EyLItM",
-                }}
-              >
-                <Routes>
-                  <Route
-                    element={
-                      <ThemedLayoutV2 Header={() => <Header sticky />}>
-                        <Outlet />
-                      </ThemedLayoutV2>
-                    }
-                  >
-                    <Route
-                      index
-                      element={<NavigateToResource resource="workers" />}
-                    />
-                    <Route path="/workers">
-                      <Route index element={<WorkersList />} />
-                      <Route path="show/:id" element={<WorkersShow />} />
-                    </Route>
-                    <Route path="*" element={<ErrorComponent />} />
-                  </Route>
-                </Routes>
-
-                <RefineKbar />
-                <UnsavedChangesNotifier />
-                <DocumentTitleHandler />
-              </Refine>
+              <ConfigProvider>
+                <AppContent />
+              </ConfigProvider>
               <DevtoolsPanel />
             </DevtoolsProvider>
           </RefineSnackbarProvider>
