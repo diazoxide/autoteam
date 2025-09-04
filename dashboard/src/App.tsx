@@ -19,7 +19,8 @@ import routerBindings, {
 import { BrowserRouter, Outlet, Route, Routes } from "react-router";
 import { Header } from "./components/header";
 import { ColorModeContextProvider } from "./contexts/color-mode";
-import { ConfigProvider, useConfig } from "./providers/ConfigProvider";
+import { ConfigProvider } from "./providers/ConfigProvider";
+import { useConfig } from "./hooks/useConfig";
 import { createControlPlaneDataProvider } from "./providers/dataProvider";
 import {
   WorkersList,

@@ -1,17 +1,17 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useEffect, useState, ReactNode } from 'react';
 import { Box, CircularProgress, Alert, Typography } from '@mui/material';
 
-interface Config {
+export interface Config {
   apiUrl: string;
   title?: string;
   version?: string;
 }
 
-interface ConfigContextType {
+export interface ConfigContextType {
   config: Config;
 }
 
-const ConfigContext = createContext<ConfigContextType | null>(null);
+export const ConfigContext = createContext<ConfigContextType | null>(null);
 
 interface ConfigProviderProps {
   children: ReactNode;
@@ -109,10 +109,3 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   );
 };
 
-export const useConfig = (): ConfigContextType => {
-  const context = useContext(ConfigContext);
-  if (!context) {
-    throw new Error('useConfig must be used within a ConfigProvider');
-  }
-  return context;
-};
