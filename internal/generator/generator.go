@@ -535,7 +535,6 @@ func (g *Generator) buildDashboardBinary() error {
 
 // generateDashboardService creates the Docker Compose service configuration for dashboard
 func (g *Generator) generateDashboardService(cfg *config.Config) map[string]interface{} {
-
 	// Determine API URL - default to control plane if available, otherwise use configured URL
 	apiUrl := cfg.Dashboard.APIUrl
 	if apiUrl == "" && cfg.ControlPlane != nil && cfg.ControlPlane.Enabled {

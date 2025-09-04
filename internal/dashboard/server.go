@@ -56,7 +56,6 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	
 	if err := json.NewEncoder(w).Encode(config); err != nil {
 		s.logger.Error("Failed to encode config", zap.Error(err))
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -89,9 +88,7 @@ func (s *Server) handleStatic() http.Handler {
 		}
 
 		// Remove leading slash for filesystem lookup
-		if strings.HasPrefix(path, "/") {
-			path = path[1:]
-		}
+		path = strings.TrimPrefix(path, "/")
 
 		// If path is empty (root), serve index.html
 		if path == "" {
@@ -110,7 +107,9 @@ func (s *Server) handleStatic() http.Handler {
 			defer indexFile.Close()
 
 			w.Header().Set("Content-Type", "text/html")
-			io.Copy(w, indexFile)
+			if _, err := io.Copy(w, indexFile); err != nil {
+				s.logger.Error("Failed to serve index.html", zap.Error(err))
+			}
 			return
 		}
 

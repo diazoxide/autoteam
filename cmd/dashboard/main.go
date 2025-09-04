@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 
 	"autoteam/internal/config"
 	"autoteam/internal/dashboard"
@@ -116,21 +115,4 @@ func runDashboard(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	return nil
-}
-
-// Helper functions for environment variable parsing
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
-		}
-	}
-	return defaultValue
-}
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }
