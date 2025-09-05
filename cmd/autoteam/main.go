@@ -10,7 +10,6 @@ import (
 	"autoteam/internal/config"
 	"autoteam/internal/generator"
 	"autoteam/internal/logger"
-	"autoteam/internal/ports"
 
 	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
@@ -138,48 +137,10 @@ func upCommand(ctx context.Context, cmd *cli.Command) error {
 		zap.String("team_name", cfg.Settings.GetTeamName()),
 		zap.Bool("debug_enabled", cfg.Settings.GetDebug()))
 
-	// Find free ports for enabled workers
-	enabledWorkersWithSettings := cfg.GetEnabledWorkersWithEffectiveSettings()
-	if len(enabledWorkersWithSettings) > 0 {
-		fmt.Printf("Finding free ports for %d workers...\n", len(enabledWorkersWithSettings))
-
-		portManager := ports.NewPortManager()
-		var serviceNames []string
-
-		// Get service names for enabled workers
-		for _, workerWithSettings := range enabledWorkersWithSettings {
-			serviceNames = append(serviceNames, workerWithSettings.Worker.GetNormalizedName())
-		}
-
-		// Allocate ports for all enabled worker services
-		portAllocation, err := portManager.AllocatePortsForServices(serviceNames)
-		if err != nil {
-			log.Error("Failed to allocate ports", zap.Error(err))
-			return fmt.Errorf("failed to allocate ports: %w", err)
-		}
-
-		// Display port allocations
-		fmt.Println("Port allocations:")
-		for serviceName, port := range portAllocation {
-			fmt.Printf("  %s: http://localhost:%d\n", serviceName, port)
-		}
-		fmt.Println()
-
-		// Generate compose with port allocations
-		log.Debug("Generating compose.yaml with dynamic ports", zap.String("team_name", cfg.Settings.GetTeamName()))
-		gen := generator.New()
-		if err := gen.GenerateComposeWithPorts(cfg, portAllocation); err != nil {
-			log.Error("Failed to generate compose.yaml", zap.Error(err))
-			return fmt.Errorf("failed to generate compose.yaml: %w", err)
-		}
-
-		log.Debug("Generated compose.yaml successfully with port mappings")
-		fmt.Println("Generated compose.yaml successfully with port mappings")
-	} else {
-		// No enabled agents, use regular generation
-		if err := generateCommand(ctx, cmd); err != nil {
-			return err
-		}
+	// Generate compose.yaml with fixed ports (all workers use 8080 internally)
+	log.Debug("Generating compose.yaml with fixed ports", zap.String("team_name", cfg.Settings.GetTeamName()))
+	if err := generateCommand(ctx, cmd); err != nil {
+		return err
 	}
 
 	fmt.Println("Starting containers...")
@@ -203,8 +164,22 @@ func upCommand(ctx context.Context, cmd *cli.Command) error {
 }
 
 func downCommand(ctx context.Context, cmd *cli.Command) error {
+	log := logger.FromContext(ctx)
+
+	// Load config using the specified config file
+	configFile := cmd.String("config-file")
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
+		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
+	}
+
+	log.Debug("Config loaded successfully for down command",
+		zap.String("config_file", configFile),
+		zap.String("team_name", cfg.Settings.GetTeamName()))
+
 	fmt.Println("Stopping containers...")
-	if err := runDockerCompose(ctx, "down"); err != nil {
+	if err := runDockerComposeWithConfig(ctx, cfg, "down"); err != nil {
 		return fmt.Errorf("failed to stop containers: %w", err)
 	}
 

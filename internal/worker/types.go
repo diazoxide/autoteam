@@ -173,7 +173,7 @@ func (s *WorkerSettings) GetHTTPPort() int {
 	if s.HTTPPort != nil {
 		return *s.HTTPPort
 	}
-	return 0 // default - dynamic port discovery
+	return 8080 // default fixed port for all workers
 }
 
 func (s *WorkerSettings) GetInstallDeps() bool {
