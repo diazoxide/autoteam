@@ -35,16 +35,16 @@ func TestStringPtr(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := StringPtr(tt.input)
-			
+
 			if result == nil {
 				t.Error("Expected pointer to be non-nil")
 				return
 			}
-			
+
 			if *result != tt.expected {
 				t.Errorf("Expected %s but got %s", tt.expected, *result)
 			}
-			
+
 			// Test that we get a real pointer (can modify original through pointer)
 			original := tt.input
 			ptr := StringPtr(original)
@@ -91,16 +91,16 @@ func TestIntPtr(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := IntPtr(tt.input)
-			
+
 			if result == nil {
 				t.Error("Expected pointer to be non-nil")
 				return
 			}
-			
+
 			if *result != tt.expected {
 				t.Errorf("Expected %d but got %d", tt.expected, *result)
 			}
-			
+
 			// Test that we get a real pointer
 			original := tt.input
 			ptr := IntPtr(original)
@@ -132,16 +132,16 @@ func TestBoolPtr(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := BoolPtr(tt.input)
-			
+
 			if result == nil {
 				t.Error("Expected pointer to be non-nil")
 				return
 			}
-			
+
 			if *result != tt.expected {
 				t.Errorf("Expected %t but got %t", tt.expected, *result)
 			}
-			
+
 			// Test that we get a real pointer
 			original := tt.input
 			ptr := BoolPtr(original)
@@ -158,11 +158,11 @@ func TestPointerIndependence(t *testing.T) {
 		str1 := "original"
 		ptr1 := StringPtr(str1)
 		ptr2 := StringPtr(str1)
-		
+
 		if ptr1 == ptr2 {
 			t.Error("Expected different pointer addresses")
 		}
-		
+
 		if *ptr1 != *ptr2 {
 			t.Error("Expected same values")
 		}
@@ -172,11 +172,11 @@ func TestPointerIndependence(t *testing.T) {
 		num1 := 42
 		ptr1 := IntPtr(num1)
 		ptr2 := IntPtr(num1)
-		
+
 		if ptr1 == ptr2 {
 			t.Error("Expected different pointer addresses")
 		}
-		
+
 		if *ptr1 != *ptr2 {
 			t.Error("Expected same values")
 		}
@@ -186,11 +186,11 @@ func TestPointerIndependence(t *testing.T) {
 		bool1 := true
 		ptr1 := BoolPtr(bool1)
 		ptr2 := BoolPtr(bool1)
-		
+
 		if ptr1 == ptr2 {
 			t.Error("Expected different pointer addresses")
 		}
-		
+
 		if *ptr1 != *ptr2 {
 			t.Error("Expected same values")
 		}

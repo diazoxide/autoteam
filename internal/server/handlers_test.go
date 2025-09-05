@@ -137,7 +137,7 @@ func TestGetStatus(t *testing.T) {
 	expectedFields := []string{
 		"status",
 		"mode",
-		"timestamp", 
+		"timestamp",
 		"agent",
 		"uptime",
 	}
@@ -202,7 +202,7 @@ func TestGetLogs(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	err := handlers.GetLogs(c)
-	
+
 	// This might return an error if no log files exist, which is OK for testing
 	if err != nil {
 		// Check if it's a "no log files found" type error, which is acceptable
@@ -265,7 +265,7 @@ func TestGetLogsWithQuery(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			err := handlers.GetLogs(c)
-			
+
 			if tt.expectError && err == nil {
 				t.Error("Expected error but got none")
 			}
@@ -302,7 +302,7 @@ func TestHandlersIntegration(t *testing.T) {
 
 			// Should not panic
 			err := endpoint.handler(c)
-			
+
 			// Error is acceptable for some endpoints (like logs if no files exist)
 			// but we shouldn't panic
 			if err != nil && rec.Code >= 500 {

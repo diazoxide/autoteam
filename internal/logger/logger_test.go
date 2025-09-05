@@ -9,10 +9,10 @@ import (
 
 func TestParseLogLevel(t *testing.T) {
 	tests := []struct {
-		name          string
-		input         string
-		expected      LogLevel
-		expectError   bool
+		name        string
+		input       string
+		expected    LogLevel
+		expectError bool
 	}{
 		{
 			name:        "debug level",
@@ -61,15 +61,15 @@ func TestParseLogLevel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := ParseLogLevel(tt.input)
-			
+
 			if tt.expectError && err == nil {
 				t.Error("Expected error but got none")
 			}
-			
+
 			if !tt.expectError && err != nil {
 				t.Errorf("Expected no error but got: %v", err)
 			}
-			
+
 			if result != tt.expected {
 				t.Errorf("Expected %s but got %s", tt.expected, result)
 			}
@@ -149,7 +149,7 @@ func TestNewLogger(t *testing.T) {
 			if err != nil {
 				t.Errorf("Expected no error but got: %v", err)
 			}
-			
+
 			if logger == nil {
 				t.Error("Expected logger to be created but got nil")
 			}
@@ -257,7 +257,7 @@ func TestSetupContext(t *testing.T) {
 func TestLoggerIntegration(t *testing.T) {
 	// Test full workflow: parse level -> create logger -> add to context -> retrieve
 	levelStr := "debug"
-	
+
 	level, err := ParseLogLevel(levelStr)
 	if err != nil {
 		t.Fatalf("Failed to parse log level: %v", err)
@@ -285,15 +285,15 @@ func TestLogLevelConstants(t *testing.T) {
 	if DebugLevel != "debug" {
 		t.Errorf("Expected DebugLevel to be 'debug', got %s", DebugLevel)
 	}
-	
+
 	if InfoLevel != "info" {
 		t.Errorf("Expected InfoLevel to be 'info', got %s", InfoLevel)
 	}
-	
+
 	if WarnLevel != "warn" {
 		t.Errorf("Expected WarnLevel to be 'warn', got %s", WarnLevel)
 	}
-	
+
 	if ErrorLevel != "error" {
 		t.Errorf("Expected ErrorLevel to be 'error', got %s", ErrorLevel)
 	}

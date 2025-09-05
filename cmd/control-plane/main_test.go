@@ -74,7 +74,7 @@ func TestRunControlPlaneWithInvalidConfig(t *testing.T) {
 	defer cancel()
 
 	err := runControlPlane(ctx, cmd)
-	
+
 	// Should return an error for nonexistent config file
 	if err == nil {
 		t.Error("Expected error for nonexistent config file, got nil")
@@ -92,7 +92,7 @@ func TestRunControlPlaneWithInvalidLogLevel(t *testing.T) {
 	defer cancel()
 
 	err := runControlPlane(ctx, cmd)
-	
+
 	// Should return an error for invalid log level
 	if err == nil {
 		t.Error("Expected error for invalid log level, got nil")

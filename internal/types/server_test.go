@@ -130,7 +130,7 @@ func TestLogsResponse(t *testing.T) {
 			Modified: timestamp.Add(-time.Hour),
 		},
 		{
-			Filename: "error.log", 
+			Filename: "error.log",
 			Size:     2048,
 			Modified: timestamp.Add(-30 * time.Minute),
 		},
@@ -307,8 +307,8 @@ func TestWorkerMetrics(t *testing.T) {
 // Test edge cases and error conditions
 func TestEmptyStructsSerialization(t *testing.T) {
 	tests := []struct {
-		name   string
-		value  interface{}
+		name  string
+		value interface{}
 	}{
 		{"Empty HealthResponse", HealthResponse{}},
 		{"Empty StatusResponse", StatusResponse{}},
