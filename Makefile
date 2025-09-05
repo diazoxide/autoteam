@@ -119,9 +119,9 @@ build-worker-all: $(PLATFORMS:=/worker) ## Build worker binaries for all platfor
 	@echo "$(GREEN)✓ All worker builds completed in $(BUILD_DIR)/$(NC)"
 
 # Build for all platforms (main + worker + control-plane + dashboard binaries) - with parallel execution
-build-all: clean-build ## Build main, worker, control-plane, and dashboard binaries for all supported platforms
+build-all: clean-build dashboard-ui ## Build main, worker, control-plane, and dashboard binaries for all supported platforms
 	@echo "$(BLUE)Building all platforms in parallel...$(NC)"
-	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) $(PLATFORMS) $(PLATFORMS:=/worker) $(PLATFORMS:=/control-plane) $(PLATFORMS:=/dashboard)
+	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) $(PLATFORMS) $(PLATFORMS:=/worker) $(PLATFORMS:=/control-plane) $(PLATFORMS:=/dashboard-no-ui)
 	@echo "$(GREEN)✓ All builds completed in $(BUILD_DIR)/$(NC)"
 
 # Build for macOS platforms - with parallel execution
@@ -172,6 +172,16 @@ $(PLATFORMS:=/dashboard):
 	@$(MAKE) dashboard-ui
 	$(eval GOOS := $(word 1,$(subst /, ,$(subst /dashboard,,$@))))
 	$(eval GOARCH := $(word 2,$(subst /, ,$(subst /dashboard,,$@))))
+	$(eval BINARY := $(BUILD_DIR)/$(DASHBOARD_BINARY_NAME)-$(GOOS)-$(GOARCH))
+	@echo "$(PURPLE)Building dashboard for $(GOOS)/$(GOARCH)...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o $(BINARY) $(DASHBOARD_MAIN_PATH)
+	@echo "$(GREEN)  ✓ $(BINARY)$(NC)"
+
+# Individual dashboard platform targets (without UI build - assumes UI already built)
+$(PLATFORMS:=/dashboard-no-ui):
+	$(eval GOOS := $(word 1,$(subst /, ,$(subst /dashboard-no-ui,,$@))))
+	$(eval GOARCH := $(word 2,$(subst /, ,$(subst /dashboard-no-ui,,$@))))
 	$(eval BINARY := $(BUILD_DIR)/$(DASHBOARD_BINARY_NAME)-$(GOOS)-$(GOARCH))
 	@echo "$(PURPLE)Building dashboard for $(GOOS)/$(GOARCH)...$(NC)"
 	@mkdir -p $(BUILD_DIR)
