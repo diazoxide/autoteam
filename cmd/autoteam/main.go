@@ -203,8 +203,22 @@ func upCommand(ctx context.Context, cmd *cli.Command) error {
 }
 
 func downCommand(ctx context.Context, cmd *cli.Command) error {
+	log := logger.FromContext(ctx)
+
+	// Load config using the specified config file
+	configFile := cmd.String("config-file")
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
+		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
+	}
+
+	log.Debug("Config loaded successfully for down command",
+		zap.String("config_file", configFile),
+		zap.String("team_name", cfg.Settings.GetTeamName()))
+
 	fmt.Println("Stopping containers...")
-	if err := runDockerCompose(ctx, "down"); err != nil {
+	if err := runDockerComposeWithConfig(ctx, cfg, "down"); err != nil {
 		return fmt.Errorf("failed to stop containers: %w", err)
 	}
 
