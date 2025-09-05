@@ -185,9 +185,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 
 		// Workers use internal port 8080 but are not exposed externally
 		// Remove any existing external port mappings to keep workers private
-		if _, hasExternalPorts := serviceConfig["ports"]; hasExternalPorts {
-			delete(serviceConfig, "ports")
-		}
+		delete(serviceConfig, "ports")
 
 		compose.Services[serviceName] = serviceConfig
 	}

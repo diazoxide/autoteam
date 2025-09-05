@@ -301,7 +301,7 @@ func TestGenerator_FixedPortGeneration(t *testing.T) {
 		t.Fatalf("Failed to parse generated compose.yaml: %v", err)
 	}
 
-	// Verify no external port mappings exist
+	// Verify no external port mappings exist (ports key should be completely removed)
 	for serviceName, serviceInterface := range compose.Services {
 		service := serviceInterface.(map[string]interface{})
 		if _, hasExternalPorts := service["ports"]; hasExternalPorts {
