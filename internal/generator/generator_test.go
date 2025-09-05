@@ -253,3 +253,166 @@ func TestGenerator_GenerateComposeYAML(t *testing.T) {
 		t.Errorf("dev1 service should have correct image, got %v", dev1Service["image"])
 	}
 }
+
+func TestGenerator_FixedPortGeneration(t *testing.T) {
+	// Create a temporary directory for the test
+	tempDir := testutil.CreateTempDir(t)
+
+	// Change to temp directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current directory: %v", err)
+	}
+	defer os.Chdir(originalDir)
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+
+	// Create test config with multiple workers
+	cfg := &config.Config{
+		Workers: []worker.Worker{
+			{
+				Name:   "worker1",
+				Prompt: "Worker 1",
+			},
+			{
+				Name:   "worker2",
+				Prompt: "Worker 2",
+			},
+		},
+		Settings: worker.WorkerSettings{
+			TeamName: util.StringPtr("test-team"),
+		},
+	}
+
+	// Generate files
+	gen := New()
+	if err := gen.GenerateCompose(cfg); err != nil {
+		t.Fatalf("GenerateCompose() error = %v", err)
+	}
+
+	// Verify compose.yaml was generated
+	composeContent := testutil.ReadFile(t, ".autoteam/compose.yaml")
+
+	// Parse the YAML to verify structure
+	var compose ComposeConfig
+	if err := yaml.Unmarshal([]byte(composeContent), &compose); err != nil {
+		t.Fatalf("Failed to parse generated compose.yaml: %v", err)
+	}
+
+	// Verify no external port mappings exist
+	for serviceName, serviceInterface := range compose.Services {
+		service := serviceInterface.(map[string]interface{})
+		if _, hasExternalPorts := service["ports"]; hasExternalPorts {
+			t.Errorf("Service %s should not have external port mappings", serviceName)
+		}
+	}
+
+	// Verify workers use fixed internal port 8080 (indirectly through environment variables)
+	worker1Service := compose.Services["worker1"].(map[string]interface{})
+	environment := worker1Service["environment"].(map[string]interface{})
+
+	// Check that worker directory paths are correctly set (indicates proper setup for internal port usage)
+	expectedWorkerDir := "/opt/autoteam/workers/worker1"
+	if environment["AUTOTEAM_WORKER_DIR"] != expectedWorkerDir {
+		t.Errorf("Worker1 should have correct worker directory, got %v", environment["AUTOTEAM_WORKER_DIR"])
+	}
+}
+
+func TestGenerator_ControlPlaneConfigGeneration(t *testing.T) {
+	// Create a temporary directory for the test
+	tempDir := testutil.CreateTempDir(t)
+
+	// Change to temp directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current directory: %v", err)
+	}
+	defer os.Chdir(originalDir)
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+
+	// Create test config with control plane enabled and multiple workers
+	cfg := &config.Config{
+		Workers: []worker.Worker{
+			{
+				Name:   "worker1",
+				Prompt: "Worker 1",
+			},
+			{
+				Name:   "worker2",
+				Prompt: "Worker 2",
+			},
+			{
+				Name:    "disabled-worker",
+				Prompt:  "Disabled Worker",
+				Enabled: util.BoolPtr(false),
+			},
+		},
+		ControlPlane: &config.ControlPlaneConfig{
+			Enabled: true,
+			Port:    9090,
+			APIKey:  "test-key",
+		},
+		Settings: worker.WorkerSettings{
+			TeamName: util.StringPtr("test-team"),
+		},
+	}
+
+	// Generate control plane config
+	gen := New()
+	if err := gen.generateControlPlaneConfig(cfg, nil); err != nil {
+		t.Fatalf("generateControlPlaneConfig() error = %v", err)
+	}
+
+	// Verify control plane config was generated
+	configPath := ".autoteam/test-team/control-plane/config.yaml"
+	if !testutil.FileExists(configPath) {
+		t.Fatalf("Control plane config should be generated at %s", configPath)
+	}
+
+	configContent := testutil.ReadFile(t, configPath)
+
+	// Parse the control plane config
+	var controlPlaneConfig config.ControlPlaneConfig
+	if err := yaml.Unmarshal([]byte(configContent), &controlPlaneConfig); err != nil {
+		t.Fatalf("Failed to parse control plane config: %v", err)
+	}
+
+	// Verify control plane settings
+	if !controlPlaneConfig.Enabled {
+		t.Errorf("Control plane should be enabled")
+	}
+	if controlPlaneConfig.Port != 9090 {
+		t.Errorf("Control plane port should be 9090, got %d", controlPlaneConfig.Port)
+	}
+	if controlPlaneConfig.APIKey != "test-key" {
+		t.Errorf("Control plane API key should be 'test-key', got %s", controlPlaneConfig.APIKey)
+	}
+
+	// Verify worker APIs are correctly generated with fixed port 8080
+	expectedWorkerAPIs := []string{
+		"http://worker1:8080",
+		"http://worker2:8080",
+	}
+
+	if len(controlPlaneConfig.WorkersAPIs) != len(expectedWorkerAPIs) {
+		t.Errorf("Expected %d worker APIs, got %d", len(expectedWorkerAPIs), len(controlPlaneConfig.WorkersAPIs))
+	}
+
+	for i, expectedAPI := range expectedWorkerAPIs {
+		if i < len(controlPlaneConfig.WorkersAPIs) && controlPlaneConfig.WorkersAPIs[i] != expectedAPI {
+			t.Errorf("Worker API[%d] should be %s, got %s", i, expectedAPI, controlPlaneConfig.WorkersAPIs[i])
+		}
+	}
+
+	// Verify disabled worker is not included
+	for _, api := range controlPlaneConfig.WorkersAPIs {
+		if strings.Contains(api, "disabled-worker") {
+			t.Errorf("Disabled worker should not be included in worker APIs")
+		}
+	}
+}

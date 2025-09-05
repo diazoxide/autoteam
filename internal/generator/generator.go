@@ -183,26 +183,10 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 			serviceConfig["entrypoint"] = []string{"/opt/autoteam/bin/entrypoint.sh"}
 		}
 
-		// Add port mapping if ports are allocated
-		if portAllocation != nil {
-			if port, hasPort := portAllocation[serviceName]; hasPort {
-				// Use same port for both host and container (dynamic port discovery)
-				portMappings := []string{fmt.Sprintf("%d:%d", port, port)}
-
-				// Merge with existing ports if any
-				if existingPorts, ok := serviceConfig["ports"]; ok {
-					if portSlice, ok := existingPorts.([]string); ok {
-						portMappings = append(portMappings, portSlice...)
-					} else if portInterface, ok := existingPorts.([]interface{}); ok {
-						for _, p := range portInterface {
-							if portStr, ok := p.(string); ok {
-								portMappings = append(portMappings, portStr)
-							}
-						}
-					}
-				}
-				serviceConfig["ports"] = portMappings
-			}
+		// Workers use internal port 8080 but are not exposed externally
+		// Remove any existing external port mappings to keep workers private
+		if _, hasExternalPorts := serviceConfig["ports"]; hasExternalPorts {
+			delete(serviceConfig, "ports")
 		}
 
 		compose.Services[serviceName] = serviceConfig
@@ -479,17 +463,13 @@ func (g *Generator) generateControlPlaneConfig(cfg *config.Config, portAllocatio
 		return fmt.Errorf("failed to create control-plane config directory %s: %w", controlPlaneDir, err)
 	}
 
-	// Build worker API URLs from enabled workers and their allocated ports
+	// Build worker API URLs from enabled workers using fixed port 8080
 	var workersAPIs []string
-	if portAllocation != nil {
-		for _, worker := range cfg.Workers {
-			if worker.IsEnabled() {
-				serviceName := worker.GetNormalizedName()
-				if port, hasPort := portAllocation[serviceName]; hasPort {
-					workerURL := fmt.Sprintf("http://%s:%d", serviceName, port)
-					workersAPIs = append(workersAPIs, workerURL)
-				}
-			}
+	for _, worker := range cfg.Workers {
+		if worker.IsEnabled() {
+			serviceName := worker.GetNormalizedName()
+			workerURL := fmt.Sprintf("http://%s:8080", serviceName)
+			workersAPIs = append(workersAPIs, workerURL)
 		}
 	}
 
