@@ -26,6 +26,14 @@ settings:
         Test
       output: |
         Test
+    - name: other-job-1
+      type: debug
+      depends_on: [ start ]
+      args: [ ]
+      input: |
+        Test
+      output: |
+        Test
     - name: mid-job-1
       type: debug
       depends_on: [start]

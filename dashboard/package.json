@@ -18,6 +18,7 @@
     "@refinedev/react-hook-form": "^4.8.14",
     "@refinedev/react-router": "^1.0.0",
     "@refinedev/simple-rest": "^5.0.1",
+    "@xyflow/react": "^12.8.4",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-hook-form": "^7.30.0",

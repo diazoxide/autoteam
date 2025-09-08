@@ -8,6 +8,9 @@ export const createControlPlaneDataProvider = (apiUrl: string): DataProvider => 
     getList: async ({ resource }) => {
       if (resource === "workers") {
         const response = await fetch(`${apiUrl}/workers`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const data = await response.json();
         
         return {
@@ -23,6 +26,9 @@ export const createControlPlaneDataProvider = (apiUrl: string): DataProvider => 
     getOne: async ({ resource, id }) => {
       if (resource === "workers") {
         const response = await fetch(`${apiUrl}/workers/${id}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const data = await response.json();
         
         return {
@@ -33,13 +39,16 @@ export const createControlPlaneDataProvider = (apiUrl: string): DataProvider => 
       throw new Error(`Resource ${resource} not supported`);
     },
 
-    // Get worker health status
+    // Get multiple workers
     getMany: async ({ resource, ids }) => {
       if (resource === "workers") {
         const workers = await Promise.all(
           ids.map(async (id) => {
             try {
               const response = await fetch(`${apiUrl}/workers/${id}`);
+              if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+              }
               const data = await response.json();
               return data.worker;
             } catch (error) {
@@ -57,20 +66,7 @@ export const createControlPlaneDataProvider = (apiUrl: string): DataProvider => 
       throw new Error(`Resource ${resource} not supported`);
     },
 
-    // Not implemented for read-only API
-    create: async () => {
-      throw new Error("Create operation not supported by control plane API");
-    },
-
-    update: async () => {
-      throw new Error("Update operation not supported by control plane API");
-    },
-
-    deleteOne: async () => {
-      throw new Error("Delete operation not supported by control plane API");
-    },
-
-    // Custom method to get worker health
+    // Custom method for API endpoints
     custom: async ({ url, method = "GET" }) => {
       const response = await fetch(`${apiUrl}${url}`, {
         method,
@@ -83,7 +79,23 @@ export const createControlPlaneDataProvider = (apiUrl: string): DataProvider => 
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      
+      // Return data in consistent format
+      return { data };
+    },
+
+    // Not implemented for read-only API
+    create: async () => {
+      throw new Error("Create operation not supported by control plane API");
+    },
+
+    update: async () => {
+      throw new Error("Update operation not supported by control plane API");
+    },
+
+    deleteOne: async () => {
+      throw new Error("Delete operation not supported by control plane API");
     },
   };
 };

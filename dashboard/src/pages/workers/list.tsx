@@ -44,36 +44,15 @@ export const WorkersList = () => {
       flex: 1,
     },
     {
-      field: "status",
-      headerName: "Health Status",
-      minWidth: 120,
-      renderCell: ({ row }) => {
-        const isReachable = row.status === "reachable";
-
-        return (
-          <Chip
-            icon={isReachable ? <CheckCircleIcon /> : <ErrorIcon />}
-            label={isReachable ? "Reachable" : "Unreachable"}
-            color={isReachable ? "success" : "error"}
-            variant="outlined"
-          />
-        );
-      },
-    },
-    {
-      field: "last_seen",
-      headerName: "Last Seen",
+      field: "last_check",
+      headerName: "Last Check",
       minWidth: 180,
       renderCell: ({ row }) => {
-        const workerHealth = healthData?.data?.workers_health?.find(
-          (w: WorkerHealth) => w.worker_id === row.id
-        );
-
-        if (workerHealth?.last_check) {
-          const lastSeen = new Date(workerHealth.last_check);
+        if (row.last_check) {
+          const lastCheck = new Date(row.last_check);
           return (
             <Typography variant="body2">
-              {lastSeen.toLocaleString()}
+              {lastCheck.toLocaleString()}
             </Typography>
           );
         }
@@ -82,6 +61,34 @@ export const WorkersList = () => {
           <Typography variant="body2" color="textSecondary">
             Never
           </Typography>
+        );
+      },
+    },
+    {
+      field: "health_status",
+      headerName: "Health Status",
+      minWidth: 150,
+      renderCell: ({ row }) => {
+        const workersHealth = healthData?.data?.workers_health || {};
+        const workerStatus = workersHealth[row.id];
+
+        if (workerStatus) {
+          return (
+            <Chip
+              icon={workerStatus === "reachable" ? <CheckCircleIcon /> : <ErrorIcon />}
+              label={workerStatus === "reachable" ? "Healthy" : "Unhealthy"}
+              color={workerStatus === "reachable" ? "success" : "error"}
+              size="small"
+            />
+          );
+        }
+
+        return (
+          <Chip
+            label="Unknown"
+            color="default"
+            size="small"
+          />
         );
       },
     },
