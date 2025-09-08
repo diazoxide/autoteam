@@ -39,7 +39,23 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
   flowStepsLoading,
 }) => {
   const [viewType, setViewType] = useState<'list' | 'tree'>('list');
-  const getStepIcon = (step: any) => {
+
+  // Define proper types for step data
+  interface StepData {
+    name: string;
+    type: string;
+    enabled: boolean;
+    active: boolean;
+    depends_on?: string[];
+    execution_count: number;
+    success_count: number;
+    last_execution?: string;
+    last_execution_success?: boolean;
+    last_error?: string;
+    last_output?: string;
+  }
+
+  const getStepIcon = (step: StepData) => {
     if (step.active) {
       return (
         <Box

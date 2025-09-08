@@ -11,7 +11,6 @@ import {
 } from "@mui/material";
 import InfoIcon from "@mui/icons-material/Info";
 import SettingsIcon from "@mui/icons-material/Settings";
-import CodeIcon from "@mui/icons-material/Code";
 import FlowIcon from "@mui/icons-material/AccountTree";
 import MetricsIcon from "@mui/icons-material/Analytics";
 import LogsIcon from "@mui/icons-material/Description";
@@ -68,7 +67,7 @@ export const WorkersShow = () => {
   });
 
   // Get worker flow
-  const { data: flowData, isLoading: flowLoading } = useCustom({
+  const { data: flowData } = useCustom({
     url: `/workers/${id}/flow`,
     method: "get",
     queryOptions: {
