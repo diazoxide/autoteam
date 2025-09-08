@@ -1,3 +1,2 @@
-# Temporarily allow dist files for CI
-# dist/*
-# !dist/.gitkeep
+dist/*
+!dist/.gitkeep
