@@ -14,11 +14,12 @@ import {
   Alert,
 } from "@mui/material";
 import MetricsIcon from "@mui/icons-material/Analytics";
+import type { MetricsResponse, FlowResponse } from "../../types/api";
 
 interface WorkerMetricsProps {
-  metricsData: any;
+  metricsData: MetricsResponse | undefined;
   metricsLoading: boolean;
-  flowData: any;
+  flowData: FlowResponse | undefined;
 }
 
 export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
@@ -44,8 +45,8 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
     return <CircularProgress />;
   }
 
-  const metrics = metricsData?.data || {};
-  const flowMetrics = flowData?.data?.flow || {};
+  const metrics = metricsData?.metrics || {};
+  const flowMetrics = flowData?.flow || {};
 
   return (
     <Stack spacing={3}>
@@ -57,7 +58,7 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
             <Grid item xs={12} sm={6} md={3}>
               <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h4" color="primary">
-                  {flowMetrics.execution_count || 0}
+                  {(flowMetrics as any)?.execution_count || 0}
                 </Typography>
                 <Typography variant="body2">Total Executions</Typography>
               </Paper>
@@ -65,7 +66,7 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
             <Grid item xs={12} sm={6} md={3}>
               <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h4" color="success.main">
-                  {Math.round((flowMetrics.success_rate || 0) * 100)}%
+                  {Math.round(((flowMetrics as any)?.success_rate || 0) * 100)}%
                 </Typography>
                 <Typography variant="body2">Success Rate</Typography>
               </Paper>
@@ -73,7 +74,7 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
             <Grid item xs={12} sm={6} md={3}>
               <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h4" color="info.main">
-                  {flowMetrics.total_steps || 0}
+                  {(flowMetrics as any)?.total_steps || 0}
                 </Typography>
                 <Typography variant="body2">Total Steps</Typography>
               </Paper>
@@ -81,7 +82,7 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
             <Grid item xs={12} sm={6} md={3}>
               <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h4" color="warning.main">
-                  {flowMetrics.enabled_steps || 0}
+                  {(flowMetrics as any)?.enabled_steps || 0}
                 </Typography>
                 <Typography variant="body2">Enabled Steps</Typography>
               </Paper>
@@ -103,103 +104,41 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
                       Uptime
                     </Typography>
                     <Chip 
-                      label={formatUptime(metrics.uptime)} 
+                      label={metrics.uptime || "N/A"} 
                       color="success" 
                     />
                   </Box>
                   
-                  {metrics.memory_usage && (
-                    <Box>
-                      <Typography variant="subtitle2" gutterBottom>
-                        Memory Usage
-                      </Typography>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <LinearProgress
-                          variant="determinate"
-                          value={metrics.memory_usage.percent || 0}
-                          sx={{ flexGrow: 1, height: 8 }}
-                          color={
-                            (metrics.memory_usage.percent || 0) > 80
-                              ? "error"
-                              : (metrics.memory_usage.percent || 0) > 60
-                              ? "warning"
-                              : "primary"
-                          }
-                        />
-                        <Typography variant="body2">
-                          {metrics.memory_usage.percent || 0}%
-                        </Typography>
-                      </Stack>
-                      <Typography variant="body2" color="textSecondary">
-                        {formatBytes(metrics.memory_usage.used)} / {formatBytes(metrics.memory_usage.total)}
-                      </Typography>
-                    </Box>
-                  )}
-                  
-                  {metrics.cpu_usage && (
-                    <Box>
-                      <Typography variant="subtitle2" gutterBottom>
-                        CPU Usage
-                      </Typography>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <LinearProgress
-                          variant="determinate"
-                          value={metrics.cpu_usage || 0}
-                          sx={{ flexGrow: 1, height: 8 }}
-                          color={
-                            metrics.cpu_usage > 80
-                              ? "error"
-                              : metrics.cpu_usage > 60
-                              ? "warning"
-                              : "primary"
-                          }
-                        />
-                        <Typography variant="body2">
-                          {metrics.cpu_usage || 0}%
-                        </Typography>
-                      </Stack>
-                    </Box>
-                  )}
+                  <Box>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Average Execution Time
+                    </Typography>
+                    <Chip 
+                      label={metrics.avg_execution_time || "N/A"} 
+                      color="info" 
+                    />
+                  </Box>
                 </Stack>
               </Grid>
 
               <Grid item xs={12} sm={6}>
                 <Stack spacing={2}>
-                  {metrics.disk_usage && (
-                    <Box>
-                      <Typography variant="subtitle2" gutterBottom>
-                        Disk Usage
-                      </Typography>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <LinearProgress
-                          variant="determinate"
-                          value={metrics.disk_usage.percent || 0}
-                          sx={{ flexGrow: 1, height: 8 }}
-                          color={
-                            (metrics.disk_usage.percent || 0) > 80
-                              ? "error"
-                              : (metrics.disk_usage.percent || 0) > 60
-                              ? "warning"
-                              : "primary"
-                          }
-                        />
-                        <Typography variant="body2">
-                          {metrics.disk_usage.percent || 0}%
-                        </Typography>
-                      </Stack>
-                      <Typography variant="body2" color="textSecondary">
-                        {formatBytes(metrics.disk_usage.used)} / {formatBytes(metrics.disk_usage.total)}
-                      </Typography>
-                    </Box>
-                  )}
+                  <Box>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Last Activity
+                    </Typography>
+                    <Typography variant="body2">
+                      {metrics.last_activity ? new Date(metrics.last_activity).toLocaleString() : "N/A"}
+                    </Typography>
+                  </Box>
 
-                  {flowMetrics.last_execution && (
+                  {(flowMetrics as any)?.last_execution && (
                     <Box>
                       <Typography variant="subtitle2" gutterBottom>
                         Last Execution
                       </Typography>
                       <Typography variant="body2">
-                        {new Date(flowMetrics.last_execution).toLocaleString()}
+                        {new Date((flowMetrics as any)?.last_execution).toLocaleString()}
                       </Typography>
                     </Box>
                   )}

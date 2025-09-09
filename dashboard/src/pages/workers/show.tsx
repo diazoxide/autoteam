@@ -107,7 +107,7 @@ export const WorkersShow = () => {
         {/* Tab Panels */}
         <TabPanel value={activeTab} index={0}>
           <WorkerOverview
-            worker={worker}
+            worker={worker as any}
             healthData={healthData}
             statusData={statusData}
             flowStepsData={flowStepsData}

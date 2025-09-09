@@ -14,13 +14,20 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PauseIcon from "@mui/icons-material/Pause";
+import type {
+  Worker,
+  HealthResponse,
+  StatusResponse,
+  FlowStepsResponse,
+  MetricsResponse,
+} from "../../types/api";
 
 interface WorkerOverviewProps {
-  worker: any;
-  healthData: any;
-  statusData: any;
-  flowStepsData: any;
-  metricsData: any;
+  worker: { data?: Worker } | undefined;
+  healthData: HealthResponse | undefined;
+  statusData: StatusResponse | undefined;
+  flowStepsData: FlowStepsResponse | undefined;
+  metricsData: MetricsResponse | undefined;
   healthLoading: boolean;
   statusLoading: boolean;
 }
@@ -60,7 +67,7 @@ export const WorkerOverview: React.FC<WorkerOverviewProps> = ({
       case "failed":
         return <ErrorIcon />;
       default:
-        return statusData?.data?.active ? <PlayArrowIcon /> : <PauseIcon />;
+        return statusData?.status === "running" ? <PlayArrowIcon /> : <PauseIcon />;
     }
   };
 
@@ -79,14 +86,14 @@ export const WorkerOverview: React.FC<WorkerOverviewProps> = ({
               </Typography>
               <Stack direction="row" spacing={1}>
                 <Chip
-                  icon={getStatusIcon(healthData?.data?.status)}
-                  label={healthData?.data?.status || "Unknown"}
-                  color={getStatusColor(healthData?.data?.status) as any}
+                  icon={getStatusIcon(healthData?.status || "unknown")}
+                  label={healthData?.status || "Unknown"}
+                  color={getStatusColor(healthData?.status || "unknown") as any}
                   size="medium"
                 />
                 <Chip
-                  label={statusData?.data?.active ? "Active" : "Inactive"}
-                  color={statusData?.data?.active ? "success" : "default"}
+                  label={statusData?.status === "running" ? "Active" : "Inactive"}
+                  color={statusData?.status === "running" ? "success" : "default"}
                   size="medium"
                 />
               </Stack>
@@ -100,7 +107,7 @@ export const WorkerOverview: React.FC<WorkerOverviewProps> = ({
         <Grid item xs={12} sm={3}>
           <Paper sx={{ p: 2, textAlign: "center", bgcolor: "success.light", color: "white" }}>
             <Typography variant="h6">
-              {healthLoading ? "..." : healthData?.data?.status || "Unknown"}
+              {healthLoading ? "..." : healthData?.status || "Unknown"}
             </Typography>
             <Typography variant="body2">Health Status</Typography>
           </Paper>
@@ -108,21 +115,21 @@ export const WorkerOverview: React.FC<WorkerOverviewProps> = ({
         <Grid item xs={12} sm={3}>
           <Paper sx={{ p: 2, textAlign: "center", bgcolor: "primary.light", color: "white" }}>
             <Typography variant="h6">
-              {statusLoading ? "..." : statusData?.data?.active ? "Active" : "Inactive"}
+              {statusLoading ? "..." : statusData?.status === "running" ? "Active" : "Inactive"}
             </Typography>
             <Typography variant="body2">Worker Status</Typography>
           </Paper>
         </Grid>
         <Grid item xs={12} sm={3}>
           <Paper sx={{ p: 2, textAlign: "center", bgcolor: "info.light", color: "white" }}>
-            <Typography variant="h6">{flowStepsData?.data?.steps?.length || "0"}</Typography>
+            <Typography variant="h6">{flowStepsData?.steps?.length || "0"}</Typography>
             <Typography variant="body2">Flow Steps</Typography>
           </Paper>
         </Grid>
         <Grid item xs={12} sm={3}>
           <Paper sx={{ p: 2, textAlign: "center", bgcolor: "warning.light", color: "white" }}>
             <Typography variant="h6">
-              {metricsData?.data?.uptime ? `${Math.round(metricsData.data.uptime / 3600)}h` : "N/A"}
+              {metricsData?.metrics?.uptime || "N/A"}
             </Typography>
             <Typography variant="body2">Uptime</Typography>
           </Paper>

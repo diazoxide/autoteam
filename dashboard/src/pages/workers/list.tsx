@@ -47,16 +47,16 @@ export const WorkersList = () => {
         if (row.last_check) {
           const lastCheck = new Date(row.last_check);
           return (
-            <Typography variant="body2">
+            <>
               {lastCheck.toLocaleString()}
-            </Typography>
+            </>
           );
         }
 
         return (
-          <Typography variant="body2" color="textSecondary">
+          <>
             Never
-          </Typography>
+          </>
         );
       },
     },
