@@ -173,7 +173,7 @@ func (s *WorkerSettings) GetHTTPPort() int {
 	if s.HTTPPort != nil {
 		return *s.HTTPPort
 	}
-	return 0 // default - dynamic port discovery
+	return 8080 // default fixed port for all workers
 }
 
 func (s *WorkerSettings) GetInstallDeps() bool {
@@ -206,13 +206,14 @@ func (s *WorkerSettings) GetDebug() bool {
 
 // StepStats tracks execution statistics for a single flow step
 type StepStats struct {
-	Enabled        bool       `json:"enabled"`
-	Active         bool       `json:"active"`
-	LastExecution  *time.Time `json:"last_execution,omitempty"`
-	ExecutionCount int        `json:"execution_count"`
-	SuccessCount   int        `json:"success_count"`
-	LastOutput     *string    `json:"last_output,omitempty"`
-	LastError      *string    `json:"last_error,omitempty"`
+	Enabled              bool       `json:"enabled"`
+	Active               bool       `json:"active"`
+	LastExecution        *time.Time `json:"last_execution,omitempty"`
+	LastExecutionSuccess *bool      `json:"last_execution_success,omitempty"`
+	ExecutionCount       int        `json:"execution_count"`
+	SuccessCount         int        `json:"success_count"`
+	LastOutput           *string    `json:"last_output,omitempty"`
+	LastError            *string    `json:"last_error,omitempty"`
 }
 
 // FlowStats tracks overall flow execution statistics
@@ -359,10 +360,20 @@ func (rs *WorkerRuntimeState) RecordStepExecution(stepName string, success bool,
 	if stats, exists := rs.stepStats[stepName]; exists {
 		now := time.Now()
 		stats.LastExecution = &now
+		stats.LastExecutionSuccess = &success
 		stats.ExecutionCount++
+
 		if success {
 			stats.SuccessCount++
+			// Clear last error on successful execution
+			stats.LastError = nil
+		} else {
+			// Only set error if execution failed
+			if errorMsg != nil {
+				stats.LastError = errorMsg
+			}
 		}
+
 		if output != nil {
 			// Truncate output if too long
 			truncated := *output
@@ -370,9 +381,6 @@ func (rs *WorkerRuntimeState) RecordStepExecution(stepName string, success bool,
 				truncated = truncated[:500] + "..."
 			}
 			stats.LastOutput = &truncated
-		}
-		if errorMsg != nil {
-			stats.LastError = errorMsg
 		}
 	}
 }

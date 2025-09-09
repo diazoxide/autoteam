@@ -21,6 +21,7 @@ type Config struct {
 	Settings     worker.WorkerSettings             `yaml:"settings"`
 	MCPServers   map[string]worker.MCPServer       `yaml:"mcp_servers,omitempty"`
 	ControlPlane *ControlPlaneConfig               `yaml:"control_plane,omitempty"`
+	Dashboard    *DashboardConfig                  `yaml:"dashboard,omitempty"`
 }
 
 // ControlPlaneConfig represents the control plane configuration
@@ -29,6 +30,14 @@ type ControlPlaneConfig struct {
 	Port        int      `yaml:"port"`
 	APIKey      string   `yaml:"api_key,omitempty"`
 	WorkersAPIs []string `yaml:"workers_apis,omitempty"` // Direct worker API URLs
+}
+
+// DashboardConfig represents the dashboard configuration
+type DashboardConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Port    int    `yaml:"port"`
+	APIUrl  string `yaml:"api_url,omitempty"`
+	Title   string `yaml:"title,omitempty"`
 }
 
 func LoadConfig(filename string) (*Config, error) {

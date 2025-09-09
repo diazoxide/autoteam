@@ -1,3 +1,6 @@
+# Major notes:
+- **IMPORTANT** Always Double check before agree with me
+
 # Project Instructions for Claude
 
 ## Commit Message Guidelines

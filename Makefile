@@ -11,9 +11,11 @@ GO_VERSION := $(shell go version | awk '{print $$3}')
 BINARY_NAME := autoteam
 WORKER_BINARY_NAME := autoteam-worker
 CONTROL_PLANE_BINARY_NAME := autoteam-control-plane
+DASHBOARD_BINARY_NAME := autoteam-dashboard
 MAIN_PATH := ./cmd/autoteam
 WORKER_MAIN_PATH := ./cmd/worker
 CONTROL_PLANE_MAIN_PATH := ./cmd/control-plane
+DASHBOARD_MAIN_PATH := ./cmd/dashboard
 BUILD_DIR := build
 DIST_DIR := dist
 
@@ -36,6 +38,8 @@ GO_SOURCES := $(shell find . -name "*.go" -not -path "./vendor/*" -not -path "./
 MAIN_SOURCES := $(shell find $(MAIN_PATH) -name "*.go")
 WORKER_SOURCES := $(shell find $(WORKER_MAIN_PATH) -name "*.go")
 CONTROL_PLANE_SOURCES := $(shell find $(CONTROL_PLANE_MAIN_PATH) -name "*.go")
+DASHBOARD_SOURCES := $(shell find $(DASHBOARD_MAIN_PATH) -name "*.go")
+DASHBOARD_UI_SOURCES := $(shell find dashboard/src -name "*.tsx" -o -name "*.ts" -o -name "*.json" 2>/dev/null || true)
 
 # Platform and architecture combinations
 PLATFORMS := \
@@ -94,10 +98,17 @@ $(BUILD_DIR)/$(CONTROL_PLANE_BINARY_NAME): $(GO_SOURCES) $(CONTROL_PLANE_SOURCES
 	$(GO_BUILD) -o $@ $(CONTROL_PLANE_MAIN_PATH)
 	@echo "$(GREEN)✓ Built: $@$(NC)"
 
+# Build dashboard UI first, then Go binary
+$(BUILD_DIR)/$(DASHBOARD_BINARY_NAME): $(GO_SOURCES) $(DASHBOARD_SOURCES) $(DASHBOARD_UI_SOURCES) | $(BUILD_DIR) dashboard-ui
+	@echo "$(BLUE)Building $(DASHBOARD_BINARY_NAME) for current platform...$(NC)"
+	$(GO_BUILD) -o $@ $(DASHBOARD_MAIN_PATH)
+	@echo "$(GREEN)✓ Built: $@$(NC)"
+
 # Convenience targets
 build: $(BUILD_DIR)/$(BINARY_NAME) ## Build binary for current platform
 build-worker: $(BUILD_DIR)/$(WORKER_BINARY_NAME) ## Build worker binary for current platform
 build-control-plane: $(BUILD_DIR)/$(CONTROL_PLANE_BINARY_NAME) ## Build control-plane binary for current platform
+build-dashboard: $(BUILD_DIR)/$(DASHBOARD_BINARY_NAME) ## Build dashboard binary for current platform
 
 # Ensure build directory exists
 $(BUILD_DIR):
@@ -107,10 +118,10 @@ $(BUILD_DIR):
 build-worker-all: $(PLATFORMS:=/worker) ## Build worker binaries for all platforms
 	@echo "$(GREEN)✓ All worker builds completed in $(BUILD_DIR)/$(NC)"
 
-# Build for all platforms (main + worker binaries) - with parallel execution
-build-all: clean-build ## Build main, worker, and control-plane binaries for all supported platforms
+# Build for all platforms (main + worker + control-plane + dashboard binaries) - with parallel execution
+build-all: clean-build dashboard-ui ## Build main, worker, control-plane, and dashboard binaries for all supported platforms
 	@echo "$(BLUE)Building all platforms in parallel...$(NC)"
-	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) $(PLATFORMS) $(PLATFORMS:=/worker) $(PLATFORMS:=/control-plane)
+	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) $(PLATFORMS) $(PLATFORMS:=/worker) $(PLATFORMS:=/control-plane) $(PLATFORMS:=/dashboard-no-ui)
 	@echo "$(GREEN)✓ All builds completed in $(BUILD_DIR)/$(NC)"
 
 # Build for macOS platforms - with parallel execution
@@ -154,6 +165,27 @@ $(PLATFORMS:=/control-plane):
 	@echo "$(PURPLE)Building control-plane for $(GOOS)/$(GOARCH)...$(NC)"
 	@mkdir -p $(BUILD_DIR)
 	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o $(BINARY) $(CONTROL_PLANE_MAIN_PATH)
+	@echo "$(GREEN)  ✓ $(BINARY)$(NC)"
+
+# Individual dashboard platform targets (requires UI build first)
+$(PLATFORMS:=/dashboard):
+	@$(MAKE) dashboard-ui
+	$(eval GOOS := $(word 1,$(subst /, ,$(subst /dashboard,,$@))))
+	$(eval GOARCH := $(word 2,$(subst /, ,$(subst /dashboard,,$@))))
+	$(eval BINARY := $(BUILD_DIR)/$(DASHBOARD_BINARY_NAME)-$(GOOS)-$(GOARCH))
+	@echo "$(PURPLE)Building dashboard for $(GOOS)/$(GOARCH)...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o $(BINARY) $(DASHBOARD_MAIN_PATH)
+	@echo "$(GREEN)  ✓ $(BINARY)$(NC)"
+
+# Individual dashboard platform targets (without UI build - assumes UI already built)
+$(PLATFORMS:=/dashboard-no-ui):
+	$(eval GOOS := $(word 1,$(subst /, ,$(subst /dashboard-no-ui,,$@))))
+	$(eval GOARCH := $(word 2,$(subst /, ,$(subst /dashboard-no-ui,,$@))))
+	$(eval BINARY := $(BUILD_DIR)/$(DASHBOARD_BINARY_NAME)-$(GOOS)-$(GOARCH))
+	@echo "$(PURPLE)Building dashboard for $(GOOS)/$(GOARCH)...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o $(BINARY) $(DASHBOARD_MAIN_PATH)
 	@echo "$(GREEN)  ✓ $(BINARY)$(NC)"
 
 # Development mode builds
@@ -413,6 +445,35 @@ codegen: ## Generate API code from OpenAPI spec
 	@echo "$(BLUE)Copying OpenAPI spec for server embedding...$(NC)"
 	@cd internal/server && go generate .
 	@echo "$(GREEN)✓ Worker API code generated$(NC)"
+	@echo "$(BLUE)Generating TypeScript types for dashboard...$(NC)"
+	@if command -v npm >/dev/null 2>&1; then \
+		if [ -d "dashboard/node_modules" ]; then \
+			cd dashboard && npm run generate:types && \
+			echo "$(GREEN)✓ TypeScript types generated$(NC)"; \
+		else \
+			echo "$(YELLOW)⚠ npm dependencies not installed, skipping TypeScript generation$(NC)"; \
+			echo "$(YELLOW)Run 'cd dashboard && npm install' first$(NC)"; \
+		fi; \
+	else \
+		echo "$(YELLOW)⚠ npm not found, skipping TypeScript generation$(NC)"; \
+	fi
+
+# Dashboard UI build
+dashboard-ui: ## Build dashboard React application
+	@echo "$(BLUE)Building dashboard UI...$(NC)"
+	@if ! command -v npm >/dev/null 2>&1; then \
+		echo "$(RED)✗ npm is not installed. Please install Node.js and npm to build the dashboard.$(NC)"; \
+		exit 1; \
+	fi
+	@cd dashboard && \
+		echo "$(BLUE)Installing dependencies...$(NC)" && \
+		npm install && \
+		echo "$(BLUE)Building React app...$(NC)" && \
+		npm run build && \
+		echo "$(BLUE)Copying dist to embed location...$(NC)" && \
+		mkdir -p ../internal/dashboard/dist && \
+		cp -r dist/* ../internal/dashboard/dist/
+	@echo "$(GREEN)✓ Dashboard UI built and copied to embed location$(NC)"
 
 # Development workflow  
 check: fmt vet test ## Run all checks (format, vet, test)

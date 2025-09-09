@@ -236,3 +236,87 @@ echo "Integration test"`
 		t.Errorf(".autoteam/bin directory should be created")
 	}
 }
+
+func TestGenerateCommand_FixedPorts(t *testing.T) {
+	tempDir := testutil.CreateTempDir(t)
+
+	// Change to temp directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current directory: %v", err)
+	}
+	defer os.Chdir(originalDir)
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+
+	// Create test config with multiple workers
+	testConfig := `workers:
+  - name: "worker1"
+    prompt: "Worker 1"
+  - name: "worker2" 
+    prompt: "Worker 2"
+
+settings:
+  team_name: "test-team"
+  flow:
+    - name: step1
+      type: claude
+      input: "test"`
+
+	testutil.CreateTempFile(t, tempDir, "test-config.yaml", testConfig)
+
+	// Create CLI command with proper string flag for config file
+	cmd := &cli.Command{
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "config-file",
+				Value: "test-config.yaml",
+			},
+		},
+	}
+
+	// Set up the context and flag value
+	ctx := context.Background()
+
+	// Call generateCommand to ensure it works with fixed ports (no port allocation)
+	err = generateCommand(ctx, cmd)
+	if err != nil {
+		t.Fatalf("generateCommand() error = %v", err)
+	}
+
+	// Verify compose.yaml was generated
+	if !testutil.FileExists(".autoteam/compose.yaml") {
+		t.Fatalf("compose.yaml should be generated")
+	}
+
+	// Read and verify compose content doesn't contain external port mappings
+	composeContent := testutil.ReadFile(t, ".autoteam/compose.yaml")
+
+	// Parse YAML to check for absence of external ports
+	lines := strings.Split(composeContent, "\n")
+	for _, line := range lines {
+		// Should not contain port mapping syntax like "ports:" section with external mappings
+		if strings.Contains(line, "ports:") {
+			t.Errorf("Compose file should not contain external port mappings, found: %s", strings.TrimSpace(line))
+		}
+		// Also check for external port mapping syntax like "8080:8080"
+		if strings.Contains(line, ":8080") && !strings.Contains(line, "http://") {
+			t.Errorf("Compose file should not contain external port mappings, found: %s", strings.TrimSpace(line))
+		}
+	}
+
+	// Verify workers are created
+	if !strings.Contains(composeContent, "worker1:") {
+		t.Errorf("compose.yaml should contain worker1 service")
+	}
+	if !strings.Contains(composeContent, "worker2:") {
+		t.Errorf("compose.yaml should contain worker2 service")
+	}
+
+	// Verify worker environment variables are properly set (indicating internal port usage)
+	if !strings.Contains(composeContent, "AUTOTEAM_WORKER_NAME: worker1") {
+		t.Errorf("compose.yaml should contain worker1 environment variables")
+	}
+}
