@@ -447,8 +447,13 @@ codegen: ## Generate API code from OpenAPI spec
 	@echo "$(GREEN)✓ Worker API code generated$(NC)"
 	@echo "$(BLUE)Generating TypeScript types for dashboard...$(NC)"
 	@if command -v npm >/dev/null 2>&1; then \
-		cd dashboard && npm run generate:types && \
-		echo "$(GREEN)✓ TypeScript types generated$(NC)"; \
+		if [ -d "dashboard/node_modules" ]; then \
+			cd dashboard && npm run generate:types && \
+			echo "$(GREEN)✓ TypeScript types generated$(NC)"; \
+		else \
+			echo "$(YELLOW)⚠ npm dependencies not installed, skipping TypeScript generation$(NC)"; \
+			echo "$(YELLOW)Run 'cd dashboard && npm install' first$(NC)"; \
+		fi; \
 	else \
 		echo "$(YELLOW)⚠ npm not found, skipping TypeScript generation$(NC)"; \
 	fi
