@@ -45,7 +45,11 @@ interface FlowTreeVisualizationProps {
 }
 
 // Custom node component
-const StepNode = ({ data }: { data: any }) => {
+interface StepNodeData {
+  step: FlowStep;
+}
+
+const StepNode = ({ data }: { data: StepNodeData }) => {
   const theme = useTheme();
   const step: FlowStep = data.step;
   
@@ -192,15 +196,11 @@ export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ st
     
     // Calculate positions using a simple tree layout
     const levelMap = new Map<string, number>();
-    const processedSteps = new Set<string>();
-    
-    // Find root nodes (no dependencies)
-    const rootSteps = steps.filter(step => !step.depends_on || step.depends_on.length === 0);
     
     // Calculate levels for each step
     const calculateLevel = (stepName: string, visited = new Set<string>()): number => {
       if (visited.has(stepName)) return 0; // Prevent cycles
-      if (levelMap.has(stepName)) return levelMap.get(stepName)!;
+      if (levelMap.has(stepName)) return levelMap.get(stepName) || 0;
       
       visited.add(stepName);
       const step = stepMap.get(stepName);
@@ -224,7 +224,8 @@ export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ st
     const levelGroups = new Map<number, string[]>();
     levelMap.forEach((level, stepName) => {
       if (!levelGroups.has(level)) levelGroups.set(level, []);
-      levelGroups.get(level)!.push(stepName);
+      const group = levelGroups.get(level);
+      if (group) group.push(stepName);
     });
 
     // Create nodes with positions
@@ -233,7 +234,8 @@ export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ st
     
     levelGroups.forEach((stepNames, level) => {
       stepNames.forEach((stepName, index) => {
-        const step = stepMap.get(stepName)!;
+        const step = stepMap.get(stepName);
+        if (!step) return;
         const yOffset = (index - (stepNames.length - 1) / 2) * levelHeight;
         
         nodes.push({

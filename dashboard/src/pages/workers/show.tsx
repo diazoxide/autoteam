@@ -24,7 +24,28 @@ import {
   WorkerMetrics,
   WorkerLogs,
 } from "../../components/workers";
-import { TabPanel, a11yProps } from "../../components/common";
+import { TabPanel } from "../../components/common";
+import { a11yProps } from "../../utils/tabUtils";
+
+// Type interfaces for better type safety
+interface FlowStepData {
+  data?: {
+    steps?: Array<{
+      name: string;
+      type: string;
+      enabled: boolean;
+      active: boolean;
+      depends_on?: string[];
+      execution_count: number;
+      success_count: number;
+      last_execution?: string;
+      last_execution_success?: boolean;
+      last_error?: string;
+      last_output?: string;
+    }>;
+    [key: string]: unknown;
+  } | undefined;
+}
 
 export const WorkersShow = () => {
   const { id } = useParams();
@@ -150,14 +171,14 @@ export const WorkersShow = () => {
 
         <TabPanel value={activeTab} index={1}>
           <WorkerConfiguration
-            configData={configData}
+            configData={configData || { data: undefined }}
             configLoading={configLoading}
           />
         </TabPanel>
 
         <TabPanel value={activeTab} index={2}>
           <WorkerFlowSteps
-            flowStepsData={flowStepsData}
+            flowStepsData={flowStepsData as FlowStepData}
             flowStepsLoading={flowStepsLoading}
           />
         </TabPanel>

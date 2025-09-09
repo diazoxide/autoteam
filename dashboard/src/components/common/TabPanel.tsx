@@ -24,10 +24,3 @@ export const TabPanel: React.FC<TabPanelProps> = ({ children, value, index, ...o
     </div>
   );
 };
-
-export function a11yProps(index: number) {
-  return {
-    id: `worker-tab-${index}`,
-    'aria-controls': `worker-tabpanel-${index}`,
-  };
-}

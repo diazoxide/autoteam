@@ -20,8 +20,26 @@ import CodeIcon from "@mui/icons-material/Code";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 
+interface AgentConfig {
+  name?: string;
+  type?: string;
+  args?: string[];
+}
+
+interface PromptsConfig {
+  [key: string]: string;
+}
+
+interface ConfigData {
+  data?: {
+    agent?: AgentConfig;
+    prompts?: PromptsConfig;
+    [key: string]: unknown;
+  };
+}
+
 interface WorkerConfigurationProps {
-  configData: any;
+  configData: ConfigData;
   configLoading: boolean;
 }
 
@@ -61,13 +79,13 @@ export const WorkerConfiguration: React.FC<WorkerConfigurationProps> = ({
               <Stack spacing={2}>
                 <Box>
                   <Typography variant="subtitle2" gutterBottom>Name</Typography>
-                  <Chip label={configData.data.agent.name || "Unknown"} />
+                  <Chip label={configData.data.agent?.name || "Unknown"} />
                 </Box>
                 <Box>
                   <Typography variant="subtitle2" gutterBottom>Type</Typography>
-                  <Chip label={configData.data.agent.type || "Unknown"} color="primary" />
+                  <Chip label={configData.data.agent?.type || "Unknown"} color="primary" />
                 </Box>
-                {configData.data.agent.args && (
+                {configData.data.agent?.args && (
                   <Box>
                     <Typography variant="subtitle2" gutterBottom>Arguments</Typography>
                     <List dense>

@@ -10,11 +10,7 @@ import { Chip, Box, Typography } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 
-interface WorkerHealth {
-  worker_id: string;
-  status: string;
-  last_check?: string;
-}
+// Removed unused interface - using inline types as needed
 
 export const WorkersList = () => {
   const { dataGridProps } = useDataGrid({

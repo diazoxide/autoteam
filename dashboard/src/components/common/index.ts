@@ -1,1 +1,1 @@
-export { TabPanel, a11yProps } from './TabPanel';
+export { TabPanel } from './TabPanel';
