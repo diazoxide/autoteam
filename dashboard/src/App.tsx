@@ -18,6 +18,7 @@ import routerBindings, {
 } from "@refinedev/react-router";
 import { BrowserRouter, Outlet, Route, Routes } from "react-router";
 import { Header } from "./components/header";
+import { Title } from "./components/title";
 import { ColorModeContextProvider } from "./contexts/color-mode";
 import { ConfigProvider } from "./providers/ConfigProvider";
 import { useConfig } from "./hooks/useConfig";
@@ -66,7 +67,7 @@ function AppContent() {
       <Routes>
         <Route
           element={
-            <ThemedLayoutV2 Header={() => <Header sticky />}>
+            <ThemedLayoutV2 Header={() => <Header sticky />} Title={() => <Title />}>
               <Outlet />
             </ThemedLayoutV2>
           }

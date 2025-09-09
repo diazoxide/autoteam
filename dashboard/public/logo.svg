@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="800" height="200"
+     viewBox="0 0 800 200"
+     role="img" aria-labelledby="title desc">
+    <title id="title">AutoTeam logo</title>
+    <!-- Colors -->
+    <!-- dark gray for A and text -->
+    <!-- light gray for horns/lines and nodes -->
+    <defs>
+        <style type="text/css"><![CDATA[
+      .brand-dark { fill: #2F3437; }
+      .horn { stroke: #C9CDD0; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+      .node { fill: #C9CDD0; }
+      .word { fill: #2F3437; font-family: "Arial", "Helvetica", sans-serif; font-weight: 700; font-size: 128px; letter-spacing: 0.5px; }
+    ]]></style>
+    </defs>
+
+    <!-- Emblem group (A + horns) -->
+    <g id="emblem" transform="translate(60,0)">
+        <!-- Stylized "A" using outer shape with an inner cutout (evenodd) -->
+        <path class="brand-dark" fill-rule="evenodd" d="
+      M 0 160
+      L 40 55
+      L 95 160
+      L 60 160
+      L 50 140
+      L 30 140
+      L 10 160
+      Z
+
+      M 40 110
+      L 45 86
+      L 70 120
+      Z
+    " />
+
+        <!-- Horns: three lines emanating from near the A apex -->
+        <!-- lines -->
+        <path class="horn" d="M 40 48 L 10 18" />
+        <path class="horn" d="M 40 48 L 40 8" />
+        <path class="horn" d="M 40 48 L 70 18" />
+
+        <!-- nodes (circles) at horn ends -->
+        <circle class="node" cx="10" cy="18" r="7" />
+        <circle class="node" cx="40" cy="8" r="7" />
+        <circle class="node" cx="70" cy="18" r="7" />
+    </g>
+
+    <!-- Wordmark -->
+    <text class="word" x="170" y="135">autoteam</text>
+</svg>
