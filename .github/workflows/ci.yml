@@ -50,10 +50,7 @@ jobs:
         cache-dependency-path: dashboard/package-lock.json
     
     - name: Build dashboard for tests
-      run: |
-        cd dashboard
-        npm install
-        npm run build
+      run: make dashboard-ui
     
     - name: Run tests
       run: make test
@@ -103,10 +100,7 @@ jobs:
         cache-dependency-path: dashboard/package-lock.json
     
     - name: Build dashboard for tests
-      run: |
-        cd dashboard
-        npm install
-        npm run build
+      run: make dashboard-ui
     
     - name: Generate code
       run: make codegen
