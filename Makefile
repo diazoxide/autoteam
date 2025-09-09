@@ -445,6 +445,13 @@ codegen: ## Generate API code from OpenAPI spec
 	@echo "$(BLUE)Copying OpenAPI spec for server embedding...$(NC)"
 	@cd internal/server && go generate .
 	@echo "$(GREEN)✓ Worker API code generated$(NC)"
+	@echo "$(BLUE)Generating TypeScript types for dashboard...$(NC)"
+	@if command -v npm >/dev/null 2>&1; then \
+		cd dashboard && npm run generate:types && \
+		echo "$(GREEN)✓ TypeScript types generated$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠ npm not found, skipping TypeScript generation$(NC)"; \
+	fi
 
 # Dashboard UI build
 dashboard-ui: ## Build dashboard React application

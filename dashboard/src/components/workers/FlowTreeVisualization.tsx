@@ -25,42 +25,24 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
-
-interface FlowStep {
-  name: string;
-  type: string;
-  enabled: boolean;
-  active: boolean;
-  depends_on?: string[];
-  execution_count: number;
-  success_count: number;
-  last_execution?: string;
-  last_execution_success?: boolean;
-  last_error?: string;
-  last_output?: string;
-}
+import type { FlowStepInfo } from '../../types/api';
 
 interface FlowTreeVisualizationProps {
-  steps: FlowStep[];
+  steps: FlowStepInfo[];
 }
 
 // Custom node component
 interface StepNodeData {
-  step: FlowStep;
+  step: FlowStepInfo;
 }
 
 const StepNode = ({ data }: { data: StepNodeData }) => {
   const theme = useTheme();
-  const step: FlowStep = data.step;
+  const step: FlowStepInfo = data.step;
   
   const getStatusColor = () => {
     if (step.active) return theme.palette.primary.main;
     
-    // Use new API field if available
-    if (step.last_execution_success === true) return theme.palette.success.main;
-    if (step.last_execution_success === false) return theme.palette.error.main;
-    
-    // Fallback to old logic if new field is not available
     // Check for explicit success (last execution with no error)
     if (step.last_execution && !step.last_error) return theme.palette.success.main;
     if (step.last_error) return theme.palette.error.main;
@@ -70,18 +52,13 @@ const StepNode = ({ data }: { data: StepNodeData }) => {
   const getStatusIcon = () => {
     if (step.active) return <PlayArrowIcon sx={{ color: 'white', fontSize: 16 }} />;
     
-    // Use new API field if available
-    if (step.last_execution_success === true) return <CheckCircleIcon sx={{ color: 'white', fontSize: 16 }} />;
-    if (step.last_execution_success === false) return <ErrorIcon sx={{ color: 'white', fontSize: 16 }} />;
-    
-    // Fallback to old logic if new field is not available
     // Check for explicit success (last execution with no error)
     if (step.last_execution && !step.last_error) return <CheckCircleIcon sx={{ color: 'white', fontSize: 16 }} />;
     if (step.last_error) return <ErrorIcon sx={{ color: 'white', fontSize: 16 }} />;
     return <PauseIcon sx={{ color: 'white', fontSize: 16 }} />;
   };
 
-  const successRate = step.execution_count > 0 ? Math.round((step.success_count / step.execution_count) * 100) : 0;
+  const successRate = (step.execution_count ?? 0) > 0 ? Math.round(((step.success_count ?? 0) / (step.execution_count ?? 1)) * 100) : 0;
 
   return (
     <>
@@ -187,7 +164,7 @@ export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ st
 
   // Convert steps to nodes and edges
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
-    const stepMap = new Map<string, FlowStep>();
+    const stepMap = new Map<string, FlowStepInfo>();
     steps.forEach(step => stepMap.set(step.name, step));
 
     // Create nodes
@@ -210,7 +187,7 @@ export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ st
         return 0;
       }
       
-      const maxParentLevel = Math.max(...step.depends_on.map(dep => calculateLevel(dep, visited)));
+      const maxParentLevel = Math.max(...step.depends_on.map((dep: string) => calculateLevel(dep, visited)));
       const level = maxParentLevel + 1;
       levelMap.set(stepName, level);
       visited.delete(stepName);

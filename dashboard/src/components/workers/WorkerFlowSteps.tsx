@@ -28,40 +28,21 @@ import PauseIcon from "@mui/icons-material/Pause";
 import ListIcon from "@mui/icons-material/List";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import { FlowTreeVisualization } from "./FlowTreeVisualization";
-
-interface FlowStep {
-  name: string;
-  type: string;
-  enabled: boolean;
-  active: boolean;
-  depends_on?: string[];
-  execution_count: number;
-  success_count: number;
-  last_execution?: string;
-  last_execution_success?: boolean;
-  last_error?: string;
-  last_output?: string;
-}
-
-interface FlowStepData {
-  data?: {
-    steps?: FlowStep[];
-    [key: string]: unknown;
-  } | undefined;
-}
+import { useWorkerFlowSteps } from "../../hooks/api/useWorkerApi";
+import type { FlowStepInfo } from "../../types/api";
 
 interface WorkerFlowStepsProps {
-  flowStepsData: FlowStepData;
-  flowStepsLoading: boolean;
+  workerId: string;
 }
 
 export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
-  flowStepsData,
-  flowStepsLoading,
+  workerId,
 }) => {
   const [viewType, setViewType] = useState<'list' | 'tree'>('list');
+  
+  const { data: flowStepsData, isLoading: flowStepsLoading, error } = useWorkerFlowSteps(workerId);
 
-  const getStepIcon = (step: FlowStep) => {
+  const getStepIcon = (step: FlowStepInfo) => {
     if (step.active) {
       return (
         <Box
@@ -78,15 +59,6 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
       );
     }
     
-    // Use new API field if available
-    if (step.last_execution_success === true) {
-      return <CheckCircleIcon color="success" />;
-    }
-    if (step.last_execution_success === false) {
-      return <ErrorIcon color="error" />;
-    }
-    
-    // Fallback to old logic if new field is not available
     // Check for explicit success (last execution with no error)
     if (step.last_execution && !step.last_error) {
       return <CheckCircleIcon color="success" />;
@@ -97,20 +69,11 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
     return <PauseIcon color="disabled" />;
   };
 
-  const getStepStatus = (step: FlowStep) => {
+  const getStepStatus = (step: FlowStepInfo) => {
     if (step.active) {
       return { label: "Active", color: "primary" as const };
     }
     
-    // Use new API field if available
-    if (step.last_execution_success === true) {
-      return { label: "Success", color: "success" as const };
-    }
-    if (step.last_execution_success === false) {
-      return { label: "Error", color: "error" as const };
-    }
-    
-    // Fallback to old logic if new field is not available
     // Check for explicit success (last execution with no error)
     if (step.last_execution && !step.last_error) {
       return { label: "Success", color: "success" as const };
@@ -118,22 +81,30 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
     if (step.last_error) {
       return { label: "Error", color: "error" as const };
     }
-    if (step.execution_count > 0) {
+    if ((step.execution_count ?? 0) > 0) {
       return { label: "Completed", color: "info" as const };
     }
     return { label: "Pending", color: "default" as const };
   };
 
-  const calculateSuccessRate = (step: FlowStep) => {
-    if (step.execution_count === 0) return 0;
-    return Math.round((step.success_count / step.execution_count) * 100);
+  const calculateSuccessRate = (step: FlowStepInfo) => {
+    if ((step.execution_count ?? 0) === 0) return 0;
+    return Math.round(((step.success_count ?? 0) / (step.execution_count ?? 1)) * 100);
   };
 
   if (flowStepsLoading) {
     return <CircularProgress />;
   }
 
-  if (!flowStepsData?.data?.steps || flowStepsData?.data?.steps?.length === 0) {
+  if (error) {
+    return (
+      <Alert severity="error">
+        Failed to load flow steps
+      </Alert>
+    );
+  }
+
+  if (!flowStepsData?.steps || flowStepsData?.steps?.length === 0) {
     return (
       <Alert severity="info">
         No flow steps configured
@@ -149,7 +120,7 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
 
   const renderListView = () => (
     <List>
-      {(flowStepsData?.data?.steps || []).map((step: FlowStep, index: number) => {
+      {(flowStepsData?.steps || []).map((step: FlowStepInfo, index: number) => {
         const status = getStepStatus(step);
         const successRate = calculateSuccessRate(step);
 
@@ -219,7 +190,7 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
                 secondaryTypographyProps={{ component: 'div' }}
               />
             </ListItem>
-            {index < (flowStepsData?.data?.steps?.length || 0) - 1 && <Divider />}
+            {index < (flowStepsData?.steps?.length || 0) - 1 && <Divider />}
           </React.Fragment>
         );
       })}
@@ -227,7 +198,7 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
   );
 
   const renderTreeView = () => (
-    <FlowTreeVisualization steps={flowStepsData?.data?.steps || []} />
+    <FlowTreeVisualization steps={flowStepsData?.steps || []} />
   );
 
   return (

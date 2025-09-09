@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Show } from "@refinedev/mui";
-import { useShow, useCustom } from "@refinedev/core";
+import { useShow } from "@refinedev/core";
 import {
   Stack,
   Tabs,
@@ -26,26 +26,14 @@ import {
 } from "../../components/workers";
 import { TabPanel } from "../../components/common";
 import { a11yProps } from "../../utils/tabUtils";
-
-// Type interfaces for better type safety
-interface FlowStepData {
-  data?: {
-    steps?: Array<{
-      name: string;
-      type: string;
-      enabled: boolean;
-      active: boolean;
-      depends_on?: string[];
-      execution_count: number;
-      success_count: number;
-      last_execution?: string;
-      last_execution_success?: boolean;
-      last_error?: string;
-      last_output?: string;
-    }>;
-    [key: string]: unknown;
-  } | undefined;
-}
+import {
+  useWorkerHealth,
+  useWorkerStatus,
+  useWorkerConfig,
+  useWorkerFlow,
+  useWorkerFlowSteps,
+  useWorkerMetrics,
+} from "../../hooks/api/useWorkerApi";
 
 export const WorkersShow = () => {
   const { id } = useParams();
@@ -59,62 +47,22 @@ export const WorkersShow = () => {
   const { data: worker, isLoading, error } = queryResult;
 
   // Get worker health status
-  const { data: healthData, isLoading: healthLoading } = useCustom({
-    url: `/workers/${id}/health`,
-    method: "get",
-    queryOptions: {
-      refetchInterval: 5000,
-      enabled: !!id,
-    },
-  });
+  const { data: healthData, isLoading: healthLoading } = useWorkerHealth(id);
 
   // Get worker status details
-  const { data: statusData, isLoading: statusLoading } = useCustom({
-    url: `/workers/${id}/status`,
-    method: "get",
-    queryOptions: {
-      refetchInterval: 10000,
-      enabled: !!id,
-    },
-  });
+  const { data: statusData, isLoading: statusLoading } = useWorkerStatus(id);
 
   // Get worker configuration
-  const { data: configData, isLoading: configLoading } = useCustom({
-    url: `/workers/${id}/config`,
-    method: "get",
-    queryOptions: {
-      enabled: !!id,
-    },
-  });
+  const { data: configData, isLoading: configLoading } = useWorkerConfig(id);
 
   // Get worker flow
-  const { data: flowData } = useCustom({
-    url: `/workers/${id}/flow`,
-    method: "get",
-    queryOptions: {
-      enabled: !!id,
-    },
-  });
+  const { data: flowData } = useWorkerFlow(id);
 
   // Get worker flow steps
-  const { data: flowStepsData, isLoading: flowStepsLoading } = useCustom({
-    url: `/workers/${id}/flow/steps`,
-    method: "get",
-    queryOptions: {
-      refetchInterval: 5000, // Refresh every 5 seconds
-      enabled: !!id,
-    },
-  });
+  const { data: flowStepsData } = useWorkerFlowSteps(id);
 
   // Get worker metrics
-  const { data: metricsData, isLoading: metricsLoading } = useCustom({
-    url: `/workers/${id}/metrics`,
-    method: "get",
-    queryOptions: {
-      refetchInterval: 30000,
-      enabled: !!id,
-    },
-  });
+  const { data: metricsData, isLoading: metricsLoading } = useWorkerMetrics(id);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -171,16 +119,13 @@ export const WorkersShow = () => {
 
         <TabPanel value={activeTab} index={1}>
           <WorkerConfiguration
-            configData={configData || { data: undefined }}
+            configData={{ data: configData }}
             configLoading={configLoading}
           />
         </TabPanel>
 
         <TabPanel value={activeTab} index={2}>
-          <WorkerFlowSteps
-            flowStepsData={flowStepsData as FlowStepData}
-            flowStepsLoading={flowStepsLoading}
-          />
+          <WorkerFlowSteps workerId={id as string} />
         </TabPanel>
 
         <TabPanel value={activeTab} index={3}>
