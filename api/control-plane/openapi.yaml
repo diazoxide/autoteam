@@ -838,6 +838,12 @@ components:
         skip_when:
           type: string
           description: Skip condition template
+        dependency_policy:
+          type: string
+          description: Policy for handling dependency failures
+          enum: [fail_fast, all_success, all_complete, any_success]
+        retry:
+          $ref: '#/components/schemas/RetryConfig'
         enabled:
           type: boolean
           description: Whether the step is enabled
@@ -860,6 +866,48 @@ components:
         last_error:
           type: string
           description: Error from last execution
+        retry_attempt:
+          type: integer
+          description: Current retry attempt (0 = first try)
+        total_retries:
+          type: integer
+          description: Total retry attempts made
+        last_retry_time:
+          type: string
+          format: date-time
+          description: Timestamp of last retry attempt
+        next_retry_time:
+          type: string
+          format: date-time
+          description: Timestamp of next scheduled retry
+
+    RetryConfig:
+      type: object
+      description: Configuration for retry behavior
+      properties:
+        max_attempts:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 1
+          description: Maximum number of retry attempts
+        delay:
+          type: integer
+          minimum: 0
+          maximum: 300
+          default: 0
+          description: Initial delay between retries in seconds
+        backoff:
+          type: string
+          enum: [fixed, exponential, linear]
+          default: fixed
+          description: Backoff strategy for retry delays
+        max_delay:
+          type: integer
+          minimum: 1
+          maximum: 3600
+          default: 300
+          description: Maximum delay between retries in seconds
 
     ErrorResponse:
       type: object

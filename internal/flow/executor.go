@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"autoteam/internal/agent"
 	"autoteam/internal/logger"
@@ -29,10 +30,12 @@ type FlowExecutor struct {
 
 // StepOutput represents the output of a flow step
 type StepOutput struct {
-	Name    string
-	Stdout  string
-	Stderr  string
-	Skipped bool // Indicates if the step was skipped due to skip_when condition
+	Name      string
+	Stdout    string
+	Stderr    string
+	Skipped   bool // Indicates if the step was skipped due to skip_when condition
+	Failed    bool // Indicates if the step failed after all retries
+	Cancelled bool // Indicates if the step was cancelled due to fail_fast policy
 }
 
 // FlowResult represents the result of executing a flow
@@ -146,7 +149,14 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 
 		output, err := fe.executeStep(ctx, *step, stepOutputsCopy)
 		if err != nil {
-			return []StepOutput{{Name: step.Name, Stdout: "", Stderr: err.Error(), Skipped: false}}, err
+			return []StepOutput{{
+				Name:      step.Name,
+				Stdout:    "",
+				Stderr:    err.Error(),
+				Skipped:   false,
+				Failed:    true,
+				Cancelled: false,
+			}}, err
 		}
 
 		return []StepOutput{*output}, nil
@@ -172,7 +182,14 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 			step := fe.getStepByName(stepName)
 			if step == nil {
 				resultChan <- stepResult{
-					output: StepOutput{Name: stepName, Stdout: "", Stderr: "step not found", Skipped: false},
+					output: StepOutput{
+						Name:      stepName,
+						Stdout:    "",
+						Stderr:    "step not found",
+						Skipped:   false,
+						Failed:    true,
+						Cancelled: false,
+					},
 					err:    fmt.Errorf("step not found: %s", stepName),
 				}
 				return
@@ -196,7 +213,14 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 					zap.Error(err),
 					zap.String("error_type", fmt.Sprintf("%T", err)))
 				resultChan <- stepResult{
-					output: StepOutput{Name: step.Name, Stdout: "", Stderr: err.Error(), Skipped: false},
+					output: StepOutput{
+						Name:      step.Name,
+						Stdout:    "",
+						Stderr:    err.Error(),
+						Skipped:   false,
+						Failed:    true,
+						Cancelled: false,
+					},
 					err:    err,
 				}
 				return
@@ -225,7 +249,27 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 		}
 	}
 
-	return outputs, firstError
+	// Handle different dependency policies
+	if firstError != nil {
+		// Check if any step has fail_fast policy (default behavior)
+		for _, output := range outputs {
+			step := fe.getStepByName(output.Name)
+			if step != nil {
+				policy := step.DependencyPolicy
+				if policy == "" || policy == "fail_fast" {
+					// Fail fast - return immediately
+					return outputs, firstError
+				}
+			}
+		}
+		
+		// No fail_fast policy found, continue with partial results
+		lgr.Warn("Level completed with failures, but no fail_fast policies",
+			zap.Int("total_outputs", len(outputs)),
+			zap.Error(firstError))
+	}
+	
+	return outputs, nil
 }
 
 // validateFlow validates the flow configuration
@@ -383,7 +427,26 @@ func (fe *FlowExecutor) createAgents(ctx context.Context) error {
 func (fe *FlowExecutor) executeStep(ctx context.Context, step worker.FlowStep, previousOutputs map[string]StepOutput) (*StepOutput, error) {
 	lgr := logger.FromContext(ctx)
 
-	// Check skip condition first
+	// Check dependency policy first
+	canExecute, reason := fe.evaluateDependencyPolicy(step, previousOutputs)
+	if !canExecute {
+		lgr.Info("Step skipped due to dependency policy",
+			zap.String("step_name", step.Name),
+			zap.String("dependency_policy", step.DependencyPolicy),
+			zap.String("reason", reason))
+
+		// Return skipped output
+		return &StepOutput{
+			Name:      step.Name,
+			Stdout:    "",
+			Stderr:    reason,
+			Skipped:   true,
+			Failed:    false,
+			Cancelled: false,
+		}, nil
+	}
+
+	// Check skip condition
 	shouldSkip, err := fe.evaluateSkipCondition(ctx, step, previousOutputs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to evaluate skip condition for step %s: %w", step.Name, err)
@@ -396,10 +459,12 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step worker.FlowStep, p
 
 		// Return empty output for skipped step
 		return &StepOutput{
-			Name:    step.Name,
-			Stdout:  "",
-			Stderr:  "",
-			Skipped: true,
+			Name:      step.Name,
+			Stdout:    "",
+			Stderr:    "",
+			Skipped:   true,
+			Failed:    false,
+			Cancelled: false,
 		}, nil
 	}
 
@@ -456,15 +521,77 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step worker.FlowStep, p
 		WorkingDirectory: fmt.Sprintf("%s/%s", fe.WorkingDir, step.Name),
 	}
 
-	// Execute agent
-	output, err := stepAgent.Run(ctx, prompt, runOptions)
-	if err != nil {
+	// Determine retry configuration
+	maxAttempts := 1
+	if step.Retry != nil && step.Retry.MaxAttempts > 0 {
+		maxAttempts = step.Retry.MaxAttempts
+	}
+
+	// Execute agent with retry logic
+	var output *agent.AgentOutput
+	var lastErr error
+	
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Update retry statistics
+		if fe.WorkerRuntime != nil {
+			stats := fe.WorkerRuntime.GetStepStats(step.Name)
+			if stats != nil {
+				stats.RetryAttempt = attempt - 1
+				if attempt > 1 {
+					now := time.Now()
+					stats.LastRetryTime = &now
+					stats.TotalRetries = attempt - 1
+				}
+			}
+		}
+
+		// Log retry attempt
+		if attempt > 1 {
+			lgr.Info("Retrying step execution",
+				zap.String("step_name", step.Name),
+				zap.Int("attempt", attempt),
+				zap.Int("max_attempts", maxAttempts),
+				zap.String("backoff_strategy", step.Retry.Backoff))
+		}
+
+		// Execute the agent
+		output, lastErr = stepAgent.Run(ctx, prompt, runOptions)
+		if lastErr == nil {
+			// Success - exit retry loop
+			break
+		}
+
+		// If this isn't the last attempt, calculate delay and wait
+		if attempt < maxAttempts {
+			delay := fe.calculateRetryDelay(step.Retry, attempt)
+			if delay > 0 {
+				// Set next retry time for status tracking
+				if fe.WorkerRuntime != nil {
+					stats := fe.WorkerRuntime.GetStepStats(step.Name)
+					if stats != nil {
+						nextRetry := time.Now().Add(delay)
+						stats.NextRetryTime = &nextRetry
+					}
+				}
+
+				lgr.Info("Waiting before retry",
+					zap.String("step_name", step.Name),
+					zap.Duration("delay", delay),
+					zap.Int("next_attempt", attempt+1))
+
+				time.Sleep(delay)
+			}
+		}
+	}
+
+	// Check if all attempts failed
+	if lastErr != nil {
 		// Record failed execution statistics
 		if fe.WorkerRuntime != nil {
-			errorMsg := err.Error()
+			errorMsg := lastErr.Error()
 			fe.WorkerRuntime.RecordStepExecution(step.Name, false, nil, &errorMsg)
 		}
-		return nil, fmt.Errorf("agent execution failed for step %s: %w", step.Name, err)
+		return nil, fmt.Errorf("agent execution failed for step %s after %d attempts: %w", step.Name, maxAttempts, lastErr)
 	}
 
 	// Log agent completion
@@ -518,10 +645,12 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step worker.FlowStep, p
 	}
 
 	return &StepOutput{
-		Name:    step.Name,
-		Stdout:  stdout,
-		Stderr:  output.Stderr,
-		Skipped: false,
+		Name:      step.Name,
+		Stdout:    stdout,
+		Stderr:    output.Stderr,
+		Skipped:   false,
+		Failed:    false, // Success case
+		Cancelled: false,
 	}, nil
 }
 
@@ -604,4 +733,111 @@ func (fe *FlowExecutor) getStepByName(name string) *worker.FlowStep {
 		}
 	}
 	return nil
+}
+
+// evaluateDependencyPolicy checks if a step can execute based on its dependency policy
+func (fe *FlowExecutor) evaluateDependencyPolicy(step worker.FlowStep, completedSteps map[string]StepOutput) (bool, string) {
+	policy := step.DependencyPolicy
+	if policy == "" {
+		policy = "fail_fast" // Default policy
+	}
+
+	if len(step.DependsOn) == 0 {
+		return true, "" // No dependencies means step can run
+	}
+
+	// Check each dependency exists
+	var dependencyResults []StepOutput
+	for _, dep := range step.DependsOn {
+		if output, exists := completedSteps[dep]; exists {
+			dependencyResults = append(dependencyResults, output)
+		} else {
+			return false, fmt.Sprintf("dependency %s has not completed yet", dep)
+		}
+	}
+
+	switch policy {
+	case "fail_fast":
+		// Stop immediately if any dependency failed
+		for _, dep := range dependencyResults {
+			if dep.Failed {
+				return false, fmt.Sprintf("dependency %s failed and policy is fail_fast", dep.Name)
+			}
+		}
+		return true, ""
+
+	case "all_success":
+		// All dependencies must succeed
+		for _, dep := range dependencyResults {
+			if dep.Failed || dep.Skipped {
+				return false, fmt.Sprintf("dependency %s did not succeed (failed=%v, skipped=%v)", dep.Name, dep.Failed, dep.Skipped)
+			}
+		}
+		return true, ""
+
+	case "all_complete":
+		// All dependencies must be complete (success or failure doesn't matter)
+		// Since we already verified all dependencies exist in completedSteps, this is always true
+		return true, ""
+
+	case "any_success":
+		// At least one dependency must succeed
+		hasSuccess := false
+		for _, dep := range dependencyResults {
+			if !dep.Failed && !dep.Skipped {
+				hasSuccess = true
+				break
+			}
+		}
+		if !hasSuccess {
+			return false, "no dependencies succeeded and policy is any_success"
+		}
+		return true, ""
+
+	default:
+		// Unknown policy, default to fail_fast behavior
+		for _, dep := range dependencyResults {
+			if dep.Failed {
+				return false, fmt.Sprintf("dependency %s failed and unknown policy %s defaults to fail_fast", dep.Name, policy)
+			}
+		}
+		return true, ""
+	}
+}
+
+// calculateRetryDelay calculates the delay for a retry attempt based on the backoff strategy
+func (fe *FlowExecutor) calculateRetryDelay(retry *worker.RetryConfig, attemptNumber int) time.Duration {
+	if retry == nil || retry.Delay == 0 {
+		return 0
+	}
+
+	baseDelay := time.Duration(retry.Delay) * time.Second
+	maxDelay := time.Duration(retry.MaxDelay) * time.Second
+	if maxDelay == 0 {
+		maxDelay = time.Duration(300) * time.Second // Default max delay of 5 minutes
+	}
+
+	var delay time.Duration
+	switch retry.Backoff {
+	case "exponential":
+		// Exponential backoff: delay * 2^(attempt-1)
+		exp := 1
+		for i := 1; i < attemptNumber; i++ {
+			exp *= 2
+		}
+		delay = baseDelay * time.Duration(exp)
+	case "linear":
+		// Linear backoff: delay * attempt
+		delay = baseDelay * time.Duration(attemptNumber)
+	default: // "fixed" or empty
+		// Fixed delay
+		delay = baseDelay
+	}
+
+	// Cap at max delay
+	if delay > maxDelay {
+		delay = maxDelay
+	}
+
+	return delay
 }

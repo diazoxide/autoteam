@@ -22,50 +22,70 @@ settings:
     - name: start
       type: debug
       args: [ ]
+      dependency_policy: fail_fast
+      retry:
+        max_attempts: 3
+        delay: 2
+        backoff: exponential
+        max_delay: 30
       input: |
-        Test
+        Starting flow execution
       output: |
-        Test
+        Flow started successfully
     - name: other-job-1
       type: debug
       depends_on: [ start ]
+      dependency_policy: all_success
       args: [ ]
       input: |
-        Test
+        Processing job 1
       output: |
-        Test
+        Job 1 completed
     - name: mid-job-1
       type: debug
       depends_on: [start]
+      dependency_policy: all_success
+      retry:
+        max_attempts: 2
+        delay: 5
+        backoff: fixed
       args: [ ]
       input: |
-        Test
+        Processing mid-job 1
       output: |
-        Test
+        Mid-job 1 completed
     - name: mid-job-2
       type: debug
       depends_on: [ start ]
+      dependency_policy: all_success
       args: [ ]
       input: |
-        Test
+        Processing mid-job 2
       output: |
-        Test
+        Mid-job 2 completed
     - name: mid-job-3
       type: debug
       depends_on: [ start ]
+      dependency_policy: all_complete
+      retry:
+        max_attempts: 4
+        delay: 1
+        backoff: linear
+        max_delay: 10
       args: [ ]
       input: |
-        Test
+        Processing mid-job 3
       output: |
-        Test
+        Mid-job 3 completed
     - name: finish
       type: debug
       depends_on: [ mid-job-1, mid-job-2, mid-job-3 ]
+      dependency_policy: any_success
       args: [ ]
       input: |
-        Test
+        Finishing flow
       output: |
-        Test
+        Flow finished successfully
 
 # Control plane configuration
 control_plane:

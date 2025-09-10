@@ -504,6 +504,12 @@ export interface components {
             output?: string;
             /** @description Skip condition template */
             skip_when?: string;
+            /**
+             * @description Policy for handling dependency failures
+             * @enum {string}
+             */
+            dependency_policy?: "fail_fast" | "all_success" | "all_complete" | "any_success";
+            retry?: components["schemas"]["RetryConfig"];
             /** @description Whether the step is enabled */
             enabled?: boolean;
             /** @description Whether the step is currently executing */
@@ -521,6 +527,44 @@ export interface components {
             last_output?: string;
             /** @description Error from last execution */
             last_error?: string;
+            /** @description Current retry attempt (0 = first try) */
+            retry_attempt?: number;
+            /** @description Total retry attempts made */
+            total_retries?: number;
+            /**
+             * Format: date-time
+             * @description Timestamp of last retry attempt
+             */
+            last_retry_time?: string;
+            /**
+             * Format: date-time
+             * @description Timestamp of next scheduled retry
+             */
+            next_retry_time?: string;
+        };
+        /** @description Configuration for retry behavior */
+        RetryConfig: {
+            /**
+             * @description Maximum number of retry attempts
+             * @default 1
+             */
+            max_attempts: number;
+            /**
+             * @description Initial delay between retries in seconds
+             * @default 0
+             */
+            delay: number;
+            /**
+             * @description Backoff strategy for retry delays
+             * @default fixed
+             * @enum {string}
+             */
+            backoff: "fixed" | "exponential" | "linear";
+            /**
+             * @description Maximum delay between retries in seconds
+             * @default 300
+             */
+            max_delay: number;
         };
         ErrorResponse: {
             /** @description Error message */

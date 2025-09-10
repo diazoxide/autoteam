@@ -34,16 +34,26 @@ type WorkerSettings struct {
 	Flow []FlowStep `yaml:"flow"`
 }
 
+// RetryConfig defines retry behavior for a flow step
+type RetryConfig struct {
+	MaxAttempts int    `yaml:"max_attempts,omitempty" json:"max_attempts,omitempty"` // Default: 1 (no retry)
+	Delay       int    `yaml:"delay,omitempty" json:"delay,omitempty"`               // Seconds between retries
+	Backoff     string `yaml:"backoff,omitempty" json:"backoff,omitempty"`           // "fixed", "exponential", "linear"
+	MaxDelay    int    `yaml:"max_delay,omitempty" json:"max_delay,omitempty"`       // Max delay for backoff strategies
+}
+
 // FlowStep represents a single step in a dynamic flow configuration
 type FlowStep struct {
-	Name      string            `yaml:"name" json:"name"`                                 // Unique step name
-	Type      string            `yaml:"type" json:"type"`                                 // Agent type (claude, gemini, qwen)
-	Args      []string          `yaml:"args,omitempty" json:"args,omitempty"`             // Agent-specific arguments
-	Env       map[string]string `yaml:"env,omitempty" json:"env,omitempty"`               // Environment variables
-	DependsOn []string          `yaml:"depends_on,omitempty" json:"depends_on,omitempty"` // Step dependencies
-	Input     string            `yaml:"input,omitempty" json:"input,omitempty"`           // Agent input prompt (supports templates)
-	Output    string            `yaml:"output,omitempty" json:"output,omitempty"`         // Output transformation template (Sprig)
-	SkipWhen  string            `yaml:"skip_when,omitempty" json:"skip_when,omitempty"`   // Skip condition template (if evaluates to "true")
+	Name             string       `yaml:"name" json:"name"`                                           // Unique step name
+	Type             string       `yaml:"type" json:"type"`                                           // Agent type (claude, gemini, qwen)
+	Args             []string     `yaml:"args,omitempty" json:"args,omitempty"`                       // Agent-specific arguments
+	Env              map[string]string `yaml:"env,omitempty" json:"env,omitempty"`                    // Environment variables
+	DependsOn        []string     `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`           // Step dependencies
+	Input            string       `yaml:"input,omitempty" json:"input,omitempty"`                     // Agent input prompt (supports templates)
+	Output           string       `yaml:"output,omitempty" json:"output,omitempty"`                   // Output transformation template (Sprig)
+	SkipWhen         string       `yaml:"skip_when,omitempty" json:"skip_when,omitempty"`             // Skip condition template (if evaluates to "true")
+	DependencyPolicy string       `yaml:"dependency_policy,omitempty" json:"dependency_policy,omitempty"` // "fail_fast", "all_success", "all_complete", "any_success"
+	Retry            *RetryConfig `yaml:"retry,omitempty" json:"retry,omitempty"`                     // Retry configuration
 }
 
 // MCPServer represents a Model Context Protocol server configuration
@@ -214,6 +224,10 @@ type StepStats struct {
 	SuccessCount         int        `json:"success_count"`
 	LastOutput           *string    `json:"last_output,omitempty"`
 	LastError            *string    `json:"last_error,omitempty"`
+	RetryAttempt         int        `json:"retry_attempt"`          // Current retry attempt (0 = first try)
+	TotalRetries         int        `json:"total_retries"`          // Total retry attempts made
+	LastRetryTime        *time.Time `json:"last_retry_time,omitempty"`
+	NextRetryTime        *time.Time `json:"next_retry_time,omitempty"` // When next retry will occur
 }
 
 // FlowStats tracks overall flow execution statistics

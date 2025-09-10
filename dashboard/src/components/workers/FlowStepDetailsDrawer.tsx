@@ -9,7 +9,6 @@ import {
   Chip,
   Card,
   CardContent,
-  Alert,
   List,
   ListItem,
   ListItemText,
@@ -27,6 +26,14 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import CodeIcon from '@mui/icons-material/Code';
 import LinkIcon from '@mui/icons-material/Link';
 import InfoIcon from '@mui/icons-material/Info';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import FlashOnIcon from '@mui/icons-material/FlashOn';
+import CheckBoxIcon from '@mui/icons-material/CheckBox';
+import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
+import Grid from '@mui/material/Grid';
+import LinearProgress from '@mui/material/LinearProgress';
+import Alert from '@mui/material/Alert';
 import type { FlowStepInfo } from '../../types/api';
 
 interface FlowStepDetailsDrawerProps {
@@ -34,6 +41,73 @@ interface FlowStepDetailsDrawerProps {
   step: FlowStepInfo | null;
   onClose: () => void;
 }
+
+// Helper functions
+const getDependencyPolicyDescription = (policy?: string): string => {
+  switch (policy) {
+    case 'fail_fast':
+      return 'Stops all parallel steps immediately if any dependency fails (default behavior).';
+    case 'all_success':
+      return 'Waits for all parallel steps to complete. Proceeds only if all dependencies succeed.';
+    case 'all_complete':
+      return 'Waits for all dependencies to complete, then proceeds regardless of success/failure.';
+    case 'any_success':
+      return 'Waits for all parallel dependencies to complete. Proceeds if at least one succeeds.';
+    default:
+      return 'Uses fail_fast behavior - stops immediately on dependency failure.';
+  }
+};
+
+const getDependencyPolicyIcon = (policy?: string) => {
+  switch (policy) {
+    case 'fail_fast':
+      return <FlashOnIcon />;
+    case 'all_success':
+      return <CheckCircleIcon />;
+    case 'all_complete':
+      return <CheckBoxOutlineBlankIcon />;
+    case 'any_success':
+      return <CheckBoxIcon />;
+    default:
+      return <FlashOnIcon />;
+  }
+};
+
+const getDependencyPolicyColor = (policy?: string) => {
+  switch (policy) {
+    case 'fail_fast':
+      return 'error';
+    case 'all_success':
+      return 'success';
+    case 'all_complete':
+      return 'info';
+    case 'any_success':
+      return 'warning';
+    default:
+      return 'error';
+  }
+};
+
+const calculateNextRetryDelay = (
+  retry?: { max_attempts?: number; delay?: number; backoff?: string; max_delay?: number },
+  attemptNumber?: number
+): number => {
+  if (!retry || !retry.delay || !attemptNumber) return 0;
+  
+  const baseDelay = retry.delay;
+  const maxDelay = retry.max_delay || 300;
+  
+  switch (retry.backoff) {
+    case 'exponential':
+      const expDelay = baseDelay * Math.pow(2, attemptNumber - 1);
+      return Math.min(expDelay, maxDelay);
+    case 'linear':
+      const linDelay = baseDelay * attemptNumber;
+      return Math.min(linDelay, maxDelay);
+    default: // fixed
+      return baseDelay;
+  }
+};
 
 export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
   open,
@@ -216,6 +290,116 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
                   </ListItem>
                 ))}
               </List>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Dependency Policy */}
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+              <AccountTreeIcon color="primary" />
+              <Typography variant="h6">
+                Dependency Policy
+              </Typography>
+            </Stack>
+            
+            <Stack spacing={2}>
+              <Box>
+                <Chip 
+                  label={step.dependency_policy || "fail_fast"}
+                  color={getDependencyPolicyColor(step.dependency_policy) as any}
+                  icon={getDependencyPolicyIcon(step.dependency_policy)}
+                  sx={{ mb: 1 }}
+                />
+                <Typography variant="body2" color="textSecondary">
+                  {getDependencyPolicyDescription(step.dependency_policy)}
+                </Typography>
+              </Box>
+              
+              {step.depends_on && step.depends_on.length > 0 && (
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Required Dependencies
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    {step.depends_on.map(dep => (
+                      <Chip 
+                        key={dep}
+                        label={dep}
+                        size="small"
+                        variant="outlined"
+                        icon={<LinkIcon sx={{ fontSize: 14 }} />}
+                      />
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
+
+        {/* Retry Configuration */}
+        {step.retry && step.retry.max_attempts && step.retry.max_attempts > 1 && (
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                <RefreshIcon color="primary" />
+                <Typography variant="h6">
+                  Retry Configuration
+                </Typography>
+              </Stack>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" gutterBottom>Max Attempts</Typography>
+                  <Typography variant="h6">{step.retry.max_attempts}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" gutterBottom>Delay Strategy</Typography>
+                  <Chip 
+                    label={step.retry.backoff || 'fixed'}
+                    color="info"
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" gutterBottom>Initial Delay</Typography>
+                  <Typography>{step.retry.delay || 0}s</Typography>
+                </Grid>
+                {step.retry.max_delay && (
+                  <Grid item xs={6}>
+                    <Typography variant="subtitle2" gutterBottom>Max Delay</Typography>
+                    <Typography>{step.retry.max_delay}s</Typography>
+                  </Grid>
+                )}
+                
+                {/* Current retry status */}
+                {step.retry_attempt !== undefined && step.retry_attempt > 0 && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Retry Progress
+                    </Typography>
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={(step.retry_attempt / step.retry.max_attempts) * 100}
+                      color={step.retry_attempt >= step.retry.max_attempts ? "error" : "warning"}
+                      sx={{ mb: 1 }}
+                    />
+                    <Typography variant="caption" color="textSecondary">
+                      Attempt {step.retry_attempt} of {step.retry.max_attempts}
+                    </Typography>
+                  </Grid>
+                )}
+                
+                {step.next_retry_time && (
+                  <Grid item xs={12}>
+                    <Alert severity="info" variant="outlined">
+                      Next retry scheduled at: {new Date(step.next_retry_time).toLocaleString()}
+                    </Alert>
+                  </Grid>
+                )}
+              </Grid>
             </CardContent>
           </Card>
         )}
