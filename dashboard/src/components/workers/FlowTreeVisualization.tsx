@@ -29,11 +29,13 @@ import type { FlowStepInfo } from '../../types/api';
 
 interface FlowTreeVisualizationProps {
   steps: FlowStepInfo[];
+  onStepClick?: (step: FlowStepInfo) => void;
 }
 
 // Custom node component
 interface StepNodeData {
   step: FlowStepInfo;
+  onStepClick?: (step: FlowStepInfo) => void;
 }
 
 const StepNode = ({ data }: { data: StepNodeData }) => {
@@ -76,6 +78,7 @@ const StepNode = ({ data }: { data: StepNodeData }) => {
       
       <Paper
         elevation={3}
+        onClick={() => data.onStepClick?.(step)}
         sx={{
           minWidth: 200,
           maxWidth: 250,
@@ -83,6 +86,12 @@ const StepNode = ({ data }: { data: StepNodeData }) => {
           bgcolor: 'background.paper',
           border: `2px solid ${getStatusColor()}`,
           borderRadius: 2,
+          cursor: data.onStepClick ? 'pointer' : 'default',
+          '&:hover': data.onStepClick ? {
+            boxShadow: theme.shadows[6],
+            transform: 'translateY(-2px)',
+            transition: 'all 0.2s ease-in-out',
+          } : {},
         }}
       >
         <Stack spacing={1}>
@@ -159,7 +168,7 @@ const nodeTypes = {
   stepNode: StepNode,
 };
 
-export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ steps }) => {
+export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ steps, onStepClick }) => {
   const theme = useTheme();
 
   // Convert steps to nodes and edges
@@ -219,7 +228,7 @@ export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ st
           id: stepName,
           type: 'stepNode',
           position: { x: level * nodeWidth, y: yOffset },
-          data: { step },
+          data: { step, onStepClick },
         });
       });
     });
@@ -251,7 +260,7 @@ export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ st
     });
 
     return { nodes, edges };
-  }, [steps, theme]);
+  }, [steps, theme, onStepClick]);
 
   // Use static nodes and edges for read-only view
   const nodes = initialNodes;
@@ -284,7 +293,7 @@ export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ st
         nodeTypes={nodeTypes}
         nodesDraggable={false}
         nodesConnectable={false}
-        elementsSelectable={false}
+        elementsSelectable={true}
         panOnDrag={true}
         zoomOnScroll={true}
         zoomOnPinch={true}

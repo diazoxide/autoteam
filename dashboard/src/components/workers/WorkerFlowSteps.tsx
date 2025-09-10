@@ -28,6 +28,7 @@ import PauseIcon from "@mui/icons-material/Pause";
 import ListIcon from "@mui/icons-material/List";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import { FlowTreeVisualization } from "./FlowTreeVisualization";
+import { FlowStepDetailsDrawer } from "./FlowStepDetailsDrawer";
 import { useWorkerFlowSteps } from "../../hooks/api/useWorkerApi";
 import type { FlowStepInfo } from "../../types/api";
 
@@ -39,6 +40,8 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
   workerId,
 }) => {
   const [viewType, setViewType] = useState<'list' | 'tree'>('list');
+  const [selectedStep, setSelectedStep] = useState<FlowStepInfo | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   
   const { data: flowStepsData, isLoading: flowStepsLoading, error } = useWorkerFlowSteps(workerId);
 
@@ -118,6 +121,16 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
     }
   };
 
+  const handleStepClick = (step: FlowStepInfo) => {
+    setSelectedStep(step);
+    setDrawerOpen(true);
+  };
+
+  const handleDrawerClose = () => {
+    setDrawerOpen(false);
+    setSelectedStep(null);
+  };
+
   const renderListView = () => (
     <List>
       {(flowStepsData?.steps || []).map((step: FlowStepInfo, index: number) => {
@@ -126,7 +139,15 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
 
         return (
           <React.Fragment key={step.name || index}>
-            <ListItem>
+            <ListItem 
+              onClick={() => handleStepClick(step)}
+              sx={{ 
+                cursor: 'pointer', 
+                '&:hover': { 
+                  backgroundColor: 'action.hover' 
+                } 
+              }}
+            >
               <ListItemIcon>
                 <Badge badgeContent={index + 1} color="primary">
                   {getStepIcon(step)}
@@ -198,7 +219,10 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
   );
 
   const renderTreeView = () => (
-    <FlowTreeVisualization steps={flowStepsData?.steps || []} />
+    <FlowTreeVisualization 
+      steps={flowStepsData?.steps || []} 
+      onStepClick={handleStepClick}
+    />
   );
 
   return (
@@ -230,6 +254,13 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
       <CardContent>
         {viewType === 'list' ? renderListView() : renderTreeView()}
       </CardContent>
+      
+      {/* Details Drawer */}
+      <FlowStepDetailsDrawer
+        open={drawerOpen}
+        step={selectedStep}
+        onClose={handleDrawerClose}
+      />
     </Card>
   );
 };
