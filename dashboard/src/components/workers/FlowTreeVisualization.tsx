@@ -25,21 +25,70 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import CheckBoxIcon from '@mui/icons-material/CheckBox';
+import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
+import FlashOnIcon from '@mui/icons-material/FlashOn';
+import Badge from '@mui/material/Badge';
 import type { FlowStepInfo } from '../../types/api';
 
 interface FlowTreeVisualizationProps {
   steps: FlowStepInfo[];
+  onStepClick?: (step: FlowStepInfo) => void;
 }
 
 // Custom node component
 interface StepNodeData {
   step: FlowStepInfo;
+  onStepClick?: (step: FlowStepInfo) => void;
 }
 
 const StepNode = ({ data }: { data: StepNodeData }) => {
   const theme = useTheme();
   const step: FlowStepInfo = data.step;
   
+  const getPolicyIcon = (policy?: string) => {
+    switch (policy) {
+      case 'fail_fast':
+        return <FlashOnIcon sx={{ fontSize: 14 }} />;
+      case 'all_success':
+        return <CheckCircleIcon sx={{ fontSize: 14 }} />;
+      case 'all_complete':
+        return <CheckBoxOutlineBlankIcon sx={{ fontSize: 14 }} />;
+      case 'any_success':
+        return <CheckBoxIcon sx={{ fontSize: 14 }} />;
+      default:
+        return <FlashOnIcon sx={{ fontSize: 14 }} />; // Default to fail_fast
+    }
+  };
+
+  const getPolicyColor = (policy?: string) => {
+    switch (policy) {
+      case 'fail_fast':
+        return theme.palette.error.main;
+      case 'all_success':
+        return theme.palette.success.main;
+      case 'all_complete':
+        return theme.palette.info.main;
+      case 'any_success':
+        return theme.palette.warning.main;
+      default:
+        return theme.palette.error.main;
+    }
+  };
+
+  const getBorderStyle = () => {
+    // Check if step has retry configuration
+    if (step.retry && step.retry.max_attempts && step.retry.max_attempts > 1) {
+      return '2px dashed';
+    }
+    // Check if dependency policy is not default
+    if (step.dependency_policy && step.dependency_policy !== 'fail_fast') {
+      return '3px solid';
+    }
+    return '2px solid';
+  };
+
   const getStatusColor = () => {
     if (step.active) return theme.palette.primary.main;
     
@@ -76,13 +125,21 @@ const StepNode = ({ data }: { data: StepNodeData }) => {
       
       <Paper
         elevation={3}
+        onClick={() => data.onStepClick?.(step)}
         sx={{
           minWidth: 200,
           maxWidth: 250,
           p: 2,
           bgcolor: 'background.paper',
-          border: `2px solid ${getStatusColor()}`,
+          border: `${getBorderStyle()} ${getStatusColor()}`,
           borderRadius: 2,
+          cursor: data.onStepClick ? 'pointer' : 'default',
+          position: 'relative',
+          '&:hover': data.onStepClick ? {
+            boxShadow: theme.shadows[6],
+            transform: 'translateY(-2px)',
+            transition: 'all 0.2s ease-in-out',
+          } : {},
         }}
       >
         <Stack spacing={1}>
@@ -137,7 +194,74 @@ const StepNode = ({ data }: { data: StepNodeData }) => {
               Error: {step.last_error}
             </Typography>
           )}
+          
+          {/* Policy and Retry Indicators */}
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            {step.dependency_policy && step.dependency_policy !== 'fail_fast' && (
+              <Chip
+                icon={getPolicyIcon(step.dependency_policy)}
+                label={step.dependency_policy.replace('_', ' ')}
+                size="small"
+                variant="outlined"
+                sx={{ 
+                  fontSize: '0.65rem',
+                  height: 20,
+                  color: getPolicyColor(step.dependency_policy),
+                  borderColor: getPolicyColor(step.dependency_policy),
+                }}
+              />
+            )}
+            
+            {step.retry && step.retry.max_attempts && step.retry.max_attempts > 1 && (
+              <Chip
+                icon={<RefreshIcon sx={{ fontSize: 12 }} />}
+                label={`${step.retry.max_attempts}x`}
+                size="small"
+                color="info"
+                sx={{ fontSize: '0.65rem', height: 20 }}
+              />
+            )}
+          </Stack>
         </Stack>
+        
+        {/* Retry indicator badge - positioned absolutely */}
+        {step.retry_attempt !== undefined && step.retry_attempt > 0 && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: -8,
+              right: -8,
+              animation: step.active ? 'pulse 1.5s infinite' : 'none',
+              '@keyframes pulse': {
+                '0%': { transform: 'scale(1)' },
+                '50%': { transform: 'scale(1.1)' },
+                '100%': { transform: 'scale(1)' },
+              },
+            }}
+          >
+            <Badge
+              badgeContent={`${step.retry_attempt}/${step.retry?.max_attempts || 1}`}
+              color={
+                step.retry_attempt >= (step.retry?.max_attempts || 1) ? "error" :
+                step.active ? "warning" : "default"
+              }
+              sx={{
+                '& .MuiBadge-badge': {
+                  fontSize: '0.6rem',
+                  minWidth: '16px',
+                  height: '16px',
+                },
+              }}
+            >
+              <RefreshIcon 
+                fontSize="small" 
+                sx={{ 
+                  color: step.active ? theme.palette.warning.main : theme.palette.text.secondary 
+                }}
+              />
+            </Badge>
+          </Box>
+        )}
       </Paper>
       
       {/* Output handle (right side) */}
@@ -159,7 +283,7 @@ const nodeTypes = {
   stepNode: StepNode,
 };
 
-export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ steps }) => {
+export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ steps, onStepClick }) => {
   const theme = useTheme();
 
   // Convert steps to nodes and edges
@@ -219,7 +343,7 @@ export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ st
           id: stepName,
           type: 'stepNode',
           position: { x: level * nodeWidth, y: yOffset },
-          data: { step },
+          data: { step, onStepClick },
         });
       });
     });
@@ -251,7 +375,7 @@ export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ st
     });
 
     return { nodes, edges };
-  }, [steps, theme]);
+  }, [steps, theme, onStepClick]);
 
   // Use static nodes and edges for read-only view
   const nodes = initialNodes;
@@ -284,7 +408,7 @@ export const FlowTreeVisualization: React.FC<FlowTreeVisualizationProps> = ({ st
         nodeTypes={nodeTypes}
         nodesDraggable={false}
         nodesConnectable={false}
-        elementsSelectable={false}
+        elementsSelectable={true}
         panOnDrag={true}
         zoomOnScroll={true}
         zoomOnPinch={true}
