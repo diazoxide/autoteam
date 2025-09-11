@@ -2,12 +2,129 @@ workers:
   - name: Worker 1
     enabled: true
     prompt: "Worker 1 Prompt"
+    settings:
+      flow:
+      - name: start
+        type: debug
+        args: [ ]
+        dependency_policy: fail_fast
+        retry:
+          max_attempts: 3
+          delay: 2
+          backoff: exponential
+          max_delay: 30
+        input: |
+          Starting flow execution
+        output: |
+          Flow started successfully
+      - name: other-job-1
+        type: debug
+        depends_on: [ start ]
+        dependency_policy: fail_fast
+        args: [ ]
+        input: |
+          Processing job 1
+        output: |
+          Job 1 completed
+      - name: mid-job-1
+        type: debug
+        depends_on: [ start ]
+        dependency_policy: all_success
+        retry:
+          max_attempts: 2
+          delay: 5
+          backoff: fixed
+        args: [ ]
+        input: |
+          Processing mid-job 1
+        output: |
+          Mid-job 1 completed
+      - name: mid-job-2
+        type: debug
+        depends_on: [ start ]
+        dependency_policy: all_success
+        args: [ ]
+        input: |
+          Processing mid-job 2
+        output: |
+          Mid-job 2 completed
+      - name: mid-job-3
+        type: debug
+        depends_on: [ start ]
+        dependency_policy: all_complete
+        retry:
+          max_attempts: 4
+          delay: 1
+          backoff: linear
+          max_delay: 10
+        args: [ ]
+        input: |
+          Processing mid-job 3
+        output: |
+          Mid-job 3 completed
+      - name: finish
+        type: debug
+        depends_on: [ mid-job-1, mid-job-2, mid-job-3 ]
+        dependency_policy: fail_fast
+        args: [ ]
+        input: |
+          Finishing flow
+        output: |
+          Flow finished successfully
   - name: Worker 2
     enabled: true
     prompt: "Worker 2 Prompt"
-  - name: Worker 3
-    enabled: true
-    prompt: "Worker 3 Prompt"
+    settings:
+      flow:
+      - name: start
+        type: debug
+        args: [ ]
+        dependency_policy: fail_fast
+        retry:
+          max_attempts: 3
+          delay: 2
+          backoff: exponential
+          max_delay: 30
+        input: |
+          Starting flow execution
+        output: |
+          Flow started successfully
+      - name: mid-job-1
+        type: debug
+        depends_on: [ start ]
+        dependency_policy: all_success
+        retry:
+          max_attempts: 2
+          delay: 5
+          backoff: fixed
+        args: [ ]
+        input: |
+          Processing mid-job 1
+        output: |
+          Mid-job 1 completed
+      - name: mid-job-2
+        type: debug
+        depends_on: [ start ]
+        dependency_policy: all_success
+        args: [ ]
+        input: |
+          Processing mid-job 2
+        output: |
+          Mid-job 2 completed
+      - name: mid-job-3
+        type: debug
+        depends_on: [ start ]
+        dependency_policy: all_complete
+        retry:
+          max_attempts: 4
+          delay: 1
+          backoff: linear
+          max_delay: 10
+        args: [ ]
+        input: |
+          Processing mid-job 3
+        output: |
+          Mid-job 3 completed
 # Global configs
 settings:
   debug: true
@@ -18,74 +135,6 @@ settings:
     user: root
   sleep_duration: 5
   team_name: autoteam-debug-team
-  flow:
-    - name: start
-      type: debug
-      args: [ ]
-      dependency_policy: fail_fast
-      retry:
-        max_attempts: 3
-        delay: 2
-        backoff: exponential
-        max_delay: 30
-      input: |
-        Starting flow execution
-      output: |
-        Flow started successfully
-    - name: other-job-1
-      type: debug
-      depends_on: [ start ]
-      dependency_policy: all_success
-      args: [ ]
-      input: |
-        Processing job 1
-      output: |
-        Job 1 completed
-    - name: mid-job-1
-      type: debug
-      depends_on: [start]
-      dependency_policy: all_success
-      retry:
-        max_attempts: 2
-        delay: 5
-        backoff: fixed
-      args: [ ]
-      input: |
-        Processing mid-job 1
-      output: |
-        Mid-job 1 completed
-    - name: mid-job-2
-      type: debug
-      depends_on: [ start ]
-      dependency_policy: all_success
-      args: [ ]
-      input: |
-        Processing mid-job 2
-      output: |
-        Mid-job 2 completed
-    - name: mid-job-3
-      type: debug
-      depends_on: [ start ]
-      dependency_policy: all_complete
-      retry:
-        max_attempts: 4
-        delay: 1
-        backoff: linear
-        max_delay: 10
-      args: [ ]
-      input: |
-        Processing mid-job 3
-      output: |
-        Mid-job 3 completed
-    - name: finish
-      type: debug
-      depends_on: [ mid-job-1, mid-job-2, mid-job-3 ]
-      dependency_policy: any_success
-      args: [ ]
-      input: |
-        Finishing flow
-      output: |
-        Flow finished successfully
 
 # Control plane configuration
 control_plane:

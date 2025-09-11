@@ -165,6 +165,26 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 	// For multiple steps, execute in parallel
 	lgr.Debug("Executing parallel steps", zap.Int("count", len(stepNames)), zap.Strings("steps", stepNames))
 
+	// Check if any step has fail_fast policy to enable context cancellation
+	hasFailFastPolicy := false
+	for _, stepName := range stepNames {
+		if step := fe.getStepByName(stepName); step != nil {
+			policy := step.DependencyPolicy
+			if policy == "" || policy == "fail_fast" {
+				hasFailFastPolicy = true
+				break
+			}
+		}
+	}
+
+	// Create cancellable context if fail_fast policy is present
+	execCtx := ctx
+	var cancel context.CancelFunc
+	if hasFailFastPolicy {
+		execCtx, cancel = context.WithCancel(ctx)
+		defer cancel()
+	}
+
 	type stepResult struct {
 		output StepOutput
 		err    error
@@ -205,13 +225,42 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 			}
 			stepOutputsMutex.RUnlock()
 
-			// Execute the step
-			output, err := fe.executeStep(ctx, *step, stepOutputsCopy)
+			// Execute the step with potentially cancellable context
+			output, err := fe.executeStep(execCtx, *step, stepOutputsCopy)
+			
+			// Check if context was cancelled
+			if execCtx.Err() != nil {
+				lgr.Info("Step cancelled due to context cancellation",
+					zap.String("step_name", step.Name),
+					zap.Error(execCtx.Err()))
+				resultChan <- stepResult{
+					output: StepOutput{
+						Name:      step.Name,
+						Stdout:    "",
+						Stderr:    "cancelled due to fail_fast policy",
+						Skipped:   false,
+						Failed:    false,
+						Cancelled: true,
+					},
+					err:    execCtx.Err(),
+				}
+				return
+			}
+			
 			if err != nil {
 				lgr.Error("Step failed in parallel execution",
 					zap.String("step_name", step.Name),
 					zap.Error(err),
 					zap.String("error_type", fmt.Sprintf("%T", err)))
+				
+				// Cancel other parallel steps if this step has fail_fast policy
+				policy := step.DependencyPolicy
+				if (policy == "" || policy == "fail_fast") && cancel != nil {
+					lgr.Info("Cancelling other parallel steps due to fail_fast policy",
+						zap.String("failed_step", step.Name))
+					cancel()
+				}
+				
 				resultChan <- stepResult{
 					output: StepOutput{
 						Name:      step.Name,
@@ -378,6 +427,11 @@ func (fe *FlowExecutor) createAgents(ctx context.Context) error {
 	lgr := logger.FromContext(ctx)
 
 	for _, step := range fe.Steps {
+		// Skip agent creation if agent already exists (for testing)
+		if _, exists := fe.Agents[step.Name]; exists {
+			continue
+		}
+		
 		// Create agent config from step
 		agentConfig := agent.AgentConfig{
 			Type: step.Type,

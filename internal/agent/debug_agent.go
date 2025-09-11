@@ -41,7 +41,21 @@ func (d *DebugAgent) Type() string {
 func (d *DebugAgent) Run(ctx context.Context, prompt string, options RunOptions) (*AgentOutput, error) {
 	randState := rand.Float32() < 0.5
 
-	time.Sleep(10 * time.Second)
+	mn := 5
+	mx := 20
+	secs := rand.Intn(mx-mn) + mn
+
+	// Respect context cancellation during sleep
+	select {
+	case <-time.After(time.Duration(secs) * time.Second):
+		// Normal completion - continue execution
+	case <-ctx.Done():
+		// Context was cancelled
+		return &AgentOutput{
+			Stdout: "",
+			Stderr: fmt.Sprintf("debug agent cancelled: %v", ctx.Err()),
+		}, ctx.Err()
+	}
 
 	if randState {
 		return &AgentOutput{
@@ -53,7 +67,7 @@ func (d *DebugAgent) Run(ctx context.Context, prompt string, options RunOptions)
 	return &AgentOutput{
 		Stdout: "",
 		Stderr: "Error happened",
-	}, nil
+	}, fmt.Errorf("debug agent simulated failure")
 }
 
 // IsAvailable checks if the debug agent is available (always true for debug)
