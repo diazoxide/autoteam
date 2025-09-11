@@ -7,6 +7,7 @@ import {
   Divider,
   Stack,
   Chip,
+  ChipProps,
   Card,
   CardContent,
   List,
@@ -14,7 +15,6 @@ import {
   ListItemText,
   ListItemIcon,
   Paper,
-  useTheme,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -88,33 +88,11 @@ const getDependencyPolicyColor = (policy?: string) => {
   }
 };
 
-const calculateNextRetryDelay = (
-  retry?: { max_attempts?: number; delay?: number; backoff?: string; max_delay?: number },
-  attemptNumber?: number
-): number => {
-  if (!retry || !retry.delay || !attemptNumber) return 0;
-  
-  const baseDelay = retry.delay;
-  const maxDelay = retry.max_delay || 300;
-  
-  switch (retry.backoff) {
-    case 'exponential':
-      const expDelay = baseDelay * Math.pow(2, attemptNumber - 1);
-      return Math.min(expDelay, maxDelay);
-    case 'linear':
-      const linDelay = baseDelay * attemptNumber;
-      return Math.min(linDelay, maxDelay);
-    default: // fixed
-      return baseDelay;
-  }
-};
-
 export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
   open,
   step,
   onClose,
 }) => {
-  const theme = useTheme();
 
   if (!step) return null;
 
@@ -308,7 +286,7 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
               <Box>
                 <Chip 
                   label={step.dependency_policy || "fail_fast"}
-                  color={getDependencyPolicyColor(step.dependency_policy) as any}
+                  color={getDependencyPolicyColor(step.dependency_policy) as ChipProps['color']}
                   icon={getDependencyPolicyIcon(step.dependency_policy)}
                   sx={{ mb: 1 }}
                 />
