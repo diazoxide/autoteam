@@ -125,4 +125,3 @@ func TestSkipConditionEvaluation(t *testing.T) {
 		})
 	}
 }
-

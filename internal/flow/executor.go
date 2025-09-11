@@ -256,7 +256,7 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 				// Cancel other parallel steps if this step has fail_fast policy
 				policy := step.DependencyPolicy
 				if (policy == "" || policy == "fail_fast") && cancel != nil {
-					lgr.Info("Cancelling other parallel steps due to fail_fast policy",
+					lgr.Info("Canceling other parallel steps due to fail_fast policy",
 						zap.String("failed_step", step.Name))
 					cancel()
 				}
