@@ -12,11 +12,11 @@ import (
 // TestBasicTemplateRendering tests basic template functionality
 func TestBasicTemplateRendering(t *testing.T) {
 	tests := []struct {
-		name         string
-		template     string
-		data         map[string]interface{}
-		expectedOut  string
-		expectError  bool
+		name        string
+		template    string
+		data        map[string]interface{}
+		expectedOut string
+		expectError bool
 	}{
 		{
 			name:     "simple_variable_substitution",
@@ -49,9 +49,9 @@ func TestBasicTemplateRendering(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:     "default_value",
-			template: "{{.missing | default \"fallback\"}}",
-			data:     map[string]interface{}{},
+			name:        "default_value",
+			template:    "{{.missing | default \"fallback\"}}",
+			data:        map[string]interface{}{},
 			expectedOut: "fallback",
 		},
 	}
@@ -83,13 +83,13 @@ func TestSkipConditionEvaluation(t *testing.T) {
 		expectError  bool
 	}{
 		{
-			name:     "simple_condition_true",
-			skipWhen: "{{- eq \"test\" \"test\" -}}",
+			name:         "simple_condition_true",
+			skipWhen:     "{{- eq \"test\" \"test\" -}}",
 			expectedSkip: true,
 		},
 		{
-			name:     "simple_condition_false", 
-			skipWhen: "{{- eq \"test\" \"other\" -}}",
+			name:         "simple_condition_false",
+			skipWhen:     "{{- eq \"test\" \"other\" -}}",
 			expectedSkip: false,
 		},
 		{
@@ -98,8 +98,8 @@ func TestSkipConditionEvaluation(t *testing.T) {
 			expectedSkip: false, // Invalid templates should return false
 		},
 		{
-			name:     "non_boolean_result",
-			skipWhen: "{{- \"not-boolean\" -}}",
+			name:         "non_boolean_result",
+			skipWhen:     "{{- \"not-boolean\" -}}",
 			expectedSkip: false, // Non-boolean should be treated as false
 		},
 	}
@@ -125,3 +125,4 @@ func TestSkipConditionEvaluation(t *testing.T) {
 		})
 	}
 }
+

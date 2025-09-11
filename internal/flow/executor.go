@@ -30,12 +30,12 @@ type FlowExecutor struct {
 
 // StepOutput represents the output of a flow step
 type StepOutput struct {
-	Name      string
-	Stdout    string
-	Stderr    string
-	Skipped   bool // Indicates if the step was skipped due to skip_when condition
-	Failed    bool // Indicates if the step failed after all retries
-	Cancelled bool // Indicates if the step was cancelled due to fail_fast policy
+	Name     string
+	Stdout   string
+	Stderr   string
+	Skipped  bool // Indicates if the step was skipped due to skip_when condition
+	Failed   bool // Indicates if the step failed after all retries
+	Canceled bool // Indicates if the step was canceled due to fail_fast policy
 }
 
 // FlowResult represents the result of executing a flow
@@ -150,12 +150,12 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 		output, err := fe.executeStep(ctx, *step, stepOutputsCopy)
 		if err != nil {
 			return []StepOutput{{
-				Name:      step.Name,
-				Stdout:    "",
-				Stderr:    err.Error(),
-				Skipped:   false,
-				Failed:    true,
-				Cancelled: false,
+				Name:     step.Name,
+				Stdout:   "",
+				Stderr:   err.Error(),
+				Skipped:  false,
+				Failed:   true,
+				Canceled: false,
 			}}, err
 		}
 
@@ -203,14 +203,14 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 			if step == nil {
 				resultChan <- stepResult{
 					output: StepOutput{
-						Name:      stepName,
-						Stdout:    "",
-						Stderr:    "step not found",
-						Skipped:   false,
-						Failed:    true,
-						Cancelled: false,
+						Name:     stepName,
+						Stdout:   "",
+						Stderr:   "step not found",
+						Skipped:  false,
+						Failed:   true,
+						Canceled: false,
 					},
-					err:    fmt.Errorf("step not found: %s", stepName),
+					err: fmt.Errorf("step not found: %s", stepName),
 				}
 				return
 			}
@@ -227,32 +227,32 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 
 			// Execute the step with potentially cancellable context
 			output, err := fe.executeStep(execCtx, *step, stepOutputsCopy)
-			
-			// Check if context was cancelled
+
+			// Check if context was canceled
 			if execCtx.Err() != nil {
-				lgr.Info("Step cancelled due to context cancellation",
+				lgr.Info("Step canceled due to context cancellation",
 					zap.String("step_name", step.Name),
 					zap.Error(execCtx.Err()))
 				resultChan <- stepResult{
 					output: StepOutput{
-						Name:      step.Name,
-						Stdout:    "",
-						Stderr:    "cancelled due to fail_fast policy",
-						Skipped:   false,
-						Failed:    false,
-						Cancelled: true,
+						Name:     step.Name,
+						Stdout:   "",
+						Stderr:   "canceled due to fail_fast policy",
+						Skipped:  false,
+						Failed:   false,
+						Canceled: true,
 					},
-					err:    execCtx.Err(),
+					err: execCtx.Err(),
 				}
 				return
 			}
-			
+
 			if err != nil {
 				lgr.Error("Step failed in parallel execution",
 					zap.String("step_name", step.Name),
 					zap.Error(err),
 					zap.String("error_type", fmt.Sprintf("%T", err)))
-				
+
 				// Cancel other parallel steps if this step has fail_fast policy
 				policy := step.DependencyPolicy
 				if (policy == "" || policy == "fail_fast") && cancel != nil {
@@ -260,17 +260,17 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 						zap.String("failed_step", step.Name))
 					cancel()
 				}
-				
+
 				resultChan <- stepResult{
 					output: StepOutput{
-						Name:      step.Name,
-						Stdout:    "",
-						Stderr:    err.Error(),
-						Skipped:   false,
-						Failed:    true,
-						Cancelled: false,
+						Name:     step.Name,
+						Stdout:   "",
+						Stderr:   err.Error(),
+						Skipped:  false,
+						Failed:   true,
+						Canceled: false,
 					},
-					err:    err,
+					err: err,
 				}
 				return
 			}
@@ -311,13 +311,13 @@ func (fe *FlowExecutor) executeLevel(ctx context.Context, stepNames []string, st
 				}
 			}
 		}
-		
+
 		// No fail_fast policy found, continue with partial results
 		lgr.Warn("Level completed with failures, but no fail_fast policies",
 			zap.Int("total_outputs", len(outputs)),
 			zap.Error(firstError))
 	}
-	
+
 	return outputs, nil
 }
 
@@ -431,7 +431,7 @@ func (fe *FlowExecutor) createAgents(ctx context.Context) error {
 		if _, exists := fe.Agents[step.Name]; exists {
 			continue
 		}
-		
+
 		// Create agent config from step
 		agentConfig := agent.AgentConfig{
 			Type: step.Type,
@@ -491,12 +491,12 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step worker.FlowStep, p
 
 		// Return skipped output
 		return &StepOutput{
-			Name:      step.Name,
-			Stdout:    "",
-			Stderr:    reason,
-			Skipped:   true,
-			Failed:    false,
-			Cancelled: false,
+			Name:     step.Name,
+			Stdout:   "",
+			Stderr:   reason,
+			Skipped:  true,
+			Failed:   false,
+			Canceled: false,
 		}, nil
 	}
 
@@ -513,12 +513,12 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step worker.FlowStep, p
 
 		// Return empty output for skipped step
 		return &StepOutput{
-			Name:      step.Name,
-			Stdout:    "",
-			Stderr:    "",
-			Skipped:   true,
-			Failed:    false,
-			Cancelled: false,
+			Name:     step.Name,
+			Stdout:   "",
+			Stderr:   "",
+			Skipped:  true,
+			Failed:   false,
+			Canceled: false,
 		}, nil
 	}
 
@@ -584,7 +584,7 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step worker.FlowStep, p
 	// Execute agent with retry logic
 	var output *agent.AgentOutput
 	var lastErr error
-	
+
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		// Update retry statistics
 		if fe.WorkerRuntime != nil {
@@ -699,12 +699,12 @@ func (fe *FlowExecutor) executeStep(ctx context.Context, step worker.FlowStep, p
 	}
 
 	return &StepOutput{
-		Name:      step.Name,
-		Stdout:    stdout,
-		Stderr:    output.Stderr,
-		Skipped:   false,
-		Failed:    false, // Success case
-		Cancelled: false,
+		Name:     step.Name,
+		Stdout:   stdout,
+		Stderr:   output.Stderr,
+		Skipped:  false,
+		Failed:   false, // Success case
+		Canceled: false,
 	}, nil
 }
 

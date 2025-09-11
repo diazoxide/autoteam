@@ -50,10 +50,10 @@ func (d *DebugAgent) Run(ctx context.Context, prompt string, options RunOptions)
 	case <-time.After(time.Duration(secs) * time.Second):
 		// Normal completion - continue execution
 	case <-ctx.Done():
-		// Context was cancelled
+		// Context was canceled
 		return &AgentOutput{
 			Stdout: "",
-			Stderr: fmt.Sprintf("debug agent cancelled: %v", ctx.Err()),
+			Stderr: fmt.Sprintf("debug agent canceled: %v", ctx.Err()),
 		}, ctx.Err()
 	}
 

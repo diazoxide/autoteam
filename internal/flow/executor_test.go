@@ -101,7 +101,7 @@ func createMockAgent(name string, shouldFail bool, executionTime time.Duration) 
 			select {
 			case <-time.After(executionTime):
 			case <-ctx.Done():
-				// Context cancelled
+				// Context canceled
 			}
 		})
 	} else {
@@ -116,7 +116,7 @@ func createMockAgent(name string, shouldFail bool, executionTime time.Duration) 
 			select {
 			case <-time.After(executionTime):
 			case <-ctx.Done():
-				// Context cancelled
+				// Context canceled
 			}
 		})
 	}
@@ -132,7 +132,7 @@ func TestDependencyPolicyFailFast(t *testing.T) {
 		mockAgents        map[string]*MockAgent
 		expectedSuccess   bool
 		expectedCompleted []string
-		expectedCancelled []string
+		expectedCanceled  []string
 		expectedSkipped   []string
 	}{
 		{
@@ -154,8 +154,8 @@ func TestDependencyPolicyFailFast(t *testing.T) {
 				"slow-success": createMockAgent("slow-success", false, 2*time.Second),
 			},
 			expectedSuccess:   false,
-			expectedCompleted: []string{}, // fast-fail fails, slow-success gets cancelled
-			expectedCancelled: []string{"slow-success"},
+			expectedCompleted: []string{}, // fast-fail fails, slow-success gets canceled
+			expectedCanceled:  []string{"slow-success"},
 		},
 		{
 			name: "fail_fast_all_succeed",
@@ -184,22 +184,22 @@ func TestDependencyPolicyFailFast(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create executor
 			executor := createTestExecutor(tt.steps)
-			
+
 			// Create mock agent factory
 			factory := NewMockAgentFactory()
 			for name, mockAgent := range tt.mockAgents {
 				factory.RegisterAgent(name, mockAgent)
 			}
-			
+
 			// Set agents directly
 			for name, agent := range tt.mockAgents {
 				executor.Agents[name] = agent
 			}
-			
+
 			// Execute flow
 			ctx := context.Background()
 			result, err := executor.Execute(ctx)
-			
+
 			// Verify results
 			if tt.expectedSuccess {
 				assert.NoError(t, err)
@@ -214,29 +214,29 @@ func TestDependencyPolicyFailFast(t *testing.T) {
 					assert.False(t, result.Success)
 				}
 			}
-			
+
 			// Verify step outcomes only if result is not nil
 			if result != nil {
 				for _, stepName := range tt.expectedCompleted {
 					found := false
 					for _, output := range result.Steps {
-						if output.Name == stepName && !output.Failed && !output.Cancelled && !output.Skipped {
+						if output.Name == stepName && !output.Failed && !output.Canceled && !output.Skipped {
 							found = true
 							break
 						}
 					}
 					assert.True(t, found, "Expected step %s to be completed", stepName)
 				}
-				
-				for _, stepName := range tt.expectedCancelled {
+
+				for _, stepName := range tt.expectedCanceled {
 					found := false
 					for _, output := range result.Steps {
-						if output.Name == stepName && output.Cancelled {
+						if output.Name == stepName && output.Canceled {
 							found = true
 							break
 						}
 					}
-					assert.True(t, found, "Expected step %s to be cancelled", stepName)
+					assert.True(t, found, "Expected step %s to be canceled", stepName)
 				}
 			}
 		})
@@ -302,9 +302,9 @@ func TestDependencyPolicyAllSuccess(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			executor := createTestExecutor([]worker.FlowStep{tt.testStep})
-			
+
 			canExecute, reason := executor.evaluateDependencyPolicy(tt.testStep, tt.depResults)
-			
+
 			assert.Equal(t, tt.expectedExecute, canExecute)
 			if !tt.expectedExecute {
 				assert.Contains(t, reason, tt.expectedReason)
@@ -320,15 +320,15 @@ func TestDependencyPolicyAllComplete(t *testing.T) {
 		DependsOn:        []string{"dep1", "dep2"},
 		DependencyPolicy: "all_complete",
 	}
-	
+
 	depResults := map[string]StepOutput{
 		"dep1": {Name: "dep1", Failed: true, Skipped: false},
 		"dep2": {Name: "dep2", Failed: false, Skipped: true},
 	}
-	
+
 	executor := createTestExecutor([]worker.FlowStep{testStep})
 	canExecute, _ := executor.evaluateDependencyPolicy(testStep, depResults)
-	
+
 	assert.True(t, canExecute, "all_complete should allow execution regardless of success/failure")
 }
 
@@ -375,10 +375,10 @@ func TestDependencyPolicyAnySuccess(t *testing.T) {
 				DependsOn:        []string{"dep1", "dep2"},
 				DependencyPolicy: "any_success",
 			}
-			
+
 			executor := createTestExecutor([]worker.FlowStep{testStep})
 			canExecute, reason := executor.evaluateDependencyPolicy(testStep, tt.depResults)
-			
+
 			assert.Equal(t, tt.expectedExecute, canExecute)
 			if !tt.expectedExecute {
 				assert.Contains(t, reason, tt.expectedReason)
@@ -390,10 +390,10 @@ func TestDependencyPolicyAnySuccess(t *testing.T) {
 // TestRetryMechanisms tests all retry mechanisms and backoff strategies
 func TestRetryMechanisms(t *testing.T) {
 	tests := []struct {
-		name            string
-		retryConfig     worker.RetryConfig
-		expectedDelays  []int
-		maxAttempts     int
+		name           string
+		retryConfig    worker.RetryConfig
+		expectedDelays []int
+		maxAttempts    int
 	}{
 		{
 			name: "exponential_backoff",
@@ -427,8 +427,8 @@ func TestRetryMechanisms(t *testing.T) {
 			maxAttempts:    3,
 		},
 		{
-			name: "no_retry_config",
-			retryConfig: worker.RetryConfig{},
+			name:           "no_retry_config",
+			retryConfig:    worker.RetryConfig{},
 			expectedDelays: []int{},
 			maxAttempts:    1,
 		},
@@ -437,7 +437,7 @@ func TestRetryMechanisms(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			executor := createTestExecutor([]worker.FlowStep{})
-			
+
 			// Test delay calculations
 			for i, expectedDelay := range tt.expectedDelays {
 				attempt := i + 2 // Attempts start from 2 for retries
@@ -454,35 +454,7 @@ func TestRetryWithFailures(t *testing.T) {
 	t.Run("basic_retry_success", func(t *testing.T) {
 		// Create a simple mock agent that always succeeds
 		mockAgent := createMockAgent("test-step", false, 0)
-		
-		step := worker.FlowStep{
-			Name: "test-step",
-			Type: "debug", 
-			Retry: &worker.RetryConfig{
-				MaxAttempts: 3,
-				Delay:       0, // No delay for test speed
-				Backoff:     "fixed",
-			},
-		}
-		
-		executor := createTestExecutor([]worker.FlowStep{step})
-		executor.Agents["test-step"] = mockAgent
-		
-		result, err := executor.Execute(context.Background())
-		
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
-		if result != nil {
-			assert.True(t, result.Success)
-			assert.Equal(t, 1, len(result.Steps))
-			assert.False(t, result.Steps[0].Failed)
-		}
-	})
-	
-	t.Run("retry_all_failed", func(t *testing.T) {
-		// Create a simple mock agent that always fails
-		mockAgent := createMockAgent("test-step", true, 0)
-		
+
 		step := worker.FlowStep{
 			Name: "test-step",
 			Type: "debug",
@@ -492,12 +464,40 @@ func TestRetryWithFailures(t *testing.T) {
 				Backoff:     "fixed",
 			},
 		}
-		
+
 		executor := createTestExecutor([]worker.FlowStep{step})
 		executor.Agents["test-step"] = mockAgent
-		
+
 		result, err := executor.Execute(context.Background())
-		
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		if result != nil {
+			assert.True(t, result.Success)
+			assert.Equal(t, 1, len(result.Steps))
+			assert.False(t, result.Steps[0].Failed)
+		}
+	})
+
+	t.Run("retry_all_failed", func(t *testing.T) {
+		// Create a simple mock agent that always fails
+		mockAgent := createMockAgent("test-step", true, 0)
+
+		step := worker.FlowStep{
+			Name: "test-step",
+			Type: "debug",
+			Retry: &worker.RetryConfig{
+				MaxAttempts: 3,
+				Delay:       0, // No delay for test speed
+				Backoff:     "fixed",
+			},
+		}
+
+		executor := createTestExecutor([]worker.FlowStep{step})
+		executor.Agents["test-step"] = mockAgent
+
+		result, err := executor.Execute(context.Background())
+
 		assert.Error(t, err)
 		if result != nil {
 			assert.False(t, result.Success)
@@ -512,7 +512,7 @@ func TestParallelExecution(t *testing.T) {
 	t.Run("parallel_steps_execute_concurrently", func(t *testing.T) {
 		executionTimes := make(map[string]time.Time)
 		var mu sync.Mutex
-		
+
 		// Create mock agents that record their execution time
 		agents := make(map[string]*MockAgent)
 		for i := 1; i <= 3; i++ {
@@ -520,7 +520,7 @@ func TestParallelExecution(t *testing.T) {
 			mockAgent := new(MockAgent)
 			mockAgent.On("Name").Return(name)
 			mockAgent.On("Type").Return("debug")
-			
+
 			mockAgent.On("Run", mock.Anything, mock.Anything, mock.Anything).Return(
 				&agent.AgentOutput{Stdout: "Success", Stderr: ""},
 				nil,
@@ -531,17 +531,17 @@ func TestParallelExecution(t *testing.T) {
 				mu.Unlock()
 				time.Sleep(100 * time.Millisecond)
 			})
-			
+
 			agents[name] = mockAgent
 		}
-		
+
 		// Create parallel steps
 		steps := []worker.FlowStep{
 			{Name: "step1", Type: "debug"},
 			{Name: "step2", Type: "debug"},
 			{Name: "step3", Type: "debug"},
 		}
-		
+
 		executor := createTestExecutor(steps)
 		factory := NewMockAgentFactory()
 		for name, agent := range agents {
@@ -550,23 +550,23 @@ func TestParallelExecution(t *testing.T) {
 		for name, agent := range agents {
 			executor.Agents[name] = agent
 		}
-		
+
 		// Execute flow
 		start := time.Now()
 		ctx := context.Background()
 		result, err := executor.Execute(ctx)
 		duration := time.Since(start)
-		
+
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		if result != nil {
 			assert.True(t, result.Success)
 		}
-		
+
 		// Verify parallel execution (should complete in ~100ms, not ~300ms)
 		assert.Less(t, duration, 200*time.Millisecond, "Steps should execute in parallel")
-		
+
 		// Verify all steps executed within short timeframe
 		var firstExecution, lastExecution time.Time
 		for _, execTime := range executionTimes {
@@ -577,7 +577,7 @@ func TestParallelExecution(t *testing.T) {
 				lastExecution = execTime
 			}
 		}
-		
+
 		timeDiff := lastExecution.Sub(firstExecution)
 		assert.Less(t, timeDiff, 50*time.Millisecond, "All parallel steps should start within 50ms")
 	})
@@ -640,10 +640,10 @@ func TestDependencyResolution(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			executor := createTestExecutor(tt.steps)
 			levels, err := executor.resolveDependencyLevels()
-			
+
 			assert.NoError(t, err)
 			assert.Equal(t, len(tt.expectedLevels), len(levels))
-			
+
 			for i, expectedLevel := range tt.expectedLevels {
 				actualLevel := levels[i]
 				assert.ElementsMatch(t, expectedLevel, actualLevel,
@@ -686,7 +686,7 @@ func TestCyclicDependencies(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			executor := createTestExecutor(tt.steps)
 			_, err := executor.resolveDependencyLevels()
-			
+
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "circular dependency detected")
 		})
@@ -698,27 +698,27 @@ func TestEdgeCases(t *testing.T) {
 	t.Run("empty_flow", func(t *testing.T) {
 		executor := createTestExecutor([]worker.FlowStep{})
 		result, err := executor.Execute(context.Background())
-		
+
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "flow must contain at least one step")
 		if result != nil {
 			assert.False(t, result.Success)
 		}
 	})
-	
+
 	t.Run("circular_dependency", func(t *testing.T) {
 		steps := []worker.FlowStep{
 			{Name: "step1", DependsOn: []string{"step2"}},
 			{Name: "step2", DependsOn: []string{"step1"}},
 		}
-		
+
 		executor := createTestExecutor(steps)
 		_, err := executor.resolveDependencyLevels()
-		
+
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "circular dependency detected")
 	})
-	
+
 	// Note: Context cancellation test skipped due to mock complexity
 	// The actual context cancellation functionality works as demonstrated by the fail_fast tests
 }
@@ -730,3 +730,4 @@ func min(a, b int) int {
 	}
 	return b
 }
+
