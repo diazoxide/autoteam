@@ -5,7 +5,7 @@ import (
 	"net"
 	"strconv"
 
-	"autoteam/internal/grpc/gen/proto/autoteam/worker/v1"
+	workerv1 "autoteam/internal/grpc/gen/proto/autoteam/worker/v1"
 	"autoteam/internal/logger"
 	worker "autoteam/internal/worker"
 
