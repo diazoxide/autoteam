@@ -6,44 +6,6 @@ import (
 	"autoteam/internal/util"
 )
 
-func TestWorkerSettings_GetHTTPPort(t *testing.T) {
-	tests := []struct {
-		name     string
-		settings *WorkerSettings
-		expected int
-	}{
-		{
-			name:     "default port when not specified",
-			settings: &WorkerSettings{},
-			expected: 8080,
-		},
-		{
-			name:     "custom port when specified",
-			settings: &WorkerSettings{HTTPPort: util.IntPtr(9000)},
-			expected: 9000,
-		},
-		{
-			name:     "nil settings",
-			settings: nil,
-			expected: 8080, // Should handle nil gracefully
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.settings == nil {
-				// Create empty settings for nil test
-				tt.settings = &WorkerSettings{}
-			}
-
-			got := tt.settings.GetHTTPPort()
-			if got != tt.expected {
-				t.Errorf("GetHTTPPort() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
 func TestWorker_IsEnabled(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -147,11 +109,6 @@ func TestWorkerSettings_Defaults(t *testing.T) {
 			name:     "default team name",
 			got:      settings.GetTeamName(),
 			expected: "autoteam",
-		},
-		{
-			name:     "default HTTP port",
-			got:      settings.GetHTTPPort(),
-			expected: 8080,
 		},
 		{
 			name:     "default install deps",

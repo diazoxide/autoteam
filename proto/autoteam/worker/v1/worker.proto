@@ -1,0 +1,193 @@
+syntax = "proto3";
+
+package autoteam.worker.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "autoteam/internal/grpc/gen/autoteam/worker/v1;workerv1";
+
+// WorkerService provides all worker monitoring and management operations
+service WorkerService {
+  // Health check
+  rpc GetHealth(google.protobuf.Empty) returns (HealthResponse);
+  
+  // Status
+  rpc GetStatus(google.protobuf.Empty) returns (StatusResponse);
+  
+  // Logs
+  rpc ListLogs(ListLogsRequest) returns (LogsResponse);
+  rpc GetLogFile(GetLogFileRequest) returns (LogFileResponse);
+  rpc StreamLogs(StreamLogsRequest) returns (stream LogChunk);
+  
+  // Flow configuration
+  rpc GetFlow(google.protobuf.Empty) returns (FlowResponse);
+  rpc GetFlowSteps(google.protobuf.Empty) returns (FlowStepsResponse);
+  
+  // Metrics
+  rpc GetMetrics(google.protobuf.Empty) returns (MetricsResponse);
+  rpc StreamMetrics(StreamMetricsRequest) returns (stream MetricsUpdate);
+  
+  // Configuration
+  rpc GetConfig(google.protobuf.Empty) returns (ConfigResponse);
+}
+
+// Health Response
+message HealthResponse {
+  string status = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  WorkerInfo agent = 3;
+  map<string, HealthCheck> checks = 4;
+}
+
+message HealthCheck {
+  string status = 1;
+  optional string message = 2;
+}
+
+// Status Response
+message StatusResponse {
+  string status = 1;
+  string mode = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  WorkerInfo agent = 4;
+  optional string uptime = 5;
+}
+
+// Worker Info
+message WorkerInfo {
+  string name = 1;
+  string type = 2;
+  string version = 3;
+  optional bool available = 4;
+}
+
+// Logs
+message ListLogsRequest {
+  optional string role = 1; // collector, executor, both
+  optional int32 limit = 2; // max files to return
+}
+
+message LogsResponse {
+  repeated LogFile logs = 1;
+  int32 total = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message LogFile {
+  string filename = 1;
+  int64 size = 2;
+  google.protobuf.Timestamp modified = 3;
+  optional string role = 4;
+}
+
+message GetLogFileRequest {
+  string filename = 1;
+  optional int32 tail = 2; // number of last lines to return
+}
+
+message LogFileResponse {
+  string content = 1;
+}
+
+message StreamLogsRequest {
+  string filename = 1;
+  optional int32 tail = 2; // start with last N lines
+}
+
+message LogChunk {
+  string content = 1;
+  google.protobuf.Timestamp timestamp = 2;
+}
+
+// Flow
+message FlowResponse {
+  FlowInfo flow = 1;
+  google.protobuf.Timestamp timestamp = 2;
+}
+
+message FlowStepsResponse {
+  repeated FlowStepInfo steps = 1;
+  int32 total = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message FlowInfo {
+  int32 total_steps = 1;
+  int32 enabled_steps = 2;
+  optional google.protobuf.Timestamp last_execution = 3;
+  optional int32 execution_count = 4;
+  optional double success_rate = 5;
+}
+
+message FlowStepInfo {
+  // FlowStep fields (from worker.FlowStep)
+  string name = 1;
+  string type = 2;
+  repeated string args = 3;
+  map<string, string> env = 4;
+  repeated string depends_on = 5;
+  optional string input = 6;
+  optional string output = 7;
+  optional string skip_when = 8;
+  optional string dependency_policy = 9;
+  optional RetryConfig retry = 10;
+  
+  // FlowStepRuntime fields
+  optional bool enabled = 11;
+  optional bool active = 12;
+  optional google.protobuf.Timestamp last_execution = 13;
+  optional int32 execution_count = 14;
+  optional int32 success_count = 15;
+  optional string last_output = 16;
+  optional string last_error = 17;
+}
+
+message RetryConfig {
+  int32 max_attempts = 1;
+  int32 delay_seconds = 2;
+  double backoff_multiplier = 3;
+}
+
+// Metrics
+message MetricsResponse {
+  WorkerMetrics metrics = 1;
+  google.protobuf.Timestamp timestamp = 2;
+}
+
+message WorkerMetrics {
+  optional string uptime = 1;
+  optional string avg_execution_time = 2;
+  optional google.protobuf.Timestamp last_activity = 3;
+}
+
+message StreamMetricsRequest {
+  optional int32 interval_seconds = 1; // update interval
+}
+
+message MetricsUpdate {
+  WorkerMetrics metrics = 1;
+  google.protobuf.Timestamp timestamp = 2;
+}
+
+// Configuration
+message ConfigResponse {
+  WorkerConfig config = 1;
+  google.protobuf.Timestamp timestamp = 2;
+}
+
+message WorkerConfig {
+  optional string name = 1;
+  optional string type = 2;
+  optional string enabled = 3;
+  optional string version = 4;
+  optional string team_name = 5;
+  optional int32 flow_steps = 6;
+}
+
+// Error handling
+message ErrorResponse {
+  string error = 1;
+  optional string code = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}

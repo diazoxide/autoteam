@@ -160,6 +160,7 @@ func (g *Generator) generateComposeYAML(cfg *config.Config, portAllocation ports
 		// Keep some optional runtime variables that can be overridden
 		environment["DEBUG"] = "${DEBUG:-false}"
 		environment["LOG_LEVEL"] = "${LOG_LEVEL:-info}"
+		environment["GRPC_PORT"] = "8080"
 
 		// Merge with environment from service config and normalize placeholder variables
 		if existingEnv, ok := serviceConfig["environment"]; ok {
@@ -363,15 +364,6 @@ func (g *Generator) generateWorkerConfigFiles(cfg *config.Config, portAllocation
 		settings := w.GetEffectiveSettings(cfg.Settings)
 		workerWithSettings := &worker.WorkerWithSettings{Worker: w, Settings: settings}
 		serviceName := w.GetNormalizedName()
-
-		// Set HTTP port from port allocation if available
-		if portAllocation != nil {
-			if port, hasPort := portAllocation[serviceName]; hasPort {
-				if settings.HTTPPort == nil {
-					settings.HTTPPort = &port
-				}
-			}
-		}
 
 		// Build the worker config (now we generate worker config directly)
 		workerConfig := &worker.Worker{

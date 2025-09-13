@@ -439,12 +439,20 @@ vet: ## Run go vet
 	@echo "$(GREEN)✓ go vet passed$(NC)"
 
 # Code generation
-codegen: ## Generate API code from OpenAPI spec
-	@echo "$(BLUE)Generating Worker API code from OpenAPI specification...$(NC)"
-	@cd api/worker && go generate .
-	@echo "$(BLUE)Copying OpenAPI spec for server embedding...$(NC)"
-	@cd internal/server && go generate .
-	@echo "$(GREEN)✓ Worker API code generated$(NC)"
+proto: ## Generate gRPC code from proto definitions
+	@echo "$(BLUE)Generating gRPC code from proto definitions...$(NC)"
+	@if ! command -v buf >/dev/null 2>&1; then \
+		echo "$(RED)✗ buf is not installed. Installing...$(NC)"; \
+		go install github.com/bufbuild/buf/cmd/buf@latest; \
+	fi
+	@buf mod update
+	@buf generate
+	@echo "$(GREEN)✓ gRPC code generated$(NC)"
+
+codegen: proto ## Generate API code from OpenAPI spec and proto definitions
+	@echo "$(BLUE)Generating Control Plane API code from OpenAPI specification...$(NC)"
+	@cd api/control-plane && go generate .
+	@echo "$(GREEN)✓ Control Plane API code generated$(NC)"
 	@echo "$(BLUE)Generating TypeScript types for dashboard...$(NC)"
 	@if command -v npm >/dev/null 2>&1; then \
 		if [ -d "dashboard/node_modules" ]; then \

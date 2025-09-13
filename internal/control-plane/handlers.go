@@ -2,17 +2,17 @@ package controlplane
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
 	controlplaneapi "autoteam/api/control-plane"
-	workerapi "autoteam/api/worker"
+	workerv1 "autoteam/internal/grpc/gen/proto/autoteam/worker/v1"
 	"autoteam/internal/logger"
 	"autoteam/internal/types"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // Handlers implements the control plane API handlers
@@ -128,67 +128,288 @@ func (h *Handlers) GetWorker(ctx echo.Context, workerID string) error {
 
 // Proxy handlers - forward requests to worker API
 func (h *Handlers) GetWorkerHealth(ctx echo.Context, workerID string) error {
-	return h.proxyRequest(ctx, workerID, func(worker *RegisteredWorker) (*http.Response, error) {
-		return worker.Client.GetHealth(ctx.Request().Context())
-	})
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Get worker from registry
+	worker, err := h.registry.GetWorker(workerID)
+	if err != nil {
+		log.Warn("Worker not found", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Create context with authentication
+	grpcCtx := h.registry.createContext(ctx.Request().Context(), worker.APIKey)
+
+	// Make gRPC call
+	resp, err := worker.Client.GetHealth(grpcCtx, &emptypb.Empty{})
+	if err != nil {
+		log.Error("Failed to get worker health",
+			zap.String("worker_id", workerID),
+			zap.String("worker_url", worker.URL),
+			zap.Error(err))
+
+		// Update worker status as unreachable
+		h.registry.updateWorkerStatus(workerID, types.WorkerStatusUnreachable, nil)
+		return echo.NewHTTPError(http.StatusBadGateway, fmt.Sprintf("Worker unreachable: %s", workerID))
+	}
+
+	// Update worker status as reachable
+	h.registry.updateWorkerStatus(workerID, types.WorkerStatusReachable, nil)
+
+	// Convert gRPC response to JSON
+	return ctx.JSON(http.StatusOK, resp)
 }
 
 func (h *Handlers) GetWorkerStatus(ctx echo.Context, workerID string) error {
-	return h.proxyRequest(ctx, workerID, func(worker *RegisteredWorker) (*http.Response, error) {
-		return worker.Client.GetStatus(ctx.Request().Context())
-	})
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Get worker from registry
+	worker, err := h.registry.GetWorker(workerID)
+	if err != nil {
+		log.Warn("Worker not found", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Create context with authentication
+	grpcCtx := h.registry.createContext(ctx.Request().Context(), worker.APIKey)
+
+	// Make gRPC call
+	resp, err := worker.Client.GetStatus(grpcCtx, &emptypb.Empty{})
+	if err != nil {
+		log.Error("Failed to get worker status",
+			zap.String("worker_id", workerID),
+			zap.String("worker_url", worker.URL),
+			zap.Error(err))
+
+		// Update worker status as unreachable
+		h.registry.updateWorkerStatus(workerID, types.WorkerStatusUnreachable, nil)
+		return echo.NewHTTPError(http.StatusBadGateway, fmt.Sprintf("Worker unreachable: %s", workerID))
+	}
+
+	// Update worker status as reachable
+	h.registry.updateWorkerStatus(workerID, types.WorkerStatusReachable, nil)
+
+	// Convert gRPC response to JSON
+	return ctx.JSON(http.StatusOK, resp)
 }
 
 func (h *Handlers) GetWorkerConfig(ctx echo.Context, workerID string) error {
-	return h.proxyRequest(ctx, workerID, func(worker *RegisteredWorker) (*http.Response, error) {
-		return worker.Client.GetConfig(ctx.Request().Context())
-	})
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Get worker from registry
+	worker, err := h.registry.GetWorker(workerID)
+	if err != nil {
+		log.Warn("Worker not found", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Create context with authentication
+	grpcCtx := h.registry.createContext(ctx.Request().Context(), worker.APIKey)
+
+	// Make gRPC call
+	resp, err := worker.Client.GetConfig(grpcCtx, &emptypb.Empty{})
+	if err != nil {
+		log.Error("Failed to get worker config",
+			zap.String("worker_id", workerID),
+			zap.String("worker_url", worker.URL),
+			zap.Error(err))
+
+		// Update worker status as unreachable
+		h.registry.updateWorkerStatus(workerID, types.WorkerStatusUnreachable, nil)
+		return echo.NewHTTPError(http.StatusBadGateway, fmt.Sprintf("Worker unreachable: %s", workerID))
+	}
+
+	// Update worker status as reachable
+	h.registry.updateWorkerStatus(workerID, types.WorkerStatusReachable, nil)
+
+	// Convert gRPC response to JSON
+	return ctx.JSON(http.StatusOK, resp)
 }
 
 func (h *Handlers) GetWorkerLogs(ctx echo.Context, workerID string, params controlplaneapi.GetWorkerLogsParams) error {
-	return h.proxyRequest(ctx, workerID, func(worker *RegisteredWorker) (*http.Response, error) {
-		// Convert control plane params to worker API params
-		var workerParams workerapi.GetLogsParams
-		if params.Role != nil {
-			role := workerapi.GetLogsParamsRole(*params.Role)
-			workerParams.Role = &role
-		}
-		if params.Limit != nil {
-			workerParams.Limit = params.Limit
-		}
+	log := logger.FromContext(ctx.Request().Context())
 
-		return worker.Client.GetLogs(ctx.Request().Context(), &workerParams)
-	})
+	// Get worker from registry
+	worker, err := h.registry.GetWorker(workerID)
+	if err != nil {
+		log.Warn("Worker not found", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Create context with authentication
+	grpcCtx := h.registry.createContext(ctx.Request().Context(), worker.APIKey)
+
+	// Convert control plane params to gRPC request
+	req := &workerv1.ListLogsRequest{}
+	if params.Role != nil {
+		roleStr := string(*params.Role)
+		req.Role = &roleStr
+	}
+	if params.Limit != nil {
+		limitInt32 := int32(*params.Limit)
+		req.Limit = &limitInt32
+	}
+
+	// Make gRPC call
+	resp, err := worker.Client.ListLogs(grpcCtx, req)
+	if err != nil {
+		log.Error("Failed to get worker logs",
+			zap.String("worker_id", workerID),
+			zap.String("worker_url", worker.URL),
+			zap.Error(err))
+
+		// Update worker status as unreachable
+		h.registry.updateWorkerStatus(workerID, types.WorkerStatusUnreachable, nil)
+		return echo.NewHTTPError(http.StatusBadGateway, fmt.Sprintf("Worker unreachable: %s", workerID))
+	}
+
+	// Update worker status as reachable
+	h.registry.updateWorkerStatus(workerID, types.WorkerStatusReachable, nil)
+
+	// Convert gRPC response to JSON
+	return ctx.JSON(http.StatusOK, resp)
 }
 
 func (h *Handlers) GetWorkerLogFile(ctx echo.Context, workerID string, filename string, params controlplaneapi.GetWorkerLogFileParams) error {
-	return h.proxyRequest(ctx, workerID, func(worker *RegisteredWorker) (*http.Response, error) {
-		// Convert control plane params to worker API params
-		var workerParams workerapi.GetLogFileParams
-		if params.Tail != nil {
-			workerParams.Tail = params.Tail
-		}
+	log := logger.FromContext(ctx.Request().Context())
 
-		return worker.Client.GetLogFile(ctx.Request().Context(), filename, &workerParams)
-	})
+	// Get worker from registry
+	worker, err := h.registry.GetWorker(workerID)
+	if err != nil {
+		log.Warn("Worker not found", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Create context with authentication
+	grpcCtx := h.registry.createContext(ctx.Request().Context(), worker.APIKey)
+
+	// Convert control plane params to gRPC request
+	req := &workerv1.GetLogFileRequest{
+		Filename: filename,
+	}
+	if params.Tail != nil {
+		tailInt32 := int32(*params.Tail)
+		req.Tail = &tailInt32
+	}
+
+	// Make gRPC call
+	resp, err := worker.Client.GetLogFile(grpcCtx, req)
+	if err != nil {
+		log.Error("Failed to get worker log file",
+			zap.String("worker_id", workerID),
+			zap.String("filename", filename),
+			zap.String("worker_url", worker.URL),
+			zap.Error(err))
+
+		// Update worker status as unreachable
+		h.registry.updateWorkerStatus(workerID, types.WorkerStatusUnreachable, nil)
+		return echo.NewHTTPError(http.StatusBadGateway, fmt.Sprintf("Worker unreachable: %s", workerID))
+	}
+
+	// Update worker status as reachable
+	h.registry.updateWorkerStatus(workerID, types.WorkerStatusReachable, nil)
+
+	// Convert gRPC response to JSON
+	return ctx.JSON(http.StatusOK, resp)
 }
 
 func (h *Handlers) GetWorkerFlow(ctx echo.Context, workerID string) error {
-	return h.proxyRequest(ctx, workerID, func(worker *RegisteredWorker) (*http.Response, error) {
-		return worker.Client.GetFlow(ctx.Request().Context())
-	})
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Get worker from registry
+	worker, err := h.registry.GetWorker(workerID)
+	if err != nil {
+		log.Warn("Worker not found", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Create context with authentication
+	grpcCtx := h.registry.createContext(ctx.Request().Context(), worker.APIKey)
+
+	// Make gRPC call
+	resp, err := worker.Client.GetFlow(grpcCtx, &emptypb.Empty{})
+	if err != nil {
+		log.Error("Failed to get worker flow",
+			zap.String("worker_id", workerID),
+			zap.String("worker_url", worker.URL),
+			zap.Error(err))
+
+		// Update worker status as unreachable
+		h.registry.updateWorkerStatus(workerID, types.WorkerStatusUnreachable, nil)
+		return echo.NewHTTPError(http.StatusBadGateway, fmt.Sprintf("Worker unreachable: %s", workerID))
+	}
+
+	// Update worker status as reachable
+	h.registry.updateWorkerStatus(workerID, types.WorkerStatusReachable, nil)
+
+	// Convert gRPC response to JSON
+	return ctx.JSON(http.StatusOK, resp)
 }
 
 func (h *Handlers) GetWorkerFlowSteps(ctx echo.Context, workerID string) error {
-	return h.proxyRequest(ctx, workerID, func(worker *RegisteredWorker) (*http.Response, error) {
-		return worker.Client.GetFlowSteps(ctx.Request().Context())
-	})
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Get worker from registry
+	worker, err := h.registry.GetWorker(workerID)
+	if err != nil {
+		log.Warn("Worker not found", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Create context with authentication
+	grpcCtx := h.registry.createContext(ctx.Request().Context(), worker.APIKey)
+
+	// Make gRPC call
+	resp, err := worker.Client.GetFlowSteps(grpcCtx, &emptypb.Empty{})
+	if err != nil {
+		log.Error("Failed to get worker flow steps",
+			zap.String("worker_id", workerID),
+			zap.String("worker_url", worker.URL),
+			zap.Error(err))
+
+		// Update worker status as unreachable
+		h.registry.updateWorkerStatus(workerID, types.WorkerStatusUnreachable, nil)
+		return echo.NewHTTPError(http.StatusBadGateway, fmt.Sprintf("Worker unreachable: %s", workerID))
+	}
+
+	// Update worker status as reachable
+	h.registry.updateWorkerStatus(workerID, types.WorkerStatusReachable, nil)
+
+	// Convert gRPC response to JSON
+	return ctx.JSON(http.StatusOK, resp)
 }
 
 func (h *Handlers) GetWorkerMetrics(ctx echo.Context, workerID string) error {
-	return h.proxyRequest(ctx, workerID, func(worker *RegisteredWorker) (*http.Response, error) {
-		return worker.Client.GetMetrics(ctx.Request().Context())
-	})
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Get worker from registry
+	worker, err := h.registry.GetWorker(workerID)
+	if err != nil {
+		log.Warn("Worker not found", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Create context with authentication
+	grpcCtx := h.registry.createContext(ctx.Request().Context(), worker.APIKey)
+
+	// Make gRPC call
+	resp, err := worker.Client.GetMetrics(grpcCtx, &emptypb.Empty{})
+	if err != nil {
+		log.Error("Failed to get worker metrics",
+			zap.String("worker_id", workerID),
+			zap.String("worker_url", worker.URL),
+			zap.Error(err))
+
+		// Update worker status as unreachable
+		h.registry.updateWorkerStatus(workerID, types.WorkerStatusUnreachable, nil)
+		return echo.NewHTTPError(http.StatusBadGateway, fmt.Sprintf("Worker unreachable: %s", workerID))
+	}
+
+	// Update worker status as reachable
+	h.registry.updateWorkerStatus(workerID, types.WorkerStatusReachable, nil)
+
+	// Convert gRPC response to JSON
+	return ctx.JSON(http.StatusOK, resp)
 }
 
 // GetOpenAPISpec returns the control plane OpenAPI specification
@@ -231,59 +452,4 @@ func (h *Handlers) GetSwaggerUI(ctx echo.Context) error {
 </html>`
 
 	return ctx.HTML(http.StatusOK, html)
-}
-
-// proxyRequest is a generic proxy function for worker API requests
-func (h *Handlers) proxyRequest(ctx echo.Context, workerID string, requestFunc func(*RegisteredWorker) (*http.Response, error)) error {
-	log := logger.FromContext(ctx.Request().Context())
-
-	// Get worker from registry
-	worker, err := h.registry.GetWorker(workerID)
-	if err != nil {
-		log.Warn("Worker not found", zap.String("worker_id", workerID))
-		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
-	}
-
-	// Make request to worker
-	resp, err := requestFunc(worker)
-	if err != nil {
-		log.Error("Failed to proxy request to worker",
-			zap.String("worker_id", workerID),
-			zap.String("worker_url", worker.URL),
-			zap.Error(err))
-
-		// Update worker status as unreachable
-		h.registry.updateWorkerStatus(workerID, types.WorkerStatusUnreachable, nil)
-
-		return echo.NewHTTPError(http.StatusBadGateway, fmt.Sprintf("Worker unreachable: %s", workerID))
-	}
-	defer resp.Body.Close()
-
-	// Update worker status as reachable
-	h.registry.updateWorkerStatus(workerID, types.WorkerStatusReachable, nil)
-
-	// Copy status code
-	ctx.Response().Status = resp.StatusCode
-
-	// Copy headers
-	for key, values := range resp.Header {
-		for _, value := range values {
-			ctx.Response().Header().Add(key, value)
-		}
-	}
-
-	// Copy body
-	_, err = io.Copy(ctx.Response().Writer, resp.Body)
-	if err != nil {
-		log.Error("Failed to copy response body",
-			zap.String("worker_id", workerID),
-			zap.Error(err))
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to proxy response")
-	}
-
-	log.Debug("Request proxied successfully",
-		zap.String("worker_id", workerID),
-		zap.Int("status_code", resp.StatusCode))
-
-	return nil
 }

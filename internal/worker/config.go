@@ -58,9 +58,6 @@ func (w *Worker) GetEffectiveSettings(globalSettings WorkerSettings) WorkerSetti
 	if w.Settings.MaxAttempts != nil {
 		effective.MaxAttempts = w.Settings.MaxAttempts
 	}
-	if w.Settings.HTTPPort != nil {
-		effective.HTTPPort = w.Settings.HTTPPort
-	}
 
 	// Merge service configurations
 	if len(w.Settings.Service) > 0 {

@@ -19,14 +19,12 @@ type Config struct {
 	TeamName      string
 }
 
-// HTTPServer defines the interface for HTTP server management
-type HTTPServer interface {
+// GRPCServer defines the interface for gRPC server management
+type GRPCServer interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 	Port() int
-	IsRunning() bool
 	GetURL() string
-	GetDocsURL() string
 }
 
 // Monitor handles flow-based agent monitoring
@@ -38,7 +36,7 @@ type Monitor struct {
 	workerRuntime *worker.WorkerRuntime // Worker runtime for statistics tracking
 	settings      worker.WorkerSettings // Effective settings
 	taskService   *task.Service         // Service for task persistence operations
-	httpServer    HTTPServer            // HTTP API server for monitoring
+	grpcServer    GRPCServer            // gRPC API server for monitoring
 }
 
 // New creates a new flow-based monitor instance
@@ -67,9 +65,9 @@ func New(workerRuntime *worker.WorkerRuntime, monitorConfig Config) *Monitor {
 	}
 }
 
-// SetHTTPServer sets the HTTP server for this monitor
-func (m *Monitor) SetHTTPServer(server HTTPServer) {
-	m.httpServer = server
+// SetGRPCServer sets the gRPC server for this monitor
+func (m *Monitor) SetGRPCServer(server GRPCServer) {
+	m.grpcServer = server
 }
 
 // Start starts the flow-based agent processing loop
@@ -80,23 +78,12 @@ func (m *Monitor) Start(ctx context.Context) error {
 		zap.Duration("cycle_interval", m.config.SleepDuration),
 		zap.Int("flow_steps", len(m.flowSteps)))
 
-	// Start HTTP API server if supported
-	if err := m.startHTTPServer(ctx); err != nil {
-		lgr.Warn("Failed to start HTTP API server", zap.Error(err))
-	}
-
 	// Start continuous flow processing loop with sleep-based intervals
 	for {
 		// Check for cancellation before starting cycle
 		select {
 		case <-ctx.Done():
 			lgr.Info("Monitor shutting down gracefully")
-
-			// Stop HTTP server
-			if err := m.stopHTTPServer(ctx); err != nil {
-				lgr.Warn("Failed to stop HTTP server", zap.Error(err))
-			}
-
 			return ctx.Err()
 		default:
 		}
@@ -120,12 +107,6 @@ func (m *Monitor) Start(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			lgr.Info("Monitor shutting down gracefully")
-
-			// Stop HTTP server
-			if err := m.stopHTTPServer(ctx); err != nil {
-				lgr.Warn("Failed to stop HTTP server", zap.Error(err))
-			}
-
 			return ctx.Err()
 		case <-time.After(m.config.SleepDuration):
 			// Continue to next cycle after sleep
@@ -177,29 +158,5 @@ func (m *Monitor) processFlowCycle(ctx context.Context) error {
 			zap.Int("stderr_length", len(stepOutput.Stderr)))
 	}
 
-	return nil
-}
-
-// startHTTPServer starts the HTTP API server for worker monitoring
-func (m *Monitor) startHTTPServer(ctx context.Context) error {
-	if m.httpServer == nil {
-		return nil // HTTP server not configured
-	}
-
-	lgr := logger.FromContext(ctx)
-	lgr.Info("HTTP API server already started",
-		zap.String("url", m.httpServer.GetURL()),
-		zap.Int("port", m.httpServer.Port()))
-
-	return nil
-}
-
-// stopHTTPServer stops the HTTP API server
-func (m *Monitor) stopHTTPServer(ctx context.Context) error {
-	if m.httpServer != nil && m.httpServer.IsRunning() {
-		lgr := logger.FromContext(ctx)
-		lgr.Debug("Stopping HTTP API server")
-		return m.httpServer.Stop(ctx)
-	}
 	return nil
 }
