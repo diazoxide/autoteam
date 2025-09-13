@@ -11,8 +11,8 @@ import (
 
 	"autoteam/internal/logger"
 	"autoteam/internal/monitor"
-	"autoteam/internal/server"
 	"autoteam/internal/worker"
+	grpcworker "autoteam/internal/worker/grpc"
 
 	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
@@ -58,22 +58,16 @@ func main() {
 				Sources: cli.EnvVars("LOG_LEVEL"),
 			},
 
-			// HTTP Server Configuration
-			&cli.IntFlag{
-				Name:    "http-port",
-				Usage:   "HTTP server port (0 for dynamic port discovery)",
-				Value:   8080,
-				Sources: cli.EnvVars("HTTP_PORT"),
-			},
+			// gRPC Server Configuration
 			&cli.StringFlag{
-				Name:    "http-api-key",
-				Usage:   "HTTP API key for authentication (optional)",
-				Sources: cli.EnvVars("HTTP_API_KEY"),
+				Name:    "grpc-api-key",
+				Usage:   "gRPC API key for authentication (optional)",
+				Sources: cli.EnvVars("GRPC_API_KEY"),
 			},
 			&cli.BoolFlag{
-				Name:    "disable-http",
-				Usage:   "Disable HTTP server",
-				Sources: cli.EnvVars("DISABLE_HTTP"),
+				Name:    "disable-grpc",
+				Usage:   "Disable gRPC server",
+				Sources: cli.EnvVars("DISABLE_GRPC"),
 			},
 		},
 	}
@@ -143,36 +137,29 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 	// Create Worker instance for HTTP server
 	workerRuntime := worker.NewWorkerRuntime(workerConfig, effectiveSettings)
 
-	// Start HTTP server if not disabled
-	var httpServer *server.Server
-	if !cmd.Bool("disable-http") {
-		// Use port from worker config, fallback to CLI flag
-		httpPort := effectiveSettings.GetHTTPPort()
-		if httpPort == 0 {
-			httpPort = cmd.Int("http-port")
+	// Start gRPC server if not disabled
+	var grpcServer *grpcworker.Server
+	if !cmd.Bool("disable-grpc") {
+		serverConfig := grpcworker.ServerConfig{
+			Port:   8080, // Fixed gRPC port
+			APIKey: cmd.String("grpc-api-key"),
 		}
 
-		serverConfig := server.Config{
-			Port:       httpPort,
-			APIKey:     cmd.String("http-api-key"),
-			WorkingDir: workerRuntime.GetWorkingDir(),
+		grpcServer = grpcworker.NewServer(workerRuntime, serverConfig)
+
+		if startErr := grpcServer.Start(ctx); startErr != nil {
+			log.Error("Failed to start gRPC server", zap.Error(startErr))
+			return fmt.Errorf("failed to start gRPC server: %w", startErr)
 		}
 
-		httpServer = server.NewServer(workerRuntime, serverConfig)
+		log.Info("gRPC API server started",
+			zap.String("url", grpcServer.GetURL()),
+			zap.Int("port", grpcServer.Port()))
 
-		if startErr := httpServer.Start(ctx); startErr != nil {
-			log.Error("Failed to start HTTP server", zap.Error(startErr))
-			return fmt.Errorf("failed to start HTTP server: %w", startErr)
-		}
-
-		log.Info("HTTP API server started",
-			zap.String("url", httpServer.GetURL()),
-			zap.Int("port", httpServer.Port()))
-
-		// Graceful shutdown for HTTP server
+		// Graceful shutdown for gRPC server
 		defer func() {
-			if shutdownErr := httpServer.Stop(context.Background()); shutdownErr != nil {
-				log.Error("Failed to stop HTTP server", zap.Error(shutdownErr))
+			if shutdownErr := grpcServer.Stop(context.Background()); shutdownErr != nil {
+				log.Error("Failed to stop gRPC server", zap.Error(shutdownErr))
 			}
 		}()
 	}
@@ -219,9 +206,9 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 	log.Info("Creating flow-based monitor", zap.Int("flow_steps", len(effectiveSettings.Flow)))
 	mon := monitor.New(workerRuntime, monitorConfig)
 
-	// Pass the HTTP server to monitor for management
-	if httpServer != nil {
-		mon.SetHTTPServer(httpServer)
+	// Pass the gRPC server to monitor for management
+	if grpcServer != nil {
+		mon.SetGRPCServer(grpcServer)
 	}
 
 	// Execute on_start hooks from worker settings

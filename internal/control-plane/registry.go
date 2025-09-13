@@ -3,16 +3,21 @@ package controlplane
 import (
 	"context"
 	"fmt"
-	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
-	workerapi "autoteam/api/worker"
 	"autoteam/internal/config"
+	workerv1 "autoteam/internal/grpc/gen/proto/autoteam/worker/v1"
 	"autoteam/internal/logger"
 	"autoteam/internal/types"
 
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // WorkerRegistry manages worker endpoints and their clients
@@ -26,7 +31,8 @@ type RegisteredWorker struct {
 	ID         string
 	URL        string
 	APIKey     string
-	Client     *workerapi.Client
+	Client     workerv1.WorkerServiceClient
+	Conn       *grpc.ClientConn
 	Status     string
 	LastCheck  *time.Time
 	WorkerInfo *types.WorkerInfo
@@ -50,34 +56,79 @@ func NewWorkerRegistry(config *config.ControlPlaneConfig) (*WorkerRegistry, erro
 	return registry, nil
 }
 
+// parseGRPCAddress extracts host:port from a URL for gRPC connections
+func parseGRPCAddress(rawURL string) (string, error) {
+	// If it's already just host:port, return as-is
+	if !strings.Contains(rawURL, "://") {
+		return rawURL, nil
+	}
+
+	// Parse the URL
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse URL: %w", err)
+	}
+
+	// Return host:port
+	return parsedURL.Host, nil
+}
+
 // RegisterWorker adds a new worker to the registry
 func (r *WorkerRegistry) RegisterWorker(id, url, apiKey string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Create worker API client
-	var clientOptions []workerapi.ClientOption
-	if apiKey != "" {
-		clientOptions = append(clientOptions, workerapi.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
-			req.Header.Set("X-API-Key", apiKey)
-			return nil
-		}))
+	// Parse gRPC address from URL
+	grpcAddr, err := parseGRPCAddress(url)
+	if err != nil {
+		return fmt.Errorf("failed to parse gRPC address from URL %s: %w", url, err)
 	}
 
-	client, err := workerapi.NewClient(url, clientOptions...)
-	if err != nil {
-		return fmt.Errorf("failed to create worker client: %w", err)
+	// Create gRPC connection
+	dialOptions := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
+
+	conn, err := grpc.NewClient(grpcAddr, dialOptions...)
+	if err != nil {
+		return fmt.Errorf("failed to create gRPC connection to %s: %w", grpcAddr, err)
+	}
+
+	// Create gRPC client
+	client := workerv1.NewWorkerServiceClient(conn)
 
 	r.workers[id] = &RegisteredWorker{
 		ID:     id,
 		URL:    url,
 		APIKey: apiKey,
 		Client: client,
+		Conn:   conn,
 		Status: types.WorkerStatusUnknown,
 	}
 
 	return nil
+}
+
+// Close gracefully closes all worker connections
+func (r *WorkerRegistry) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, worker := range r.workers {
+		if worker.Conn != nil {
+			worker.Conn.Close()
+		}
+	}
+	return nil
+}
+
+// createContext creates a context with gRPC metadata for API key authentication
+func (r *WorkerRegistry) createContext(ctx context.Context, apiKey string) context.Context {
+	if apiKey != "" {
+		md := metadata.Pairs("x-api-key", apiKey)
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
+	return ctx
 }
 
 // GetWorker returns a worker by ID
@@ -116,8 +167,11 @@ func (r *WorkerRegistry) CheckWorkerHealth(ctx context.Context, id string) error
 
 	log := logger.FromContext(ctx)
 
+	// Create context with authentication
+	grpcCtx := r.createContext(ctx, worker.APIKey)
+
 	// Perform health check
-	resp, err := worker.Client.GetHealth(ctx)
+	resp, err := worker.Client.GetHealth(grpcCtx, &emptypb.Empty{})
 	if err != nil {
 		r.updateWorkerStatus(id, types.WorkerStatusUnreachable, nil)
 		log.Warn("Worker health check failed",
@@ -126,20 +180,16 @@ func (r *WorkerRegistry) CheckWorkerHealth(ctx context.Context, id string) error
 			zap.Error(err))
 		return err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		r.updateWorkerStatus(id, types.WorkerStatusUnreachable, nil)
-		return fmt.Errorf("worker health check returned status %d", resp.StatusCode)
-	}
 
 	// Try to get worker info for additional details
-	infoResp, err := worker.Client.GetStatus(ctx)
+	statusResp, err := worker.Client.GetStatus(grpcCtx, &emptypb.Empty{})
 	var workerInfo *types.WorkerInfo
-	if err == nil && infoResp.StatusCode == 200 {
-		// Parse worker info from status response if available
-		// This would require parsing the JSON response, but for now we'll just mark as reachable
-		defer infoResp.Body.Close()
+	if err == nil && statusResp != nil {
+		// Convert gRPC status response to WorkerInfo
+		workerInfo = &types.WorkerInfo{
+			Name: resp.Agent.Name,
+			Type: resp.Agent.Type,
+		}
 	}
 
 	r.updateWorkerStatus(id, types.WorkerStatusReachable, workerInfo)

@@ -7,8 +7,12 @@
 api/worker/server.gen.go
 api/worker/client.gen.go
 
-# Build artifacts
+# Build artifacts  
 build/
+bin/
+
+# gRPC generated files (should be committed but excluding potential temp files)
+internal/grpc/gen/**/*.pb.go.tmp
 
 # Variable
 var/

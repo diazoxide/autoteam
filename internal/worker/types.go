@@ -24,7 +24,6 @@ type WorkerSettings struct {
 	InstallDeps   *bool                  `yaml:"install_deps,omitempty"`
 	CommonPrompt  *string                `yaml:"common_prompt,omitempty"`
 	MaxAttempts   *int                   `yaml:"max_attempts,omitempty"`
-	HTTPPort      *int                   `yaml:"http_port,omitempty"`
 	Service       map[string]interface{} `yaml:"service,omitempty"`
 	MCPServers    map[string]MCPServer   `yaml:"mcp_servers,omitempty"`
 	Hooks         *HookConfig            `yaml:"hooks,omitempty"`
@@ -177,13 +176,6 @@ func (s *WorkerSettings) GetTeamName() string {
 		return *s.TeamName
 	}
 	return "autoteam" // default
-}
-
-func (s *WorkerSettings) GetHTTPPort() int {
-	if s.HTTPPort != nil {
-		return *s.HTTPPort
-	}
-	return 8080 // default fixed port for all workers
 }
 
 func (s *WorkerSettings) GetInstallDeps() bool {
