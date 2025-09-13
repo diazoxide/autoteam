@@ -51,7 +51,7 @@ func TestNewServer(t *testing.T) {
 
 func TestServer_Port(t *testing.T) {
 	server := &Server{port: 9090}
-	
+
 	if server.Port() != 9090 {
 		t.Errorf("Expected port 9090, got %d", server.Port())
 	}
@@ -59,7 +59,7 @@ func TestServer_Port(t *testing.T) {
 
 func TestServer_GetURL(t *testing.T) {
 	server := &Server{port: 8080}
-	
+
 	expected := "grpc://localhost:8080"
 	if server.GetURL() != expected {
 		t.Errorf("Expected URL '%s', got '%s'", expected, server.GetURL())
@@ -74,7 +74,7 @@ func TestServer_DynamicPortDiscovery(t *testing.T) {
 	}
 
 	server := NewServer(mockRuntime, config)
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
@@ -98,44 +98,44 @@ func TestServer_DynamicPortDiscovery(t *testing.T) {
 
 func TestServer_AuthValidation(t *testing.T) {
 	tests := []struct {
-		name           string
-		apiKey         string
-		requestAPIKey  string
-		expectError    bool
-		expectedCode   codes.Code
+		name          string
+		apiKey        string
+		requestAPIKey string
+		expectError   bool
+		expectedCode  codes.Code
 	}{
 		{
-			name:           "no_auth_required",
-			apiKey:         "",
-			requestAPIKey:  "",
-			expectError:    false,
+			name:          "no_auth_required",
+			apiKey:        "",
+			requestAPIKey: "",
+			expectError:   false,
 		},
 		{
-			name:           "valid_api_key",
-			apiKey:         "secret-key",
-			requestAPIKey:  "secret-key",
-			expectError:    false,
+			name:          "valid_api_key",
+			apiKey:        "secret-key",
+			requestAPIKey: "secret-key",
+			expectError:   false,
 		},
 		{
-			name:           "invalid_api_key",
-			apiKey:         "secret-key",
-			requestAPIKey:  "wrong-key",
-			expectError:    true,
-			expectedCode:   codes.Unauthenticated,
+			name:          "invalid_api_key",
+			apiKey:        "secret-key",
+			requestAPIKey: "wrong-key",
+			expectError:   true,
+			expectedCode:  codes.Unauthenticated,
 		},
 		{
-			name:           "missing_api_key",
-			apiKey:         "secret-key",
-			requestAPIKey:  "",
-			expectError:    true,
-			expectedCode:   codes.Unauthenticated,
+			name:          "missing_api_key",
+			apiKey:        "secret-key",
+			requestAPIKey: "",
+			expectError:   true,
+			expectedCode:  codes.Unauthenticated,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := &Server{apiKey: tt.apiKey}
-			
+
 			ctx := context.Background()
 			if tt.requestAPIKey != "" {
 				md := metadata.Pairs("x-api-key", tt.requestAPIKey)
@@ -143,19 +143,19 @@ func TestServer_AuthValidation(t *testing.T) {
 			}
 
 			err := server.validateAPIKey(ctx)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Error("Expected error but got none")
 					return
 				}
-				
+
 				st, ok := status.FromError(err)
 				if !ok {
 					t.Errorf("Expected gRPC status error, got %v", err)
 					return
 				}
-				
+
 				if st.Code() != tt.expectedCode {
 					t.Errorf("Expected code %v, got %v", tt.expectedCode, st.Code())
 				}
@@ -190,15 +190,15 @@ func TestServer_AuthInterceptors(t *testing.T) {
 		}
 
 		result, err := server.authUnaryInterceptor(ctx, nil, nil, handler)
-		
+
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}
-		
+
 		if !called {
 			t.Error("Expected handler to be called")
 		}
-		
+
 		if result != "success" {
 			t.Errorf("Expected 'success', got %v", result)
 		}
@@ -219,11 +219,11 @@ func TestServer_AuthInterceptors(t *testing.T) {
 		}
 
 		err := server.authStreamInterceptor(nil, mockStream, nil, handler)
-		
+
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}
-		
+
 		if !called {
 			t.Error("Expected handler to be called")
 		}

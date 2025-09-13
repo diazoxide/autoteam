@@ -90,7 +90,7 @@ func TestServer_GetStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRuntime := createMockWorkerRuntimeForHandlers()
-			
+
 			// Set up runtime state
 			mockRuntime.SetRunning(tt.isRunning)
 			if tt.hasActiveSteps {
@@ -180,7 +180,7 @@ func TestServer_GetFlowSteps(t *testing.T) {
 
 func TestServer_GetFlowSteps_WithRuntimeStats(t *testing.T) {
 	mockRuntime := createMockWorkerRuntimeWithFlowSteps()
-	
+
 	// Add runtime statistics
 	mockRuntime.SetStepActive("step1", true)
 	mockRuntime.RecordStepExecution("step1", true, func() *string { s := "test output"; return &s }(), nil)
@@ -200,7 +200,7 @@ func TestServer_GetFlowSteps_WithRuntimeStats(t *testing.T) {
 	}
 
 	firstStep := response.Steps[0]
-	
+
 	if firstStep.Active == nil || !*firstStep.Active {
 		t.Error("Expected first step to be active")
 	}
@@ -259,7 +259,7 @@ func TestServer_ListLogs(t *testing.T) {
 		},
 	}
 	customRuntime := worker.NewWorkerRuntime(w, settings)
-	
+
 	server := &Server{runtime: customRuntime}
 
 	tests := []struct {
@@ -281,7 +281,7 @@ func TestServer_ListLogs(t *testing.T) {
 			expectedFiles: 1,
 		},
 		{
-			name:          "executor_logs", 
+			name:          "executor_logs",
 			role:          func() *string { s := "executor"; return &s }(),
 			limit:         nil,
 			expectedFiles: 1,
@@ -358,38 +358,38 @@ func TestServer_GetLogFile(t *testing.T) {
 	w := &worker.Worker{Name: "Test Worker", Prompt: "Test prompt"}
 	settings := worker.WorkerSettings{Flow: []worker.FlowStep{{Name: "test-step", Type: "debug"}}}
 	customRuntime := worker.NewWorkerRuntime(w, settings)
-	
+
 	server := &Server{runtime: customRuntime}
 
 	tests := []struct {
-		name         string
-		filename     string
-		tail         *int32
-		expectError  bool
+		name        string
+		filename    string
+		tail        *int32
+		expectError bool
 	}{
 		{
-			name:         "full_file",
-			filename:     "test.log",
-			tail:         nil,
-			expectError:  false,
+			name:        "full_file",
+			filename:    "test.log",
+			tail:        nil,
+			expectError: false,
 		},
 		{
-			name:         "tail_3_lines",
-			filename:     "test.log",
-			tail:         func() *int32 { i := int32(3); return &i }(),
-			expectError:  false,
+			name:        "tail_3_lines",
+			filename:    "test.log",
+			tail:        func() *int32 { i := int32(3); return &i }(),
+			expectError: false,
 		},
 		{
-			name:         "nonexistent_file",
-			filename:     "nonexistent.log",
-			tail:         nil,
-			expectError:  true,
+			name:        "nonexistent_file",
+			filename:    "nonexistent.log",
+			tail:        nil,
+			expectError: true,
 		},
 		{
-			name:         "path_traversal_attempt",
-			filename:     "../../../etc/passwd",
-			tail:         nil,
-			expectError:  true,
+			name:        "path_traversal_attempt",
+			filename:    "../../../etc/passwd",
+			tail:        nil,
+			expectError: true,
 		},
 	}
 
