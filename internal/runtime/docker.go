@@ -523,7 +523,7 @@ func (d *DockerRuntime) copyFile(src, dst string) error {
 
 	// Copy permissions
 	if info, err := os.Stat(src); err == nil {
-		os.Chmod(dst, info.Mode())
+		_ = os.Chmod(dst, info.Mode()) // Ignore error - not critical
 	}
 
 	return nil
@@ -921,9 +921,7 @@ func (d *DockerRuntime) createAndStartContainer(ctx context.Context, containerNa
 	}
 
 	// Add volume mounts
-	for _, vol := range config.Volumes {
-		hostConfig.Binds = append(hostConfig.Binds, vol)
-	}
+	hostConfig.Binds = append(hostConfig.Binds, config.Volumes...)
 
 	// Add port mappings
 	for _, portMapping := range config.Ports {

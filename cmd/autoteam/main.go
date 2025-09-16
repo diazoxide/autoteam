@@ -22,10 +22,6 @@ var (
 	GitCommit = "unknown"
 )
 
-// Context key for storing config
-type contextKey string
-
-const configContextKey contextKey = "config"
 
 func main() {
 	// Load .env file if it exists (ignore errors for optional file)
