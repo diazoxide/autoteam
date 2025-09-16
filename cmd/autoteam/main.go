@@ -86,6 +86,11 @@ func main() {
 				Action: initCommand,
 			},
 			{
+				Name:   "generate",
+				Usage:  "Generate configuration files (for compatibility)",
+				Action: generateCommand,
+			},
+			{
 				Name:   "workers",
 				Usage:  "List all workers and their states",
 				Action: workersCommand,
@@ -309,6 +314,38 @@ func initCommand(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	fmt.Println("Created sample autoteam.yaml")
+	return nil
+}
+
+func generateCommand(ctx context.Context, cmd *cli.Command) error {
+	log := logger.FromContext(ctx)
+
+	// Load config
+	configFile := cmd.String("config-file")
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
+		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
+	}
+
+	log.Debug("Config loaded successfully for generate command",
+		zap.String("config_file", configFile),
+		zap.String("team_name", cfg.GetTeamName()),
+		zap.String("runtime", cfg.Deployments.Runtime))
+
+	// Create runtime instance
+	rt, err := createRuntime(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create runtime: %w", err)
+	}
+
+	// Initialize runtime (this generates config files)
+	fmt.Println("Generating configuration files...")
+	if err := rt.Initialize(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to initialize runtime and generate files: %w", err)
+	}
+
+	fmt.Println("Configuration files generated successfully")
 	return nil
 }
 
