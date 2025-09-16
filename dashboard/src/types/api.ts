@@ -49,7 +49,6 @@ export type ApiResponse<T> = {
 };
 
 // Convenience type aliases for common use cases
-export type FlowStep = FlowStepInfo; // Alias for backward compatibility
 export type Worker = WorkerDetails;
 export type WorkerStatus = StatusResponse['status'];
 export type WorkerMode = StatusResponse['mode'];

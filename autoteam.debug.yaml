@@ -129,9 +129,7 @@ workers:
 settings:
   debug: true
   service:
-    build:
-      dockerfile: ../Dockerfile
-      context: ./
+    image: node:22.19.0
     user: root
   sleep_duration: 5
   team_name: autoteam-debug-team
