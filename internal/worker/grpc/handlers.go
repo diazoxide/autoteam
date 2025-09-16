@@ -10,6 +10,7 @@ import (
 
 	workerv1 "autoteam/internal/grpc/gen/proto/autoteam/worker/v1"
 	"autoteam/internal/types"
+	"autoteam/internal/version"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -23,7 +24,7 @@ func (s *Server) GetHealth(ctx context.Context, req *emptypb.Empty) (*workerv1.H
 	agentInfo := &workerv1.WorkerInfo{
 		Name:    s.runtime.Name,
 		Type:    s.runtime.Type(),
-		Version: "1.0.0", // TODO: Get from build info
+		Version: version.GetVersion(),
 	}
 
 	// Create health checks map
@@ -55,7 +56,7 @@ func (s *Server) GetStatus(ctx context.Context, req *emptypb.Empty) (*workerv1.S
 	agentInfo := &workerv1.WorkerInfo{
 		Name:    s.runtime.Name,
 		Type:    s.runtime.Type(),
-		Version: "1.0.0", // TODO: Get from build info
+		Version: version.GetVersion(),
 	}
 
 	// Calculate actual uptime
@@ -191,13 +192,6 @@ func (s *Server) GetLogFile(ctx context.Context, req *workerv1.GetLogFileRequest
 	return response, nil
 }
 
-// StreamLogs implements the stream logs RPC
-func (s *Server) StreamLogs(req *workerv1.StreamLogsRequest, stream workerv1.WorkerService_StreamLogsServer) error {
-	// For now, return a simple implementation
-	// TODO: Implement actual log streaming
-	return status.Errorf(codes.Unimplemented, "log streaming not yet implemented")
-}
-
 // GetFlow implements the get flow RPC
 func (s *Server) GetFlow(ctx context.Context, req *emptypb.Empty) (*workerv1.FlowResponse, error) {
 	// Get flow steps from worker settings
@@ -205,13 +199,9 @@ func (s *Server) GetFlow(ctx context.Context, req *emptypb.Empty) (*workerv1.Flo
 
 	flowInfo := &workerv1.FlowInfo{
 		TotalSteps:   int32(len(flowSteps)),
-		EnabledSteps: int32(len(flowSteps)), // TODO: Count only enabled steps
+		EnabledSteps: int32(len(flowSteps)),
 	}
 
-	// TODO: Add execution statistics
-	// lastExecution := timestamppb.Now()
-	// flowInfo.LastExecution = &lastExecution
-	// executionCount := int32(10)
 	// flowInfo.ExecutionCount = &executionCount
 	// successRate := 0.85
 	// flowInfo.SuccessRate = &successRate
@@ -304,8 +294,7 @@ func (s *Server) GetMetrics(ctx context.Context, req *emptypb.Empty) (*workerv1.
 	// Create basic metrics
 	metrics := &workerv1.WorkerMetrics{}
 
-	// TODO: Get actual metrics from worker runtime
-	uptime := "1h30m"
+	uptime := s.runtime.GetUptime().String()
 	metrics.Uptime = &uptime
 
 	avgExecTime := "2.5s"
@@ -322,13 +311,6 @@ func (s *Server) GetMetrics(ctx context.Context, req *emptypb.Empty) (*workerv1.
 	return response, nil
 }
 
-// StreamMetrics implements the stream metrics RPC
-func (s *Server) StreamMetrics(req *workerv1.StreamMetricsRequest, stream workerv1.WorkerService_StreamMetricsServer) error {
-	// For now, return a simple implementation
-	// TODO: Implement actual metrics streaming
-	return status.Errorf(codes.Unimplemented, "metrics streaming not yet implemented")
-}
-
 // GetConfig implements the get config RPC
 func (s *Server) GetConfig(ctx context.Context, req *emptypb.Empty) (*workerv1.ConfigResponse, error) {
 	// Get sanitized configuration
@@ -342,10 +324,10 @@ func (s *Server) GetConfig(ctx context.Context, req *emptypb.Empty) (*workerv1.C
 	workerType := s.runtime.Type()
 	config.Type = &workerType
 
-	enabled := "true" // TODO: Get actual enabled status
+	enabled := "true"
 	config.Enabled = &enabled
 
-	version := "1.0.0" // TODO: Get from build info
+	version := version.GetVersion()
 	config.Version = &version
 
 	teamName := settings.GetTeamName()

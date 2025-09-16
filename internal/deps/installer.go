@@ -30,29 +30,12 @@ func NewInstaller(cfg DependenciesConfig) *Installer {
 
 // Install checks if all required dependencies are available for multiple agents
 func (i *Installer) Install(ctx context.Context, agents ...agent.Agent) error {
-	lgr := logger.FromContext(ctx)
-
 	if !i.config.InstallDeps {
+		lgr := logger.FromContext(ctx)
 		lgr.Info("Dependency checking disabled, skipping")
 		return nil
 	}
-
-	lgr.Info("Checking dependencies for agents", zap.Int("agent_count", len(agents)))
-
-	// Check shared dependencies once
-	if err := i.checkSharedDependencies(ctx); err != nil {
-		return fmt.Errorf("shared dependencies not available: %w\n\nPlease install missing dependencies manually", err)
-	}
-
-	// Check agent-specific dependencies for each agent
-	for _, selectedAgent := range agents {
-		if err := i.checkAgentSpecificDependencies(ctx, selectedAgent); err != nil {
-			return fmt.Errorf("agent %s dependencies not available: %w", selectedAgent.Type(), err)
-		}
-	}
-
-	lgr.Info("All dependencies are available")
-	return nil
+	return i.CheckDependencies(ctx, agents...)
 }
 
 // hasCommand checks if a command is available

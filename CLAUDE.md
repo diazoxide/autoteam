@@ -113,7 +113,6 @@
   - Log files use timestamp prefix (YYYYMMDD-HHMMSS) and lowercase normalized task names
   - Streaming logs capture agent stdout/stderr immediately after execution (not just at completion)
   - Enhanced `NormalizeTaskText()` function for safe filename generation from notification text
-  - Added `StreamingLogger` service in `internal/task/log_stream.go` for log file management
   - Maintains backward compatibility with existing `output.txt` functionality
   - Comprehensive error handling with graceful fallback if log creation fails
 - **NEW**: Clean Two-Layer Agent Architecture with Subdirectory Structure

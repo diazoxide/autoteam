@@ -22,6 +22,7 @@ type Config struct {
 	MCPServers   map[string]worker.MCPServer       `yaml:"mcp_servers,omitempty"`
 	ControlPlane *ControlPlaneConfig               `yaml:"control_plane,omitempty"`
 	Dashboard    *DashboardConfig                  `yaml:"dashboard,omitempty"`
+	Deployments  *DeploymentConfig                 `yaml:"deployments,omitempty"`
 }
 
 // ControlPlaneConfig represents the control plane configuration
@@ -38,6 +39,35 @@ type DashboardConfig struct {
 	Port    int    `yaml:"port"`
 	APIUrl  string `yaml:"api_url,omitempty"`
 	Title   string `yaml:"title,omitempty"`
+}
+
+// DeploymentConfig represents the deployment runtime configuration
+type DeploymentConfig struct {
+	Runtime string                 `yaml:"runtime"`
+	Config  map[string]interface{} `yaml:"config,omitempty"`
+}
+
+// DockerConfig represents Docker-specific deployment configuration
+type DockerConfig struct {
+	NetworkName    string            `yaml:"network_name,omitempty"`
+	BuildArgs      map[string]string `yaml:"build_args,omitempty"`
+	RegistryConfig *RegistryConfig   `yaml:"registry,omitempty"`
+	ResourceLimits *ResourceLimits   `yaml:"resource_limits,omitempty"`
+	EnableBuildx   bool              `yaml:"enable_buildx,omitempty"`
+	DockerfilePath string            `yaml:"dockerfile_path,omitempty"`
+}
+
+// RegistryConfig represents Docker registry configuration
+type RegistryConfig struct {
+	URL      string `yaml:"url,omitempty"`
+	Username string `yaml:"username,omitempty"`
+	Password string `yaml:"password,omitempty"`
+}
+
+// ResourceLimits represents container resource limits
+type ResourceLimits struct {
+	Memory string `yaml:"memory,omitempty"`
+	CPUs   string `yaml:"cpus,omitempty"`
 }
 
 func LoadConfig(filename string) (*Config, error) {
@@ -165,6 +195,19 @@ func setDefaults(config *Config) {
 		if config.ControlPlane.Port == 0 {
 			config.ControlPlane.Port = 9090
 		}
+	}
+
+	// Set deployment defaults
+	if config.Deployments == nil {
+		config.Deployments = &DeploymentConfig{
+			Runtime: "docker",
+			Config: map[string]interface{}{
+				"network_name": fmt.Sprintf("%s-network", config.GetTeamName()),
+			},
+		}
+	}
+	if config.Deployments.Runtime == "" {
+		config.Deployments.Runtime = "docker"
 	}
 }
 

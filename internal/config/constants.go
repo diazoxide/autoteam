@@ -25,12 +25,6 @@ const (
 
 // File names and extensions
 const (
-	// ComposeFile is the name of the Docker Compose file
-	ComposeFile = "compose.yaml"
-
-	// ComposeFilePath is the full path to the Docker Compose file in .autoteam directory
-	ComposeFilePath = AutoTeamDir + "/compose.yaml"
-
 	// EntrypointScript is the name of the entrypoint shell script
 	EntrypointScript = "entrypoint.sh"
 

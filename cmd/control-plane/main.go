@@ -93,11 +93,12 @@ func runControlPlane(ctx context.Context, cmd *cli.Command) error {
 		zap.String("log_level", string(logLevel)),
 	)
 
-	// Load control-plane specific config from environment variable
+	// Load control-plane specific config from file
 	controlPlaneConfigPath := os.Getenv("CONTROL_PLANE_CONFIG")
 	if controlPlaneConfigPath == "" {
 		controlPlaneConfigPath = "/opt/autoteam/control-plane/config.yaml"
 	}
+
 	controlPlaneData, err := os.ReadFile(controlPlaneConfigPath)
 	if err != nil {
 		log.Error("Failed to load control-plane config", zap.String("config_path", controlPlaneConfigPath), zap.Error(err))

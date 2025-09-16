@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"autoteam/internal/config"
-	"autoteam/internal/generator"
 	"autoteam/internal/logger"
+	"autoteam/internal/runtime"
 
 	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
@@ -22,11 +21,6 @@ var (
 	BuildTime = "unknown"
 	GitCommit = "unknown"
 )
-
-// Context key for storing config
-type contextKey string
-
-const configContextKey contextKey = "config"
 
 func main() {
 	// Load .env file if it exists (ignore errors for optional file)
@@ -53,32 +47,48 @@ func main() {
 		},
 		Commands: []*cli.Command{
 			{
-				Name:   "generate",
-				Usage:  "Generate compose.yaml from autoteam.yaml",
-				Action: generateCommand,
-			},
-			{
 				Name:   "up",
-				Usage:  "Generate and start containers",
+				Usage:  "Deploy and start all services",
 				Action: upCommand,
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:    "docker-compose-args",
-						Aliases: []string{"args"},
-						Usage:   "Additional arguments to pass to docker compose command",
-						Value:   "",
-					},
-				},
 			},
 			{
 				Name:   "down",
-				Usage:  "Stop containers",
+				Usage:  "Stop all services",
 				Action: downCommand,
+			},
+			{
+				Name:   "status",
+				Usage:  "Show status of all services",
+				Action: statusCommand,
+			},
+			{
+				Name:   "logs",
+				Usage:  "Show logs for a service",
+				Action: logsCommand,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "service",
+						Aliases:  []string{"s"},
+						Usage:    "Service name to get logs for",
+						Required: true,
+					},
+					&cli.IntFlag{
+						Name:    "lines",
+						Aliases: []string{"n"},
+						Usage:   "Number of lines to retrieve",
+						Value:   100,
+					},
+				},
 			},
 			{
 				Name:   "init",
 				Usage:  "Create sample autoteam.yaml",
 				Action: initCommand,
+			},
+			{
+				Name:   "generate",
+				Usage:  "Generate configuration files (for compatibility)",
+				Action: generateCommand,
 			},
 			{
 				Name:   "workers",
@@ -98,6 +108,215 @@ func main() {
 	}
 }
 
+// Helper function to create runtime instance
+func createRuntime(cfg *config.Config) (runtime.Runtime, error) {
+	return runtime.NewRuntime(cfg.Deployments)
+}
+
+func upCommand(ctx context.Context, cmd *cli.Command) error {
+	log := logger.FromContext(ctx)
+
+	// Load config
+	configFile := cmd.String("config-file")
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
+		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
+	}
+
+	log.Debug("Config loaded successfully",
+		zap.String("config_file", configFile),
+		zap.String("team_name", cfg.GetTeamName()),
+		zap.String("runtime", cfg.Deployments.Runtime))
+
+	// Create runtime instance
+	rt, err := createRuntime(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create runtime: %w", err)
+	}
+
+	// Initialize runtime
+	fmt.Println("Initializing runtime...")
+	if err := rt.Initialize(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to initialize runtime: %w", err)
+	}
+
+	// Deploy all enabled workers
+	fmt.Println("Deploying workers...")
+	workersWithSettings := cfg.GetEnabledWorkersWithEffectiveSettings()
+	for _, workerWithSettings := range workersWithSettings {
+		worker := workerWithSettings.Worker
+		settings := workerWithSettings.Settings
+
+		log.Debug("Deploying worker", zap.String("worker", worker.Name))
+		if err := rt.DeployWorker(ctx, worker, settings, cfg); err != nil {
+			return fmt.Errorf("failed to deploy worker %s: %w", worker.Name, err)
+		}
+		fmt.Printf("Worker %s deployed successfully\n", worker.Name)
+	}
+
+	// Deploy control plane if enabled
+	if cfg.ControlPlane != nil && cfg.ControlPlane.Enabled {
+		fmt.Println("Deploying control plane...")
+		if err := rt.DeployControlPlane(ctx, cfg); err != nil {
+			return fmt.Errorf("failed to deploy control plane: %w", err)
+		}
+		fmt.Println("Control plane deployed successfully")
+	}
+
+	// Deploy dashboard if enabled
+	if cfg.Dashboard != nil && cfg.Dashboard.Enabled {
+		fmt.Println("Deploying dashboard...")
+		if err := rt.DeployDashboard(ctx, cfg); err != nil {
+			return fmt.Errorf("failed to deploy dashboard: %w", err)
+		}
+		fmt.Println("Dashboard deployed successfully")
+	}
+
+	// Deploy custom services
+	if cfg.Services != nil {
+		fmt.Println("Deploying custom services...")
+		for serviceName, serviceConfig := range cfg.Services {
+			log.Debug("Deploying custom service", zap.String("service", serviceName))
+			if err := rt.DeployService(ctx, serviceName, serviceConfig, cfg); err != nil {
+				return fmt.Errorf("failed to deploy service %s: %w", serviceName, err)
+			}
+			fmt.Printf("Service %s deployed successfully\n", serviceName)
+		}
+	}
+
+	fmt.Println("\nAll services deployed successfully!")
+	return nil
+}
+
+func downCommand(ctx context.Context, cmd *cli.Command) error {
+	log := logger.FromContext(ctx)
+
+	// Load config
+	configFile := cmd.String("config-file")
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
+		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
+	}
+
+	log.Debug("Config loaded successfully for down command",
+		zap.String("config_file", configFile),
+		zap.String("team_name", cfg.GetTeamName()),
+		zap.String("runtime", cfg.Deployments.Runtime))
+
+	// Create runtime instance
+	rt, err := createRuntime(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create runtime: %w", err)
+	}
+
+	fmt.Println("Stopping all services...")
+	if err := rt.StopAll(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to stop services: %w", err)
+	}
+
+	fmt.Println("All services stopped successfully")
+	return nil
+}
+
+func statusCommand(ctx context.Context, cmd *cli.Command) error {
+	log := logger.FromContext(ctx)
+
+	// Load config
+	configFile := cmd.String("config-file")
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
+		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
+	}
+
+	// Create runtime instance
+	rt, err := createRuntime(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create runtime: %w", err)
+	}
+
+	// Get status of all services
+	services, err := rt.GetStatus(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to get service status: %w", err)
+	}
+
+	if len(services) == 0 {
+		fmt.Println("No services are currently running.")
+		return nil
+	}
+
+	// Print status table
+	fmt.Printf("%-20s %-10s %-10s %-20s %-15s\n", "SERVICE", "STATUS", "HEALTH", "IMAGE", "PORTS")
+	fmt.Println(strings.Repeat("-", 80))
+
+	for _, service := range services {
+		ports := strings.Join(service.Ports, ", ")
+		if ports == "" {
+			ports = "-"
+		}
+		fmt.Printf("%-20s %-10s %-10s %-20s %-15s\n",
+			service.Name,
+			service.Status,
+			service.Health,
+			service.Image,
+			ports)
+	}
+
+	fmt.Printf("\nTotal services: %d\n", len(services))
+	return nil
+}
+
+func logsCommand(ctx context.Context, cmd *cli.Command) error {
+	log := logger.FromContext(ctx)
+
+	// Load config
+	configFile := cmd.String("config-file")
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
+		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
+	}
+
+	// Create runtime instance
+	rt, err := createRuntime(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create runtime: %w", err)
+	}
+
+	serviceName := cmd.String("service")
+	lines := cmd.Int("lines")
+
+	// Get logs for the specified service
+	logLines, err := rt.GetLogs(ctx, serviceName, lines, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to get logs for service %s: %w", serviceName, err)
+	}
+
+	if len(logLines) == 0 {
+		fmt.Printf("No logs available for service: %s\n", serviceName)
+		return nil
+	}
+
+	// Print logs
+	for _, line := range logLines {
+		fmt.Println(line)
+	}
+
+	return nil
+}
+
+func initCommand(ctx context.Context, cmd *cli.Command) error {
+	if err := config.CreateSampleConfig("autoteam.yaml"); err != nil {
+		return fmt.Errorf("failed to create sample config: %w", err)
+	}
+
+	fmt.Println("Created sample autoteam.yaml")
+	return nil
+}
+
 func generateCommand(ctx context.Context, cmd *cli.Command) error {
 	log := logger.FromContext(ctx)
 
@@ -109,90 +328,24 @@ func generateCommand(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
 	}
 
-	log.Debug("Generating compose.yaml", zap.String("team_name", cfg.Settings.GetTeamName()))
-	gen := generator.New()
-	if err := gen.GenerateCompose(cfg); err != nil {
-		log.Error("Failed to generate compose.yaml", zap.Error(err))
-		return fmt.Errorf("failed to generate compose.yaml: %w", err)
-	}
-
-	log.Debug("Generated compose.yaml successfully")
-	fmt.Println("Generated compose.yaml successfully")
-	return nil
-}
-
-func upCommand(ctx context.Context, cmd *cli.Command) error {
-	log := logger.FromContext(ctx)
-
-	// Load config using the specified config file
-	configFile := cmd.String("config-file")
-	cfg, err := config.LoadConfig(configFile)
-	if err != nil {
-		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
-		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
-	}
-
-	log.Debug("Config loaded successfully",
+	log.Debug("Config loaded successfully for generate command",
 		zap.String("config_file", configFile),
-		zap.String("team_name", cfg.Settings.GetTeamName()),
-		zap.Bool("debug_enabled", cfg.Settings.GetDebug()))
+		zap.String("team_name", cfg.GetTeamName()),
+		zap.String("runtime", cfg.Deployments.Runtime))
 
-	// Generate compose.yaml with fixed ports (all workers use 8080 internally)
-	log.Debug("Generating compose.yaml with fixed ports", zap.String("team_name", cfg.Settings.GetTeamName()))
-	if err := generateCommand(ctx, cmd); err != nil {
-		return err
-	}
-
-	fmt.Println("Starting containers...")
-
-	// Start with default args
-	args := []string{"up", "-d", "--remove-orphans"}
-
-	// Add additional docker-compose-args if provided
-	if dockerComposeArgs := cmd.String("docker-compose-args"); dockerComposeArgs != "" {
-		// Split the args string by spaces and append to args
-		additionalArgs := strings.Fields(dockerComposeArgs)
-		args = append(args, additionalArgs...)
-	}
-
-	if err := runDockerComposeWithConfig(ctx, cfg, args...); err != nil {
-		return fmt.Errorf("failed to start containers: %w", err)
-	}
-
-	fmt.Println("Containers started successfully")
-	return nil
-}
-
-func downCommand(ctx context.Context, cmd *cli.Command) error {
-	log := logger.FromContext(ctx)
-
-	// Load config using the specified config file
-	configFile := cmd.String("config-file")
-	cfg, err := config.LoadConfig(configFile)
+	// Create runtime instance
+	rt, err := createRuntime(cfg)
 	if err != nil {
-		log.Error("Failed to load config", zap.Error(err), zap.String("config_file", configFile))
-		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
+		return fmt.Errorf("failed to create runtime: %w", err)
 	}
 
-	log.Debug("Config loaded successfully for down command",
-		zap.String("config_file", configFile),
-		zap.String("team_name", cfg.Settings.GetTeamName()))
-
-	fmt.Println("Stopping containers...")
-	if err := runDockerComposeWithConfig(ctx, cfg, "down"); err != nil {
-		return fmt.Errorf("failed to stop containers: %w", err)
+	// Initialize runtime (this generates config files)
+	fmt.Println("Generating configuration files...")
+	if err := rt.Initialize(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to initialize runtime and generate files: %w", err)
 	}
 
-	fmt.Println("Containers stopped successfully")
-	return nil
-}
-
-func initCommand(ctx context.Context, cmd *cli.Command) error {
-	if err := config.CreateSampleConfig("autoteam.yaml"); err != nil {
-		return fmt.Errorf("failed to create sample config: %w", err)
-	}
-
-	fmt.Println("Created sample autoteam.yaml")
+	fmt.Println("Configuration files generated successfully")
 	return nil
 }
 
@@ -244,28 +397,6 @@ func workersCommand(ctx context.Context, cmd *cli.Command) error {
 	return nil
 }
 
-func runDockerCompose(ctx context.Context, args ...string) error {
-	cfg := getConfigFromContext(ctx)
-	return runDockerComposeWithConfig(ctx, cfg, args...)
-}
-
-func runDockerComposeWithConfig(ctx context.Context, cfg *config.Config, args ...string) error {
-	// Use the compose.yaml file from .autoteam directory
-	composeArgs := []string{"-f", config.ComposeFilePath}
-
-	// If config is available, use custom project name, otherwise use default
-	if cfg != nil && cfg.Settings.GetTeamName() != "" {
-		composeArgs = append(composeArgs, "-p", cfg.Settings.GetTeamName())
-	}
-
-	composeArgs = append(composeArgs, args...)
-
-	cmd := exec.Command("docker-compose", composeArgs...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
 // setupContextWithLogger sets up logger and loads config into context
 func setupContextWithLogger(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 	// Setup logger first
@@ -296,13 +427,4 @@ func setupContextWithLogger(ctx context.Context, cmd *cli.Command) (context.Cont
 
 	// For commands that need config, they will load it themselves with proper flag handling
 	return ctx, nil
-}
-
-// getConfigFromContext retrieves the config from context
-func getConfigFromContext(ctx context.Context) *config.Config {
-	cfg, ok := ctx.Value(configContextKey).(*config.Config)
-	if !ok {
-		return nil
-	}
-	return cfg
 }

@@ -207,9 +207,7 @@ workers:
 settings:
   debug: true
   service:
-    build:
-      dockerfile: ../Dockerfile
-      context: ./
+    image: node:18.17.1
     user: root
     environment:
       TODO_DB_PATH: ${AUTOTEAM_WORKER_DIR}/todo.db

@@ -246,6 +246,7 @@ graph TB
 | 🔄 **Intelligent Flow Orchestration** | Parallel execution with smart dependency resolution |
 | 🤖 **Multi-AI Agent Support** | Claude Code, Gemini CLI, Qwen Code, and more working together |
 | 🏗️ **Container-Native Architecture** | Isolated, secure, and scalable agent deployment |
+| 🚀 **Runtime Abstraction** | Flexible deployment runtime (Docker, Kubernetes, etc.) with native API control |
 | ⚙️ **Configuration-Driven** | Define complex workflows in simple YAML |
 | 🔌 **Extensible Plugin System** | Add custom MCP servers and AI agents |
 | 📊 **Real-time Monitoring** | Track agent performance and workflow execution |
@@ -331,12 +332,18 @@ settings:
       prompt: "Process tasks using MCP tools"
 ```
 
-### 4. Deploy
+### 4. Generate Configuration (Optional)
+```bash
+# Generate configuration files for the runtime
+autoteam generate
+```
+
+### 5. Deploy
 ```bash
 autoteam up
 ```
 
-### 5. Monitor (Optional)
+### 6. Monitor (Optional)
 ```bash
 # Access control plane API at http://localhost:9090
 # View Swagger UI at http://localhost:9090/docs/

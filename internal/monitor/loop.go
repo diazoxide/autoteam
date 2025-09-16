@@ -7,7 +7,6 @@ import (
 
 	"autoteam/internal/flow"
 	"autoteam/internal/logger"
-	"autoteam/internal/task"
 	"autoteam/internal/worker"
 
 	"go.uber.org/zap"
@@ -35,7 +34,6 @@ type Monitor struct {
 	worker        *worker.Worker        // Worker configuration
 	workerRuntime *worker.WorkerRuntime // Worker runtime for statistics tracking
 	settings      worker.WorkerSettings // Effective settings
-	taskService   *task.Service         // Service for task persistence operations
 	grpcServer    GRPCServer            // gRPC API server for monitoring
 }
 
@@ -45,7 +43,7 @@ func New(workerRuntime *worker.WorkerRuntime, monitorConfig Config) *Monitor {
 	w := workerRuntime.GetConfig()
 	settings := workerRuntime.GetSettings()
 
-	// Get agent directory for task service
+	// Get agent directory for flow executor
 	agentDirectory := workerRuntime.GetWorkingDir()
 
 	// Create flow executor with worker configuration and effective settings
@@ -61,7 +59,6 @@ func New(workerRuntime *worker.WorkerRuntime, monitorConfig Config) *Monitor {
 		worker:        w,
 		workerRuntime: workerRuntime,
 		settings:      settings,
-		taskService:   task.NewService(agentDirectory),
 	}
 }
 
