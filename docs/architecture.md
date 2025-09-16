@@ -11,8 +11,8 @@ graph TB
     subgraph "AutoTeam Core"
         CLI[CLI Interface]
         Config[Configuration Engine]
-        Generator[Template Generator]
-        Orchestrator[Container Orchestrator]
+        Runtime[Runtime Abstraction]
+        Orchestrator[Deployment Orchestrator]
         ControlPlane[Control Plane API]
     end
     
@@ -50,8 +50,8 @@ graph TB
     end
     
     CLI --> Config
-    Config --> Generator
-    Generator --> Orchestrator
+    Config --> Runtime
+    Runtime --> Orchestrator
     Orchestrator --> FlowEngine
     Orchestrator --> ControlPlane
     
@@ -105,7 +105,7 @@ func main() {
 
 **Key Responsibilities:**
 - Configuration validation
-- Template generation
+- Runtime initialization
 - Container orchestration
 - System lifecycle management
 
@@ -133,6 +133,35 @@ type Worker struct {
 - Environment variable substitution
 - Configuration merging (global → worker settings → worker level)
 - Error reporting and debugging
+
+### Runtime Abstraction
+
+Provides a flexible deployment abstraction layer:
+
+```go
+// internal/runtime/interface.go
+type Runtime interface {
+    Initialize(ctx context.Context, cfg *config.Config) error
+    DeployWorker(ctx context.Context, worker worker.Worker, settings worker.WorkerSettings, cfg *config.Config) error
+    DeployControlPlane(ctx context.Context, cfg *config.Config) error
+    GetStatus(ctx context.Context, cfg *config.Config) ([]ServiceStatus, error)
+    StopAll(ctx context.Context, cfg *config.Config) error
+}
+
+// Docker implementation
+type DockerRuntime struct {
+    client *client.Client
+    config map[string]interface{}
+}
+```
+
+**Features:**
+- Platform-agnostic deployment interface
+- Direct Docker API integration (no Docker Compose dependency)
+- Automatic network and resource management
+- Flexible runtime implementations (Docker, Kubernetes, etc.)
+- Configuration file generation
+- Container lifecycle management
 
 ### Flow Execution Engine
 
@@ -198,17 +227,18 @@ sequenceDiagram
     participant User
     participant CLI
     participant Config
-    participant Generator
-    participant Docker
+    participant Runtime
+    participant DockerAPI
     participant Agent
     participant MCP
-    
+
     User->>CLI: autoteam up
     CLI->>Config: Load autoteam.yaml
     Config->>Config: Validate configuration
-    Config->>Generator: Generate compose.yaml
-    Generator->>Docker: docker compose up
-    Docker->>Agent: Start agent containers
+    Config->>Runtime: Create runtime instance
+    Runtime->>Runtime: Initialize (networks, configs)
+    Runtime->>DockerAPI: Create containers directly
+    DockerAPI->>Agent: Start agent containers
     Agent->>MCP: Connect to MCP servers
     MCP-->>Agent: MCP tools available
     Agent->>Agent: Execute flow steps
@@ -291,17 +321,21 @@ ENTRYPOINT ["/opt/autoteam/bin/entrypoint.sh"]
 
 ```
 .autoteam/
-├── agents/
-│   ├── {agent_name}/
-│   │   ├── {flow_step}/           # Flow step workspace
-│   │   │   ├── mcp.json          # MCP configuration
-│   │   │   ├── data/             # Step-specific data
-│   │   │   └── logs/             # Execution logs
-│   │   └── shared/               # Shared agent resources
-│   └── shared/                   # Global shared resources
-├── compose.yaml                  # Generated Docker Compose
-├── entrypoint.sh                # Container entrypoint script
-└── logs/                        # System logs
+├── {team_name}/
+│   ├── workers/
+│   │   ├── {worker_name}/        # Worker-specific directory
+│   │   │   ├── config.yaml      # Worker configuration
+│   │   │   ├── mcp.json         # MCP configuration
+│   │   │   ├── data/            # Worker data
+│   │   │   └── logs/            # Worker logs
+│   │   └── ...
+│   └── control-plane/           # Control plane configuration
+│       └── config.yaml         # Control plane config
+bin/                            # Local binary storage
+├── entrypoint.sh              # Container entrypoint script
+├── autoteam-worker-*          # Worker binaries
+├── autoteam-control-plane     # Control plane binary
+└── autoteam-dashboard         # Dashboard binary
 ```
 
 ## MCP Integration Architecture

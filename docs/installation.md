@@ -60,16 +60,17 @@ autoteam --version
 
 AutoTeam requires the following tools to be installed:
 
-- **Docker** - Container runtime for agent isolation
-- **Docker Compose** - Container orchestration (installed with Docker Desktop)
+- **Docker** - Container runtime for agent isolation (Docker API used directly)
 - **Git** - For repository cloning and version control
 - **GitHub CLI (gh)** - For GitHub API interactions
+
+**Note**: AutoTeam uses the Docker API directly through its runtime abstraction layer, eliminating the need for Docker Compose.
 
 ### Installing Dependencies
 
 **macOS (Homebrew):**
 ```bash
-brew install docker docker-compose git gh
+brew install docker git gh
 ```
 
 **Ubuntu/Debian:**
@@ -88,7 +89,7 @@ sudo apt install gh git
 **Fedora/RHEL:**
 ```bash
 # Docker
-sudo dnf install docker docker-compose git
+sudo dnf install docker git
 sudo systemctl enable --now docker
 sudo usermod -aG docker $USER
 
@@ -100,7 +101,7 @@ sudo dnf install gh
 
 ### macOS
 - Use Homebrew for dependency management
-- Docker Desktop includes Docker Compose
+- Docker Desktop provides the Docker API that AutoTeam uses
 - May need to allow binary execution in System Preferences > Security & Privacy
 
 ### Linux
@@ -129,10 +130,12 @@ sudo usermod -aG docker $USER
 ```bash
 # Check Docker status
 docker --version
-docker compose version
 
-# Test Docker access
+# Test Docker API access
 docker run hello-world
+
+# Check Docker daemon
+docker info
 ```
 
 ### Build Errors

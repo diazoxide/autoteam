@@ -9,10 +9,12 @@ AutoTeam is built in Go with a focus on modularity, testability, and maintainabi
 ### Prerequisites
 
 - **Go 1.22+** - [Install Go](https://golang.org/doc/install)
-- **Docker & Docker Compose** - [Install Docker](https://docs.docker.com/get-docker/)
+- **Docker** - [Install Docker](https://docs.docker.com/get-docker/) (Docker API used directly)
 - **Git** - Version control
 - **Make** - Build automation
 - **GitHub CLI (optional)** - For GitHub integration testing
+
+**Note**: Docker Compose is no longer required as AutoTeam uses the Docker API directly through its runtime abstraction layer.
 
 ### Clone and Build
 
@@ -57,14 +59,17 @@ make install
 autoteam/
 ├── cmd/
 │   ├── autoteam/          # Main CLI application
+│   ├── control-plane/     # Control plane binary
 │   └── worker/            # Worker binary for agents
 ├── internal/
 │   ├── config/            # Configuration parsing and validation
-│   ├── generator/         # Template generation engine
-│   │   └── templates/     # Embedded Docker Compose templates
+│   ├── runtime/           # Runtime abstraction layer
+│   │   ├── interface.go   # Runtime interface definition
+│   │   └── docker.go      # Docker runtime implementation
 │   ├── flow/              # Flow execution engine
 │   ├── agent/             # AI agent implementations
 │   ├── mcp/               # MCP server management
+│   ├── version/           # Version management
 │   └── logger/            # Structured logging
 ├── pkg/                   # Public APIs (if any)
 ├── examples/              # Example configurations
@@ -171,33 +176,46 @@ Current implementations:
 - **Gemini Agent** - Uses Gemini CLI tools
 - **Qwen Agent** - Uses Qwen CLI interface
 
-### Template Generation
+### Runtime Abstraction
 
-AutoTeam uses Go templates to generate Docker Compose files:
+AutoTeam uses a runtime abstraction layer for flexible deployment:
 
 ```go
-// internal/generator/generator.go
-func (g *Generator) Generate(config *config.Config) error {
-    tmpl, err := template.ParseFS(templates.FS, "compose.yaml.tmpl")
+// internal/runtime/interface.go
+type Runtime interface {
+    Initialize(ctx context.Context, cfg *config.Config) error
+    DeployWorker(ctx context.Context, worker worker.Worker, settings worker.WorkerSettings, cfg *config.Config) error
+    DeployControlPlane(ctx context.Context, cfg *config.Config) error
+    GetStatus(ctx context.Context, cfg *config.Config) ([]ServiceStatus, error)
+    StopAll(ctx context.Context, cfg *config.Config) error
+}
+
+// Docker implementation
+type DockerRuntime struct {
+    client *client.Client
+    config map[string]interface{}
+}
+
+func (dr *DockerRuntime) DeployWorker(ctx context.Context, worker worker.Worker, settings worker.WorkerSettings, cfg *config.Config) error {
+    // Direct Docker API calls
+    container, err := dr.client.ContainerCreate(ctx, &container.Config{
+        Image: worker.Image,
+        Env:   dr.buildEnvVars(worker, settings),
+    }, nil, nil, nil, worker.Name)
+
     if err != nil {
         return err
     }
-    
-    var buf bytes.Buffer
-    if err := tmpl.Execute(&buf, config); err != nil {
-        return err
-    }
-    
-    return os.WriteFile("compose.yaml", buf.Bytes(), 0644)
+
+    return dr.client.ContainerStart(ctx, container.ID, types.ContainerStartOptions{})
 }
 ```
 
-Templates are embedded at build time using `go:embed`:
-
-```go
-//go:embed templates/*
-var FS embed.FS
-```
+Key benefits of runtime abstraction:
+- Platform-agnostic deployment interface
+- Direct Docker API integration (no Docker Compose dependency)
+- Extensible for future runtimes (Kubernetes, etc.)
+- Better error handling and resource management
 
 ## Adding New Features
 
@@ -579,17 +597,23 @@ DEBUG=flow,agent ./build/autoteam up
 ### Container Debugging
 
 ```bash
-# Inspect running containers
-docker compose ps
+# Inspect running containers (direct Docker API)
+docker ps --filter "label=autoteam"
 
 # View container logs
-docker compose logs -f autoteam-worker
+docker logs -f <worker-container-id>
 
 # Execute commands in container
-docker compose exec autoteam-worker /bin/bash
+docker exec -it <worker-container-id> /bin/bash
 
 # Debug MCP server communication
-docker compose exec autoteam-worker cat /var/log/mcp.log
+docker exec -it <worker-container-id> cat /var/log/mcp.log
+
+# Check runtime status
+./build/autoteam status
+
+# Get runtime service information
+./build/autoteam generate  # For backward compatibility
 ```
 
 ### Performance Profiling
