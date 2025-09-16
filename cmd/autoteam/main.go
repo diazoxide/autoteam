@@ -22,7 +22,6 @@ var (
 	GitCommit = "unknown"
 )
 
-
 func main() {
 	// Load .env file if it exists (ignore errors for optional file)
 	_ = godotenv.Load()
