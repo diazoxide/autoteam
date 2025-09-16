@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -27,71 +26,43 @@ func TestGenerateCommand(t *testing.T) {
 		t.Fatalf("failed to change to temp directory: %v", err)
 	}
 
-	// Copy templates to temp directory
-	templatesDir := filepath.Join(tempDir, "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatalf("failed to create templates directory: %v", err)
-	}
-
-	// Create simplified template files for testing
-	composeTemplate := `services:
-{{- range .Workers }}
-  {{ .Name }}:
-    image: {{ $.Settings.DockerImage }}
-    environment:
-      AGENT_NAME: {{ .Name }}
-      GITHUB_REPO: {{ (index $.Repositories.Include 0) }}
-{{- end }}`
-
-	entrypointTemplate := `#!/bin/bash
-echo "Test entrypoint"`
-
-	testutil.CreateTempFile(t, templatesDir, "compose.yaml.tmpl", composeTemplate)
-	testutil.CreateTempFile(t, templatesDir, "entrypoint.sh.tmpl", entrypointTemplate)
-
-	// Create test config
-	testConfig := `repositories:
-  include:
-    - "owner/test-repo"
+	// Create test config for new runtime architecture
+	testConfig := `team_name: "test-team"
+deployments:
+  runtime: "docker"
 workers:
-  - name: "dev1"
-    prompt: "Test agent"
-    github_token: "TEST_TOKEN"
-    github_user: "test-user"
-
-settings:
-  flow:
-    - name: collector
-      type: gemini
-      prompt: "Collect"
-    - name: executor
-      type: claude
-      depends_on: [collector]
-      prompt: "Execute"`
+  - name: "Test Developer"
+    prompt: "Test agent for development"
+    enabled: true
+    settings:
+      service:
+        image: "autoteam:latest"`
 
 	testutil.CreateTempFile(t, tempDir, "autoteam.yaml", testConfig)
 
-	// For now, test the generate functionality by calling generator directly
-	// This skips CLI layer testing but ensures core functionality works
-	t.Skip("Skipping CLI test - core functionality tested in generator package")
+	// Test the generate command with new CLI structure
+	cmd := &cli.Command{}
+	cmd.Set("config-file", "autoteam.yaml")
+	ctx := context.Background()
 
-	// Verify files were generated in .autoteam directory
-	if !testutil.FileExists(".autoteam/compose.yaml") {
-		t.Errorf("compose.yaml should be generated in .autoteam directory")
+	err = generateCommand(ctx, cmd)
+	if err != nil {
+		t.Fatalf("generateCommand() error = %v", err)
 	}
 
-	// entrypoint.sh is no longer generated - it's copied from system entrypoints directory
-	if !testutil.DirExists(".autoteam") {
-		t.Errorf(".autoteam directory should be created")
+	// Verify team directory structure was created
+	if !testutil.DirExists(".autoteam/test-team") {
+		t.Errorf(".autoteam/test-team directory should be created")
 	}
 
-	// Verify content
-	composeContent := testutil.ReadFile(t, ".autoteam/compose.yaml")
-	if !strings.Contains(composeContent, "dev1:") {
-		t.Errorf("compose.yaml should contain dev1 service")
+	// Verify worker directory was created
+	if !testutil.DirExists(".autoteam/test-team/workers") {
+		t.Errorf("workers directory should be created")
 	}
-	if !strings.Contains(composeContent, "dev1") {
-		t.Errorf("compose.yaml should contain dev1 service")
+
+	// Verify bin directory exists
+	if !testutil.DirExists("bin") {
+		t.Errorf("bin directory should be created")
 	}
 }
 
@@ -109,9 +80,15 @@ func TestGenerateCommand_MissingConfig(t *testing.T) {
 		t.Fatalf("failed to change to temp directory: %v", err)
 	}
 
-	// For now, test the missing config by calling generator directly
-	// This skips CLI layer testing but ensures core functionality works
-	t.Skip("Skipping CLI test - core functionality tested in generator package")
+	// Test generate command with missing config file
+	cmd := &cli.Command{}
+	cmd.Set("config-file", "nonexistent.yaml")
+	ctx := context.Background()
+
+	err = generateCommand(ctx, cmd)
+	if err == nil {
+		t.Errorf("generateCommand() should fail with missing config file")
+	}
 }
 
 func TestInitCommand(t *testing.T) {
