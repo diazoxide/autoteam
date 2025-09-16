@@ -41,8 +41,17 @@ workers:
 	testutil.CreateTempFile(t, tempDir, "autoteam.yaml", testConfig)
 
 	// Test the generate command with new CLI structure
+	// We need to simulate the CLI context with proper flag setup
+	app := &cli.Command{
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "config-file",
+				Value: "autoteam.yaml",
+			},
+		},
+	}
 	cmd := &cli.Command{}
-	cmd.Set("config-file", "autoteam.yaml")
+	cmd.Root = app
 	ctx := context.Background()
 
 	err = generateCommand(ctx, cmd)
@@ -81,8 +90,16 @@ func TestGenerateCommand_MissingConfig(t *testing.T) {
 	}
 
 	// Test generate command with missing config file
+	app := &cli.Command{
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "config-file",
+				Value: "nonexistent.yaml",
+			},
+		},
+	}
 	cmd := &cli.Command{}
-	cmd.Set("config-file", "nonexistent.yaml")
+	cmd.Root = app
 	ctx := context.Background()
 
 	err = generateCommand(ctx, cmd)
