@@ -141,19 +141,8 @@ func upCommand(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("failed to initialize runtime: %w", err)
 	}
 
-	// Deploy all enabled workers
-	fmt.Println("Deploying workers...")
-	workersWithSettings := cfg.GetEnabledWorkersWithEffectiveSettings()
-	for _, workerWithSettings := range workersWithSettings {
-		worker := workerWithSettings.Worker
-		settings := workerWithSettings.Settings
-
-		log.Debug("Deploying worker", zap.String("worker", worker.Name))
-		if err := rt.DeployWorker(ctx, worker, settings, cfg); err != nil {
-			return fmt.Errorf("failed to deploy worker %s: %w", worker.Name, err)
-		}
-		fmt.Printf("Worker %s deployed successfully\n", worker.Name)
-	}
+	// Workers are now deployed by the control plane from database
+	// Config-based workers are no longer supported
 
 	// Deploy control plane if enabled
 	if cfg.ControlPlane != nil && cfg.ControlPlane.Enabled {
@@ -360,39 +349,25 @@ func workersCommand(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("failed to load config from %s: %w", configFile, err)
 	}
 
-	fmt.Println("Workers configuration:")
+	fmt.Println("Workers are now managed through the database.")
+	fmt.Println("Use the control plane API to view worker status:")
 	fmt.Println()
 
-	for i, worker := range cfg.Workers {
-		status := "enabled"
-		if !worker.IsEnabled() {
-			status = "disabled"
-		}
-
-		fmt.Printf("%d. %s (%s)\n", i+1, worker.Name, status)
-		if worker.Prompt != "" {
-			// Show first line of prompt
-			lines := strings.Split(worker.Prompt, "\n")
-			if len(lines) > 0 && lines[0] != "" {
-				prompt := lines[0]
-				if len(prompt) > 80 {
-					prompt = prompt[:77] + "..."
-				}
-				fmt.Printf("   Prompt: %s\n", prompt)
-			}
-		}
-		fmt.Println()
+	if cfg.ControlPlane != nil && cfg.ControlPlane.Enabled {
+		fmt.Printf("Control Plane API: http://localhost:%d\n", cfg.ControlPlane.Port)
+		fmt.Printf("Workers endpoint: http://localhost:%d/workers\n", cfg.ControlPlane.Port)
+	} else {
+		fmt.Println("Control plane is not enabled in configuration.")
 	}
 
-	// Summary
-	enabledCount := 0
-	for _, worker := range cfg.Workers {
-		if worker.IsEnabled() {
-			enabledCount++
-		}
+	if cfg.Dashboard != nil && cfg.Dashboard.Enabled {
+		fmt.Printf("Dashboard UI: http://localhost:%d\n", cfg.Dashboard.Port)
+	} else {
+		fmt.Println("Dashboard is not enabled in configuration.")
 	}
-	fmt.Printf("Total workers: %d (enabled: %d, disabled: %d)\n",
-		len(cfg.Workers), enabledCount, len(cfg.Workers)-enabledCount)
+
+	fmt.Println()
+	fmt.Println("To add workers to the database, use the database tools or control plane API.")
 
 	return nil
 }

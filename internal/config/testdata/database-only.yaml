@@ -1,0 +1,25 @@
+settings:
+  service:
+    image: "node:18.17.1"
+    user: "developer"
+  sleep_duration: 60
+  team_name: "test-team"
+  install_deps: true
+  common_prompt: "Follow best practices"
+  flow:
+    - name: collector
+      type: gemini
+      input: "Collect tasks"
+    - name: executor
+      type: claude
+      depends_on: ["collector"]
+      input: "Execute tasks"
+
+control_plane:
+  enabled: true
+  port: 9090
+
+dashboard:
+  enabled: true
+  port: 8081
+  api_url: "http://localhost:9090"

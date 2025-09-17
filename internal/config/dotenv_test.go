@@ -61,19 +61,21 @@ API_ENDPOINT=http://localhost:8080`
 		})
 	}
 
-	// Test that config can be created without GitHub-specific fields
-	configContent := `workers:
-  - name: "developer"
-    prompt: "Developer agent"
-  - name: "reviewer"
-    prompt: "Reviewer agent"
-
-settings:
+	// Test that config can be created with database-driven configuration
+	configContent := `settings:
   team_name: "custom-team"
   flow:
     - name: step1
       type: claude
-      prompt: test`
+      input: test
+
+control_plane:
+  enabled: true
+  port: 9090
+
+dashboard:
+  enabled: true
+  port: 8081`
 
 	configPath := filepath.Join(tempDir, "autoteam.yaml")
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
@@ -87,12 +89,12 @@ settings:
 	}
 
 	// Verify basic config properties
-	if len(cfg.Workers) != 2 {
-		t.Errorf("Expected 2 workers, got %d", len(cfg.Workers))
+	if cfg.ControlPlane == nil || !cfg.ControlPlane.Enabled {
+		t.Error("Expected control plane to be enabled")
 	}
 
-	if cfg.Workers[0].Name != "developer" {
-		t.Errorf("Expected first worker name to be 'developer', got %s", cfg.Workers[0].Name)
+	if cfg.Dashboard == nil || !cfg.Dashboard.Enabled {
+		t.Error("Expected dashboard to be enabled")
 	}
 
 	if cfg.Settings.GetTeamName() != "custom-team" {
@@ -116,16 +118,15 @@ func TestDotenvOptional(t *testing.T) {
 	}
 
 	// Create a config file without .env file present
-	configContent := `workers:
-  - name: "developer"
-    prompt: "Developer agent"
-
-settings:
+	configContent := `settings:
   team_name: "test-team"
   flow:
     - name: step1
       type: claude
-      prompt: test`
+      input: test
+
+control_plane:
+  enabled: true`
 
 	configPath := filepath.Join(tempDir, "autoteam.yaml")
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
@@ -142,8 +143,8 @@ settings:
 	}
 
 	// Verify basic functionality
-	if len(cfg.Workers) != 1 {
-		t.Errorf("Expected 1 worker, got %d", len(cfg.Workers))
+	if cfg.ControlPlane == nil || !cfg.ControlPlane.Enabled {
+		t.Error("Expected control plane to be enabled")
 	}
 
 	if cfg.Settings.GetTeamName() != "test-team" {

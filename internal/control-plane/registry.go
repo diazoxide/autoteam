@@ -3,16 +3,17 @@ package controlplane
 import (
 	"context"
 	"fmt"
-	"net/url"
-	"strings"
 	"sync"
 	"time"
 
 	"autoteam/internal/config"
+	"autoteam/internal/database"
 	workerv1 "autoteam/internal/grpc/gen/proto/autoteam/worker/v1"
 	"autoteam/internal/logger"
 	"autoteam/internal/types"
+	"autoteam/internal/worker"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -22,13 +23,17 @@ import (
 
 // WorkerRegistry manages worker endpoints and their clients
 type WorkerRegistry struct {
-	workers map[string]*RegisteredWorker
-	mu      sync.RWMutex
+	workers    map[string]*RegisteredWorker
+	mu         sync.RWMutex
+	db         *database.DB
+	workerRepo worker.Repository
 }
 
 // RegisteredWorker represents a worker with its client and metadata
 type RegisteredWorker struct {
 	ID         string
+	UUID       uuid.UUID
+	Name       string
 	URL        string
 	APIKey     string
 	Client     workerv1.WorkerServiceClient
@@ -36,74 +41,64 @@ type RegisteredWorker struct {
 	Status     string
 	LastCheck  *time.Time
 	WorkerInfo *types.WorkerInfo
+	DBWorker   *worker.Worker // Worker information from database
 }
 
-// NewWorkerRegistry creates a new worker registry from configuration with direct API URLs
-func NewWorkerRegistry(config *config.ControlPlaneConfig) (*WorkerRegistry, error) {
+// NewWorkerRegistry creates a new worker registry from database
+func NewWorkerRegistry(db *database.DB) (*WorkerRegistry, error) {
+	workerRepo := worker.NewRepository(db)
+
 	registry := &WorkerRegistry{
-		workers: make(map[string]*RegisteredWorker),
+		workers:    make(map[string]*RegisteredWorker),
+		db:         db,
+		workerRepo: workerRepo,
 	}
 
-	// Register workers from direct API URLs
-	for i, apiURL := range config.WorkersAPIs {
-		workerID := fmt.Sprintf("worker-%d", i+1)
-		err := registry.RegisterWorker(workerID, apiURL, config.APIKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to register worker %s: %w", workerID, err)
-		}
+	// Load workers from database
+	err := registry.loadWorkersFromDatabase()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load workers from database: %w", err)
 	}
 
 	return registry, nil
 }
 
-// parseGRPCAddress extracts host:port from a URL for gRPC connections
-func parseGRPCAddress(rawURL string) (string, error) {
-	// If it's already just host:port, return as-is
-	if !strings.Contains(rawURL, "://") {
-		return rawURL, nil
-	}
+// loadWorkersFromDatabase loads workers from the database
+func (r *WorkerRegistry) loadWorkersFromDatabase() error {
+	ctx := context.Background()
+	log := logger.FromContext(ctx)
 
-	// Parse the URL
-	parsedURL, err := url.Parse(rawURL)
+	// Get all workers from database
+	dbWorkers, err := r.workerRepo.List(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse URL: %w", err)
+		return fmt.Errorf("failed to list workers from database: %w", err)
 	}
 
-	// Return host:port
-	return parsedURL.Host, nil
-}
+	log.Info("Loading workers from database", zap.Int("worker_count", len(dbWorkers)))
 
-// RegisterWorker adds a new worker to the registry
-func (r *WorkerRegistry) RegisterWorker(id, url, apiKey string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	// For now, we'll set workers as not deployed (no gRPC connection)
+	// In a real scenario, workers would need to register their endpoints somehow
+	for _, dbWorker := range dbWorkers {
+		workerID := dbWorker.ID.String()
 
-	// Parse gRPC address from URL
-	grpcAddr, err := parseGRPCAddress(url)
-	if err != nil {
-		return fmt.Errorf("failed to parse gRPC address from URL %s: %w", url, err)
-	}
+		registeredWorker := &RegisteredWorker{
+			ID:       workerID,
+			UUID:     dbWorker.ID,
+			Name:     dbWorker.Name,
+			Status:   types.WorkerStatusNotDeployed, // Default status for database workers
+			DBWorker: dbWorker,
+		}
 
-	// Create gRPC connection
-	dialOptions := []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	}
+		// If worker has deployment info or endpoint, try to connect
+		// For now, we'll mark all database workers as not deployed
+		// TODO: Add deployment endpoint configuration to worker model
 
-	conn, err := grpc.NewClient(grpcAddr, dialOptions...)
-	if err != nil {
-		return fmt.Errorf("failed to create gRPC connection to %s: %w", grpcAddr, err)
-	}
+		r.workers[workerID] = registeredWorker
 
-	// Create gRPC client
-	client := workerv1.NewWorkerServiceClient(conn)
-
-	r.workers[id] = &RegisteredWorker{
-		ID:     id,
-		URL:    url,
-		APIKey: apiKey,
-		Client: client,
-		Conn:   conn,
-		Status: types.WorkerStatusUnknown,
+		log.Debug("Loaded worker from database",
+			zap.String("worker_id", workerID),
+			zap.String("worker_name", dbWorker.Name),
+			zap.Bool("enabled", dbWorker.Enabled))
 	}
 
 	return nil
@@ -165,7 +160,21 @@ func (r *WorkerRegistry) CheckWorkerHealth(ctx context.Context, id string) error
 		return err
 	}
 
+	// Add nil check to prevent panic
+	if worker == nil {
+		return fmt.Errorf("worker is nil for id: %s", id)
+	}
+
 	log := logger.FromContext(ctx)
+
+	// Skip health check for database-only workers (no client connection)
+	if worker.Client == nil {
+		log.Debug("Skipping health check for database-only worker",
+			zap.String("worker_id", id),
+			zap.String("worker_name", worker.Name),
+			zap.String("status", worker.Status))
+		return nil
+	}
 
 	// Create context with authentication
 	grpcCtx := r.createContext(ctx, worker.APIKey)
@@ -253,4 +262,162 @@ func (r *WorkerRegistry) GetHealthyWorkerCount() int {
 		}
 	}
 	return count
+}
+
+// UpdateWorkerEndpoint updates the endpoint for a database worker and connects to it
+func (r *WorkerRegistry) UpdateWorkerEndpoint(workerID, endpoint string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	worker, exists := r.workers[workerID]
+	if !exists {
+		return fmt.Errorf("worker not found: %s", workerID)
+	}
+
+	// Close existing connection if any
+	if worker.Conn != nil {
+		worker.Conn.Close()
+	}
+
+	// Create gRPC connection to the worker
+	dialOptions := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	}
+
+	conn, err := grpc.NewClient(endpoint, dialOptions...)
+	if err != nil {
+		return fmt.Errorf("failed to create gRPC connection to %s: %w", endpoint, err)
+	}
+
+	// Create gRPC client
+	client := workerv1.NewWorkerServiceClient(conn)
+
+	// Update worker with endpoint and connection
+	worker.URL = endpoint
+	worker.Client = client
+	worker.Conn = conn
+	worker.Status = types.WorkerStatusUnknown // Will be updated by health check
+
+	return nil
+}
+
+// DeployDatabaseWorkers deploys all enabled workers from database
+func (r *WorkerRegistry) DeployDatabaseWorkers(ctx context.Context, runtime interface{}, cfg *config.Config) error {
+	log := logger.FromContext(ctx)
+
+	// Get runtime interface for deployment
+	rt, ok := runtime.(interface {
+		DeployWorker(ctx context.Context, worker worker.Worker, settings worker.WorkerSettings, cfg *config.Config) error
+	})
+	if !ok {
+		return fmt.Errorf("runtime does not support worker deployment")
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	deployedCount := 0
+	for workerID, registeredWorker := range r.workers {
+		if registeredWorker.DBWorker == nil {
+			continue // Skip non-database workers
+		}
+
+		dbWorker := registeredWorker.DBWorker
+		if !dbWorker.Enabled {
+			log.Debug("Skipping disabled worker", zap.String("worker_id", workerID), zap.String("worker_name", dbWorker.Name))
+			continue
+		}
+
+		log.Info("Deploying database worker", zap.String("worker_id", workerID), zap.String("worker_name", dbWorker.Name))
+
+		// Create effective settings by merging database worker settings with global settings
+		effectiveSettings := cfg.Settings
+		if dbWorker.Settings != nil {
+			// Merge database worker settings with global settings (database settings override global ones)
+			if dbWorker.Settings.TeamName != "" {
+				effectiveSettings.TeamName = dbWorker.Settings.TeamName
+			}
+			if dbWorker.Settings.SleepDuration != 0 {
+				effectiveSettings.SleepDuration = dbWorker.Settings.SleepDuration
+			}
+			effectiveSettings.Debug = dbWorker.Settings.Debug
+		}
+
+		// Use flow configuration from database worker (FlowSteps), not global settings
+		if len(dbWorker.FlowSteps) > 0 {
+			effectiveSettings.Flow = dbWorker.FlowSteps
+			log.Debug("Using flow configuration from database worker",
+				zap.String("worker_id", workerID),
+				zap.Int("database_flow_steps", len(dbWorker.FlowSteps)))
+		} else {
+			log.Warn("No flow steps found in database worker, using global flow as fallback",
+				zap.String("worker_id", workerID),
+				zap.Int("global_flow_steps", len(effectiveSettings.Flow)))
+		}
+
+		// Deploy worker using runtime
+		if err := rt.DeployWorker(ctx, *dbWorker, effectiveSettings, cfg); err != nil {
+			log.Error("Failed to deploy database worker",
+				zap.String("worker_id", workerID),
+				zap.String("worker_name", dbWorker.Name),
+				zap.Error(err))
+			continue // Continue with other workers
+		}
+
+		// Generate worker endpoint based on container naming convention
+		containerName := fmt.Sprintf("%s-%s", cfg.GetTeamName(), dbWorker.GetNormalizedName())
+		workerEndpoint := fmt.Sprintf("%s:8080", containerName)
+
+		// Register the endpoint
+		if err := r.updateWorkerEndpointUnsafe(workerID, workerEndpoint); err != nil {
+			log.Error("Failed to register worker endpoint",
+				zap.String("worker_id", workerID),
+				zap.String("endpoint", workerEndpoint),
+				zap.Error(err))
+			continue
+		}
+
+		deployedCount++
+		log.Info("Database worker deployed successfully",
+			zap.String("worker_id", workerID),
+			zap.String("worker_name", dbWorker.Name),
+			zap.String("endpoint", workerEndpoint))
+	}
+
+	log.Info("Database workers deployment completed", zap.Int("deployed_count", deployedCount))
+	return nil
+}
+
+// updateWorkerEndpointUnsafe updates worker endpoint without locking (internal use)
+func (r *WorkerRegistry) updateWorkerEndpointUnsafe(workerID, endpoint string) error {
+	worker, exists := r.workers[workerID]
+	if !exists {
+		return fmt.Errorf("worker not found: %s", workerID)
+	}
+
+	// Close existing connection if any
+	if worker.Conn != nil {
+		worker.Conn.Close()
+	}
+
+	// Create gRPC connection to the worker
+	dialOptions := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	}
+
+	conn, err := grpc.NewClient(endpoint, dialOptions...)
+	if err != nil {
+		return fmt.Errorf("failed to create gRPC connection to %s: %w", endpoint, err)
+	}
+
+	// Create gRPC client
+	client := workerv1.NewWorkerServiceClient(conn)
+
+	// Update worker with endpoint and connection
+	worker.URL = endpoint
+	worker.Client = client
+	worker.Conn = conn
+	worker.Status = types.WorkerStatusUnknown // Will be updated by health check
+
+	return nil
 }

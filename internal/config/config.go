@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"autoteam/internal/util"
 	"autoteam/internal/worker"
 
 	"gopkg.in/yaml.v3"
@@ -16,7 +15,6 @@ const (
 )
 
 type Config struct {
-	Workers      []worker.Worker                   `yaml:"workers"`
 	Services     map[string]map[string]interface{} `yaml:"services,omitempty"`
 	Settings     worker.WorkerSettings             `yaml:"settings"`
 	MCPServers   map[string]worker.MCPServer       `yaml:"mcp_servers,omitempty"`
@@ -27,10 +25,9 @@ type Config struct {
 
 // ControlPlaneConfig represents the control plane configuration
 type ControlPlaneConfig struct {
-	Enabled     bool     `yaml:"enabled"`
-	Port        int      `yaml:"port"`
-	APIKey      string   `yaml:"api_key,omitempty"`
-	WorkersAPIs []string `yaml:"workers_apis,omitempty"` // Direct worker API URLs
+	Enabled bool   `yaml:"enabled"`
+	Port    int    `yaml:"port"`
+	APIKey  string `yaml:"api_key,omitempty"`
 }
 
 // DashboardConfig represents the dashboard configuration
@@ -93,45 +90,8 @@ func LoadConfig(filename string) (*Config, error) {
 }
 
 func validateConfig(config *Config) error {
-	if len(config.Workers) == 0 {
-		return fmt.Errorf("at least one worker must be configured")
-	}
-
-	// Count enabled workers
-	enabledCount := 0
-	for _, worker := range config.Workers {
-		if worker.IsEnabled() {
-			enabledCount++
-		}
-	}
-
-	if enabledCount == 0 {
-		return fmt.Errorf("at least one worker must be enabled")
-	}
-
-	for i, worker := range config.Workers {
-		if worker.Name == "" {
-			return fmt.Errorf("worker[%d].name is required", i)
-		}
-		// Only validate required fields for enabled workers
-		if worker.IsEnabled() {
-			if worker.Prompt == "" {
-				return fmt.Errorf("worker[%d].prompt is required for enabled workers", i)
-			}
-
-			// Get effective settings to check flow configuration
-			settings := worker.GetEffectiveSettings(config.Settings)
-			if len(settings.Flow) == 0 {
-				return fmt.Errorf("worker[%d].flow is required for enabled workers", i)
-			}
-
-			// Validate flow steps
-			if err := validateFlow(settings.Flow); err != nil {
-				return fmt.Errorf("worker[%d].flow validation failed: %w", i, err)
-			}
-		}
-	}
-
+	// Workers now come exclusively from database, no config validation needed
+	// Database configuration is handled separately by control plane
 	return nil
 }
 
@@ -173,14 +133,14 @@ func validateFlow(flow []worker.FlowStep) error {
 }
 
 func setDefaults(config *Config) {
-	if config.Settings.SleepDuration == nil {
-		config.Settings.SleepDuration = util.IntPtr(60)
+	if config.Settings.SleepDuration == 0 {
+		config.Settings.SleepDuration = 60
 	}
-	if config.Settings.TeamName == nil {
-		config.Settings.TeamName = util.StringPtr(DefaultTeamName)
+	if config.Settings.TeamName == "" {
+		config.Settings.TeamName = DefaultTeamName
 	}
-	if config.Settings.MaxAttempts == nil {
-		config.Settings.MaxAttempts = util.IntPtr(3)
+	if config.Settings.MaxAttempts == 0 {
+		config.Settings.MaxAttempts = 3
 	}
 	// Set default service configuration if not provided
 	if config.Settings.Service == nil {
@@ -213,60 +173,6 @@ func setDefaults(config *Config) {
 
 func CreateSampleConfig(filename string) error {
 	sampleConfig := Config{
-		Workers: []worker.Worker{
-			{
-				Name:   "dev1",
-				Prompt: "You are a developer worker responsible for implementing features and fixing bugs.",
-			},
-			{
-				Name:   "arch1",
-				Prompt: "You are an architecture worker responsible for system design and code reviews.",
-				Settings: &worker.WorkerSettings{
-					SleepDuration: util.IntPtr(30),
-					Service: map[string]interface{}{
-						"image": "python:3.11",
-						"volumes": []string{
-							"./custom-configs:/app/configs:ro",
-							"/var/run/docker.sock:/var/run/docker.sock",
-						},
-						"environment": map[string]string{
-							"PYTHON_PATH": "/app/custom",
-							"DEBUG_MODE":  "true",
-						},
-					},
-					Hooks: &worker.HookConfig{
-						OnInit: []worker.HookCommand{
-							{
-								Command:     "/bin/sh",
-								Args:        []string{"-c", "echo 'Agent initializing: $AGENT_NAME'"},
-								Description: util.StringPtr("Log worker initialization"),
-							},
-						},
-						OnStart: []worker.HookCommand{
-							{
-								Command:     "/bin/bash",
-								Args:        []string{"-c", "pip install --upgrade pip && pip install requests"},
-								Timeout:     util.IntPtr(60),
-								ContinueOn:  util.StringPtr("always"),
-								Description: util.StringPtr("Install additional Python packages"),
-							},
-						},
-						OnStop: []worker.HookCommand{
-							{
-								Command:     "/bin/sh",
-								Args:        []string{"-c", "echo 'Agent $AGENT_NAME shutting down gracefully'"},
-								Description: util.StringPtr("Log graceful shutdown"),
-							},
-						},
-					},
-				},
-			},
-			{
-				Name:    "devops1",
-				Prompt:  "You are a DevOps worker responsible for CI/CD and infrastructure.",
-				Enabled: util.BoolPtr(false), // This worker is disabled
-			},
-		},
 		Services: map[string]map[string]interface{}{
 			"postgres": {
 				"image": "postgres:15",
@@ -288,11 +194,11 @@ func CreateSampleConfig(filename string) error {
 			},
 		},
 		Settings: worker.WorkerSettings{
-			SleepDuration: util.IntPtr(60),
-			TeamName:      util.StringPtr(DefaultTeamName),
-			InstallDeps:   util.BoolPtr(true),
-			CommonPrompt:  util.StringPtr("Always follow coding best practices and write comprehensive tests."),
-			MaxAttempts:   util.IntPtr(3),
+			SleepDuration: 60,
+			TeamName:      DefaultTeamName,
+			InstallDeps:   true,
+			CommonPrompt:  "Always follow coding best practices and write comprehensive tests.",
+			MaxAttempts:   3,
 			Service: map[string]interface{}{
 				"image": "node:18.17.1",
 				"user":  "developer",
@@ -320,8 +226,14 @@ func CreateSampleConfig(filename string) error {
 			},
 		},
 		ControlPlane: &ControlPlaneConfig{
-			Enabled: false, // Disabled by default
+			Enabled: true, // Enable control plane for database workers
 			Port:    9090,
+		},
+		Dashboard: &DashboardConfig{
+			Enabled: true,
+			Port:    8081,
+			APIUrl:  "http://localhost:9090",
+			Title:   "AutoTeam Dashboard",
 		},
 	}
 
@@ -337,36 +249,10 @@ func CreateSampleConfig(filename string) error {
 	return nil
 }
 
-// GetAllWorkersWithEffectiveSettings returns a slice of workers with their effective settings
-func (c *Config) GetAllWorkersWithEffectiveSettings() []worker.WorkerWithSettings {
-	var workers []worker.WorkerWithSettings
-	for _, w := range c.Workers {
-		workers = append(workers, worker.WorkerWithSettings{
-			Worker:   w,
-			Settings: w.GetEffectiveSettings(c.Settings),
-		})
-	}
-	return workers
-}
-
-// GetEnabledWorkersWithEffectiveSettings returns only enabled workers with their effective settings
-func (c *Config) GetEnabledWorkersWithEffectiveSettings() []worker.WorkerWithSettings {
-	var workers []worker.WorkerWithSettings
-	for _, w := range c.Workers {
-		if w.IsEnabled() {
-			workers = append(workers, worker.WorkerWithSettings{
-				Worker:   w,
-				Settings: w.GetEffectiveSettings(c.Settings),
-			})
-		}
-	}
-	return workers
-}
-
 // GetTeamName returns the team name from settings, or default if not set
 func (c *Config) GetTeamName() string {
-	if c.Settings.TeamName != nil && *c.Settings.TeamName != "" {
-		return *c.Settings.TeamName
+	if c.Settings.TeamName != "" {
+		return c.Settings.TeamName
 	}
 	return DefaultTeamName
 }

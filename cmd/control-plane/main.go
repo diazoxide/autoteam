@@ -11,7 +11,9 @@ import (
 
 	"autoteam/internal/config"
 	controlplane "autoteam/internal/control-plane"
+	"autoteam/internal/database"
 	"autoteam/internal/logger"
+	"autoteam/internal/runtime"
 
 	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
@@ -36,6 +38,15 @@ func main() {
 		Version: fmt.Sprintf("%s (built %s, commit %s)", Version, BuildTime, GitCommit),
 		Action:  runControlPlane,
 		Flags: []cli.Flag{
+			// Configuration
+			&cli.StringFlag{
+				Name:    "config",
+				Aliases: []string{"c"},
+				Usage:   "Path to main autoteam.yaml configuration file",
+				Value:   "autoteam.yaml",
+				Sources: cli.EnvVars("AUTOTEAM_CONFIG"),
+			},
+
 			// Runtime Configuration
 			&cli.StringFlag{
 				Name:    "log-level",
@@ -65,6 +76,20 @@ func main() {
 				Value:   30 * time.Second,
 				Sources: cli.EnvVars("HEALTH_CHECK_INTERVAL"),
 			},
+
+			// Database Configuration
+			&cli.StringFlag{
+				Name:     "database-dsn",
+				Usage:    "Database connection string (required)",
+				Sources:  cli.EnvVars("DATABASE_DSN"),
+				Required: true,
+			},
+			&cli.StringFlag{
+				Name:    "database-type",
+				Usage:   "Database type (sqlite, postgres, mysql)",
+				Value:   "sqlite",
+				Sources: cli.EnvVars("DATABASE_TYPE"),
+			},
 		},
 	}
 
@@ -93,11 +118,13 @@ func runControlPlane(ctx context.Context, cmd *cli.Command) error {
 		zap.String("log_level", string(logLevel)),
 	)
 
-	// Load control-plane specific config from file
+	// Load control-plane specific config from generated file
 	controlPlaneConfigPath := os.Getenv("CONTROL_PLANE_CONFIG")
 	if controlPlaneConfigPath == "" {
 		controlPlaneConfigPath = "/opt/autoteam/control-plane/config.yaml"
 	}
+
+	log.Info("Loading control-plane configuration", zap.String("config_path", controlPlaneConfigPath))
 
 	controlPlaneData, err := os.ReadFile(controlPlaneConfigPath)
 	if err != nil {
@@ -106,9 +133,9 @@ func runControlPlane(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	var controlPlaneConfig config.ControlPlaneConfig
-	if unmarshalErr := yaml.Unmarshal(controlPlaneData, &controlPlaneConfig); unmarshalErr != nil {
-		log.Error("Failed to parse control-plane config", zap.String("config_path", controlPlaneConfigPath), zap.Error(unmarshalErr))
-		return fmt.Errorf("failed to parse control-plane config: %w", unmarshalErr)
+	if err := yaml.Unmarshal(controlPlaneData, &controlPlaneConfig); err != nil {
+		log.Error("Failed to parse control-plane config", zap.String("config_path", controlPlaneConfigPath), zap.Error(err))
+		return fmt.Errorf("failed to parse control-plane config: %w", err)
 	}
 
 	// Check if control plane is enabled
@@ -117,10 +144,86 @@ func runControlPlane(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("control plane must be enabled in configuration")
 	}
 
-	log.Info("Control plane configuration loaded",
-		zap.String("config_path", controlPlaneConfigPath),
-		zap.Strings("workers_apis", controlPlaneConfig.WorkersAPIs),
-		zap.Int("configured_port", controlPlaneConfig.Port))
+	// Load full autoteam configuration to get settings including flow configuration
+	configPath := cmd.String("config")
+	log.Info("Loading full autoteam configuration", zap.String("config_path", configPath))
+
+	cfg, err := config.LoadConfig(configPath)
+	if err != nil {
+		log.Error("Failed to load autoteam configuration", zap.String("config_path", configPath), zap.Error(err))
+		return fmt.Errorf("failed to load autoteam configuration from %s: %w", configPath, err)
+	}
+
+	// Get database configuration from CLI flags
+	dbDSN := cmd.String("database-dsn")
+	dbType := cmd.String("database-type")
+
+	log.Info("Database configuration from CLI flags",
+		zap.String("database_type", dbType),
+		zap.String("config_path", controlPlaneConfigPath))
+
+	// Add database config to the config
+	cfg.Settings.Database = &database.Config{
+		Type: database.DatabaseType(dbType),
+		DSN:  dbDSN,
+	}
+
+	// Initialize database connection
+	log.Info("Initializing database connection")
+	conn, err := database.NewConnection(*cfg.Settings.Database)
+	if err != nil {
+		log.Error("Failed to initialize database connection", zap.Error(err))
+		return fmt.Errorf("failed to initialize database connection: %w", err)
+	}
+	defer conn.Close()
+
+	db := conn.GetDB()
+	log.Info("Database connection established")
+
+	// Create database-aware worker registry
+	registry, err := controlplane.NewWorkerRegistry(db)
+	if err != nil {
+		log.Error("Failed to create worker registry", zap.Error(err))
+		return fmt.Errorf("failed to create worker registry: %w", err)
+	}
+
+	log.Info("Worker registry created", zap.Int("registered_workers", registry.GetWorkerCount()))
+
+	// Initialize runtime for worker lifecycle operations
+	var rt runtime.Runtime
+	// Make a copy of the config to avoid modifying the original
+	runtimeConfig := make(map[string]interface{})
+	if cfg != nil && cfg.Deployments != nil {
+		for k, v := range cfg.Deployments.Config {
+			runtimeConfig[k] = v
+		}
+	}
+
+	// Inject HOST_WORKING_DIR from environment if available
+	if hostDir := os.Getenv("HOST_WORKING_DIR"); hostDir != "" {
+		runtimeConfig["host_working_dir"] = hostDir
+		log.Info("Using HOST_WORKING_DIR from environment", zap.String("host_working_dir", hostDir))
+	}
+
+	deploymentConfig := &config.DeploymentConfig{
+		Runtime: "docker",
+		Config:  runtimeConfig,
+	}
+	rt, err = runtime.NewRuntime(deploymentConfig)
+	if err != nil {
+		log.Error("Failed to initialize default runtime", zap.Error(err))
+		return fmt.Errorf("failed to initialize default runtime: %w", err)
+	}
+	log.Info("Default Docker runtime initialized")
+
+	// Deploy database workers if registry has database workers
+	if registry.GetWorkerCount() > 0 {
+		log.Info("Deploying database workers", zap.Int("worker_count", registry.GetWorkerCount()))
+		if err := registry.DeployDatabaseWorkers(ctx, rt, cfg); err != nil {
+			log.Error("Failed to deploy database workers", zap.Error(err))
+			// Don't fail the entire startup, just log the error
+		}
+	}
 
 	// Override configuration with CLI flags if provided
 	serverConfig := controlplane.ServerConfig{
@@ -138,17 +241,8 @@ func runControlPlane(ctx context.Context, cmd *cli.Command) error {
 		log.Info("Overriding API key from CLI flag")
 	}
 
-	// Create worker registry
-	registry, err := controlplane.NewWorkerRegistry(&controlPlaneConfig)
-	if err != nil {
-		log.Error("Failed to create worker registry", zap.Error(err))
-		return fmt.Errorf("failed to create worker registry: %w", err)
-	}
-
-	log.Info("Worker registry created", zap.Int("registered_workers", registry.GetWorkerCount()))
-
 	// Create and start HTTP server
-	server := controlplane.NewServer(registry, serverConfig)
+	server := controlplane.NewServer(registry, serverConfig, rt, cfg)
 
 	if err := server.Start(ctx); err != nil {
 		log.Error("Failed to start HTTP server", zap.Error(err))
