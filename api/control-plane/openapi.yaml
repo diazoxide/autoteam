@@ -25,6 +25,8 @@ tags:
     description: Health check endpoints
   - name: proxy
     description: Proxied worker API endpoints
+  - name: actions
+    description: Worker lifecycle action endpoints
 
 paths:
   /health:
@@ -429,6 +431,178 @@ paths:
             text/html:
               schema:
                 type: string
+
+  # Worker action endpoints
+  /workers/{worker_id}/actions/deploy:
+    post:
+      summary: Deploy worker
+      description: Deploy a specific worker container
+      operationId: deployWorker
+      tags: [actions]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker deployed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResponse'
+        '400':
+          description: Bad request (e.g., worker cannot be deployed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers/{worker_id}/actions/stop:
+    post:
+      summary: Stop worker
+      description: Stop a specific worker container
+      operationId: stopWorker
+      tags: [actions]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker stopped successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers/{worker_id}/actions/restart:
+    post:
+      summary: Restart worker
+      description: Restart a specific worker container
+      operationId: restartWorker
+      tags: [actions]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker restarted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers/{worker_id}/actions/pause:
+    post:
+      summary: Pause worker
+      description: Pause a specific worker container
+      operationId: pauseWorker
+      tags: [actions]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker paused successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers/{worker_id}/actions/unpause:
+    post:
+      summary: Unpause worker
+      description: Unpause a specific worker container
+      operationId: unpauseWorker
+      tags: [actions]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker unpaused successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
 components:
   schemas:
@@ -908,6 +1082,24 @@ components:
           maximum: 3600
           default: 300
           description: Maximum delay between retries in seconds
+
+    ActionResponse:
+      type: object
+      required:
+        - message
+        - worker_id
+        - timestamp
+      properties:
+        message:
+          type: string
+          description: Action result message
+        worker_id:
+          type: string
+          description: Worker ID that was acted upon
+        timestamp:
+          type: string
+          format: date-time
+          description: Action timestamp
 
     ErrorResponse:
       type: object

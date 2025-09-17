@@ -105,6 +105,21 @@ type ClientInterface interface {
 	// GetWorker request
 	GetWorker(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeployWorker request
+	DeployWorker(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PauseWorker request
+	PauseWorker(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RestartWorker request
+	RestartWorker(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StopWorker request
+	StopWorker(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UnpauseWorker request
+	UnpauseWorker(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetWorkerConfig request
 	GetWorkerConfig(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -180,6 +195,66 @@ func (c *Client) GetWorkers(ctx context.Context, reqEditors ...RequestEditorFn) 
 
 func (c *Client) GetWorker(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetWorkerRequest(c.Server, workerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeployWorker(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeployWorkerRequest(c.Server, workerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PauseWorker(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPauseWorkerRequest(c.Server, workerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RestartWorker(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRestartWorkerRequest(c.Server, workerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) StopWorker(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStopWorkerRequest(c.Server, workerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UnpauseWorker(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUnpauseWorkerRequest(c.Server, workerId)
 	if err != nil {
 		return nil, err
 	}
@@ -421,6 +496,176 @@ func NewGetWorkerRequest(server string, workerId string) (*http.Request, error) 
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeployWorkerRequest generates requests for DeployWorker
+func NewDeployWorkerRequest(server string, workerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "worker_id", runtime.ParamLocationPath, workerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/workers/%s/actions/deploy", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPauseWorkerRequest generates requests for PauseWorker
+func NewPauseWorkerRequest(server string, workerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "worker_id", runtime.ParamLocationPath, workerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/workers/%s/actions/pause", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRestartWorkerRequest generates requests for RestartWorker
+func NewRestartWorkerRequest(server string, workerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "worker_id", runtime.ParamLocationPath, workerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/workers/%s/actions/restart", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewStopWorkerRequest generates requests for StopWorker
+func NewStopWorkerRequest(server string, workerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "worker_id", runtime.ParamLocationPath, workerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/workers/%s/actions/stop", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUnpauseWorkerRequest generates requests for UnpauseWorker
+func NewUnpauseWorkerRequest(server string, workerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "worker_id", runtime.ParamLocationPath, workerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/workers/%s/actions/unpause", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -825,6 +1070,21 @@ type ClientWithResponsesInterface interface {
 	// GetWorkerWithResponse request
 	GetWorkerWithResponse(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*GetWorkerResponse, error)
 
+	// DeployWorkerWithResponse request
+	DeployWorkerWithResponse(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*DeployWorkerResponse, error)
+
+	// PauseWorkerWithResponse request
+	PauseWorkerWithResponse(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*PauseWorkerResponse, error)
+
+	// RestartWorkerWithResponse request
+	RestartWorkerWithResponse(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*RestartWorkerResponse, error)
+
+	// StopWorkerWithResponse request
+	StopWorkerWithResponse(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*StopWorkerResponse, error)
+
+	// UnpauseWorkerWithResponse request
+	UnpauseWorkerWithResponse(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*UnpauseWorkerResponse, error)
+
 	// GetWorkerConfigWithResponse request
 	GetWorkerConfigWithResponse(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*GetWorkerConfigResponse, error)
 
@@ -957,6 +1217,127 @@ func (r GetWorkerResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetWorkerResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeployWorkerResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ActionResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeployWorkerResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeployWorkerResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PauseWorkerResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ActionResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PauseWorkerResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PauseWorkerResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RestartWorkerResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ActionResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RestartWorkerResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RestartWorkerResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type StopWorkerResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ActionResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r StopWorkerResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StopWorkerResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UnpauseWorkerResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ActionResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UnpauseWorkerResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UnpauseWorkerResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1200,6 +1581,51 @@ func (c *ClientWithResponses) GetWorkerWithResponse(ctx context.Context, workerI
 	return ParseGetWorkerResponse(rsp)
 }
 
+// DeployWorkerWithResponse request returning *DeployWorkerResponse
+func (c *ClientWithResponses) DeployWorkerWithResponse(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*DeployWorkerResponse, error) {
+	rsp, err := c.DeployWorker(ctx, workerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeployWorkerResponse(rsp)
+}
+
+// PauseWorkerWithResponse request returning *PauseWorkerResponse
+func (c *ClientWithResponses) PauseWorkerWithResponse(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*PauseWorkerResponse, error) {
+	rsp, err := c.PauseWorker(ctx, workerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePauseWorkerResponse(rsp)
+}
+
+// RestartWorkerWithResponse request returning *RestartWorkerResponse
+func (c *ClientWithResponses) RestartWorkerWithResponse(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*RestartWorkerResponse, error) {
+	rsp, err := c.RestartWorker(ctx, workerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRestartWorkerResponse(rsp)
+}
+
+// StopWorkerWithResponse request returning *StopWorkerResponse
+func (c *ClientWithResponses) StopWorkerWithResponse(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*StopWorkerResponse, error) {
+	rsp, err := c.StopWorker(ctx, workerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStopWorkerResponse(rsp)
+}
+
+// UnpauseWorkerWithResponse request returning *UnpauseWorkerResponse
+func (c *ClientWithResponses) UnpauseWorkerWithResponse(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*UnpauseWorkerResponse, error) {
+	rsp, err := c.UnpauseWorker(ctx, workerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUnpauseWorkerResponse(rsp)
+}
+
 // GetWorkerConfigWithResponse request returning *GetWorkerConfigResponse
 func (c *ClientWithResponses) GetWorkerConfigWithResponse(ctx context.Context, workerId string, reqEditors ...RequestEditorFn) (*GetWorkerConfigResponse, error) {
 	rsp, err := c.GetWorkerConfig(ctx, workerId, reqEditors...)
@@ -1396,6 +1822,213 @@ func ParseGetWorkerResponse(rsp *http.Response) (*GetWorkerResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest WorkerDetailsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeployWorkerResponse parses an HTTP response from a DeployWorkerWithResponse call
+func ParseDeployWorkerResponse(rsp *http.Response) (*DeployWorkerResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeployWorkerResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ActionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePauseWorkerResponse parses an HTTP response from a PauseWorkerWithResponse call
+func ParsePauseWorkerResponse(rsp *http.Response) (*PauseWorkerResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PauseWorkerResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ActionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRestartWorkerResponse parses an HTTP response from a RestartWorkerWithResponse call
+func ParseRestartWorkerResponse(rsp *http.Response) (*RestartWorkerResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RestartWorkerResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ActionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStopWorkerResponse parses an HTTP response from a StopWorkerWithResponse call
+func ParseStopWorkerResponse(rsp *http.Response) (*StopWorkerResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StopWorkerResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ActionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUnpauseWorkerResponse parses an HTTP response from a UnpauseWorkerWithResponse call
+func ParseUnpauseWorkerResponse(rsp *http.Response) (*UnpauseWorkerResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UnpauseWorkerResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ActionResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

@@ -201,4 +201,5 @@ const (
 	WorkerStatusReachable   = "reachable"
 	WorkerStatusUnreachable = "unreachable"
 	WorkerStatusUnknown     = "unknown"
+	WorkerStatusNotDeployed = "not_deployed"
 )

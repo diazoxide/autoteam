@@ -14,6 +14,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import FlowIcon from "@mui/icons-material/AccountTree";
 import MetricsIcon from "@mui/icons-material/Analytics";
 import LogsIcon from "@mui/icons-material/Description";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { useParams } from "react-router";
 
 // Import modular components
@@ -24,6 +25,7 @@ import {
   WorkerMetrics,
   WorkerLogs,
 } from "../../components/workers";
+import { WorkerActions } from "../../components/workers/WorkerActions";
 import { TabPanel } from "../../components/common";
 import { a11yProps } from "../../utils/tabUtils";
 import {
@@ -101,6 +103,7 @@ export const WorkersShow = () => {
             <Tab icon={<FlowIcon />} label="Flow" {...a11yProps(2)} />
             <Tab icon={<MetricsIcon />} label="Metrics" {...a11yProps(3)} />
             <Tab icon={<LogsIcon />} label="Logs" {...a11yProps(4)} />
+            <Tab icon={<PlayArrowIcon />} label="Actions" {...a11yProps(5)} />
           </Tabs>
         </Box>
 
@@ -138,6 +141,16 @@ export const WorkersShow = () => {
 
         <TabPanel value={activeTab} index={4}>
           <WorkerLogs workerId={id as string} />
+        </TabPanel>
+
+        <TabPanel value={activeTab} index={5}>
+          <Box sx={{ maxWidth: 400 }}>
+            <WorkerActions
+              workerId={id as string}
+              status={statusData?.status}
+              compact={false}
+            />
+          </Box>
         </TabPanel>
       </Stack>
     </Show>

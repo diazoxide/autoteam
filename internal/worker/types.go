@@ -2,35 +2,55 @@ package worker
 
 import (
 	"context"
+	"database/sql/driver"
 	"fmt"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"autoteam/internal/database"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // Worker represents a worker configuration
 type Worker struct {
-	Name     string          `yaml:"name"`
-	Prompt   string          `yaml:"prompt"`
-	Enabled  *bool           `yaml:"enabled,omitempty"`
-	Settings *WorkerSettings `yaml:"settings,omitempty"`
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id" yaml:"-"`
+	Name      string         `gorm:"unique;not null" json:"name" yaml:"name"`
+	Prompt    string         `gorm:"type:text" json:"prompt" yaml:"prompt"`
+	Enabled   bool           `gorm:"default:true" json:"enabled" yaml:"enabled"`
+	CreatedAt time.Time      `gorm:"autoCreateTime" json:"created_at" yaml:"-"`
+	UpdatedAt time.Time      `gorm:"autoUpdateTime" json:"updated_at" yaml:"-"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-" yaml:"-"`
+
+	// Relationships
+	Settings  *WorkerSettings `gorm:"foreignKey:WorkerID;constraint:OnDelete:CASCADE" json:"settings,omitempty" yaml:"settings,omitempty"`
+	FlowSteps []FlowStep      `gorm:"foreignKey:WorkerID;constraint:OnDelete:CASCADE" json:"flow_steps,omitempty" yaml:"-"`
 }
 
 // WorkerSettings represents worker-specific settings and configuration
 type WorkerSettings struct {
-	SleepDuration *int                   `yaml:"sleep_duration,omitempty"`
-	TeamName      *string                `yaml:"team_name,omitempty"`
-	InstallDeps   *bool                  `yaml:"install_deps,omitempty"`
-	CommonPrompt  *string                `yaml:"common_prompt,omitempty"`
-	MaxAttempts   *int                   `yaml:"max_attempts,omitempty"`
-	Service       map[string]interface{} `yaml:"service,omitempty"`
-	MCPServers    map[string]MCPServer   `yaml:"mcp_servers,omitempty"`
-	Hooks         *HookConfig            `yaml:"hooks,omitempty"`
-	Debug         *bool                  `yaml:"debug,omitempty"`
-	Meta          map[string]interface{} `yaml:"meta,omitempty"`
-	// Dynamic Flow Configuration
-	Flow []FlowStep `yaml:"flow"`
+	ID            uuid.UUID        `gorm:"type:uuid;primaryKey" json:"id" yaml:"-"`
+	WorkerID      uuid.UUID        `gorm:"type:uuid;not null;uniqueIndex" json:"worker_id" yaml:"-"`
+	SleepDuration int              `gorm:"default:60" json:"sleep_duration" yaml:"sleep_duration,omitempty"`
+	TeamName      string           `gorm:"default:autoteam" json:"team_name" yaml:"team_name,omitempty"`
+	InstallDeps   bool             `json:"install_deps" yaml:"install_deps,omitempty"`
+	CommonPrompt  string           `gorm:"type:text" json:"common_prompt" yaml:"common_prompt,omitempty"`
+	MaxAttempts   int              `gorm:"default:3" json:"max_attempts" yaml:"max_attempts,omitempty"`
+	Service       JSONMap          `gorm:"type:text" json:"service" yaml:"service,omitempty"`
+	MCPServers    MCPServersMap    `gorm:"type:text" json:"mcp_servers" yaml:"mcp_servers,omitempty"`
+	Hooks         *HookConfig      `gorm:"serializer:json" json:"hooks" yaml:"hooks,omitempty"`
+	Debug         bool             `json:"debug" yaml:"debug,omitempty"`
+	Meta          JSONMap          `gorm:"type:text" json:"meta" yaml:"meta,omitempty"`
+	Database      *database.Config `gorm:"serializer:json" json:"database" yaml:"database,omitempty"`
+	CreatedAt     time.Time        `gorm:"autoCreateTime" json:"created_at" yaml:"-"`
+	UpdatedAt     time.Time        `gorm:"autoUpdateTime" json:"updated_at" yaml:"-"`
+
+	// Note: Flow is now stored separately as FlowStep entities
+	// This field is kept for YAML compatibility during migration and JSON config passing
+	Flow []FlowStep `gorm:"-" json:"flow,omitempty" yaml:"flow,omitempty"`
 }
 
 // RetryConfig defines retry behavior for a flow step
@@ -43,23 +63,99 @@ type RetryConfig struct {
 
 // FlowStep represents a single step in a dynamic flow configuration
 type FlowStep struct {
-	Name             string            `yaml:"name" json:"name"`                                               // Unique step name
-	Type             string            `yaml:"type" json:"type"`                                               // Agent type (claude, gemini, qwen)
-	Args             []string          `yaml:"args,omitempty" json:"args,omitempty"`                           // Agent-specific arguments
-	Env              map[string]string `yaml:"env,omitempty" json:"env,omitempty"`                             // Environment variables
-	DependsOn        []string          `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`               // Step dependencies
-	Input            string            `yaml:"input,omitempty" json:"input,omitempty"`                         // Agent input prompt (supports templates)
-	Output           string            `yaml:"output,omitempty" json:"output,omitempty"`                       // Output transformation template (Sprig)
-	SkipWhen         string            `yaml:"skip_when,omitempty" json:"skip_when,omitempty"`                 // Skip condition template (if evaluates to "true")
-	DependencyPolicy string            `yaml:"dependency_policy,omitempty" json:"dependency_policy,omitempty"` // "fail_fast", "all_success", "all_complete", "any_success"
-	Retry            *RetryConfig      `yaml:"retry,omitempty" json:"retry,omitempty"`                         // Retry configuration
+	ID               uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id" yaml:"-"`
+	WorkerID         uuid.UUID      `gorm:"type:uuid;not null;index" json:"worker_id" yaml:"-"`
+	Name             string         `gorm:"not null" json:"name" yaml:"name"`                        // Unique step name within worker
+	Type             string         `json:"type" yaml:"type"`                                        // Agent type (claude, gemini, qwen)
+	Order            int            `gorm:"not null" json:"order" yaml:"-"`                          // Execution order within worker
+	Args             StringSlice    `gorm:"type:text" json:"args" yaml:"args,omitempty"`             // Agent-specific arguments
+	Env              StringMap      `gorm:"type:text" json:"env" yaml:"env,omitempty"`               // Environment variables
+	DependsOn        StringSlice    `gorm:"type:text" json:"depends_on" yaml:"depends_on,omitempty"` // Step dependencies
+	Input            string         `gorm:"type:text" json:"input" yaml:"input,omitempty"`           // Agent input prompt (supports templates)
+	Output           string         `gorm:"type:text" json:"output" yaml:"output,omitempty"`         // Output transformation template (Sprig)
+	SkipWhen         string         `json:"skip_when" yaml:"skip_when,omitempty"`                    // Skip condition template (if evaluates to "true")
+	DependencyPolicy string         `json:"dependency_policy" yaml:"dependency_policy,omitempty"`    // "fail_fast", "all_success", "all_complete", "any_success"
+	Retry            *RetryConfig   `gorm:"serializer:json" json:"retry" yaml:"retry,omitempty"`     // Retry configuration
+	CreatedAt        time.Time      `gorm:"autoCreateTime" json:"created_at" yaml:"-"`
+	UpdatedAt        time.Time      `gorm:"autoUpdateTime" json:"updated_at" yaml:"-"`
+	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-" yaml:"-"`
+
+	// Worker relationship
+	Worker *Worker `gorm:"foreignKey:WorkerID" json:"-" yaml:"-"`
 }
 
 // MCPServer represents a Model Context Protocol server configuration
 type MCPServer struct {
-	Command string            `yaml:"command"`
-	Args    []string          `yaml:"args,omitempty"`
-	Env     map[string]string `yaml:"env,omitempty"`
+	Command string            `json:"command" yaml:"command"`
+	Args    []string          `json:"args,omitempty" yaml:"args,omitempty"`
+	Env     map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
+}
+
+// Custom GORM types for JSON serialization
+type JSONMap map[string]interface{}
+type StringMap map[string]string
+type StringSlice []string
+type MCPServersMap map[string]MCPServer
+
+// JSON serialization for custom types
+func (m JSONMap) Value() (driver.Value, error) {
+	if m == nil {
+		return nil, nil
+	}
+	return jsonMarshal(m)
+}
+
+func (m *JSONMap) Scan(value interface{}) error {
+	if value == nil {
+		*m = nil
+		return nil
+	}
+	return jsonUnmarshal(value, m)
+}
+
+func (m StringMap) Value() (driver.Value, error) {
+	if m == nil {
+		return nil, nil
+	}
+	return jsonMarshal(m)
+}
+
+func (m *StringMap) Scan(value interface{}) error {
+	if value == nil {
+		*m = nil
+		return nil
+	}
+	return jsonUnmarshal(value, m)
+}
+
+func (s StringSlice) Value() (driver.Value, error) {
+	if s == nil {
+		return nil, nil
+	}
+	return jsonMarshal(s)
+}
+
+func (s *StringSlice) Scan(value interface{}) error {
+	if value == nil {
+		*s = nil
+		return nil
+	}
+	return jsonUnmarshal(value, s)
+}
+
+func (m MCPServersMap) Value() (driver.Value, error) {
+	if m == nil {
+		return nil, nil
+	}
+	return jsonMarshal(m)
+}
+
+func (m *MCPServersMap) Scan(value interface{}) error {
+	if value == nil {
+		*m = nil
+		return nil
+	}
+	return jsonUnmarshal(value, m)
 }
 
 // HookConfig represents worker lifecycle hook-driven script execution configuration
@@ -97,8 +193,8 @@ func (wws *WorkerWithSettings) GetConsolidatedPrompt() string {
 	}
 
 	// Add common prompt
-	if wws.Settings.CommonPrompt != nil && *wws.Settings.CommonPrompt != "" {
-		promptParts = append(promptParts, *wws.Settings.CommonPrompt)
+	if wws.Settings.CommonPrompt != "" {
+		promptParts = append(promptParts, wws.Settings.CommonPrompt)
 	}
 
 	if len(promptParts) == 0 {
@@ -157,53 +253,41 @@ func (w *Worker) GetWorkerSubDir(variation string) string {
 
 // IsEnabled returns true if the worker is enabled (default is true)
 func (w *Worker) IsEnabled() bool {
-	if w.Enabled == nil {
-		return true
-	}
-	return *w.Enabled
+	return w.Enabled
 }
 
 // Helper methods to get values with defaults for WorkerSettings
 func (s *WorkerSettings) GetSleepDuration() int {
-	if s.SleepDuration != nil {
-		return *s.SleepDuration
+	if s.SleepDuration > 0 {
+		return s.SleepDuration
 	}
 	return 60 // default
 }
 
 func (s *WorkerSettings) GetTeamName() string {
-	if s.TeamName != nil {
-		return *s.TeamName
+	if s.TeamName != "" {
+		return s.TeamName
 	}
 	return "autoteam" // default
 }
 
 func (s *WorkerSettings) GetInstallDeps() bool {
-	if s.InstallDeps != nil {
-		return *s.InstallDeps
-	}
-	return false // default
+	return s.InstallDeps
 }
 
 func (s *WorkerSettings) GetCommonPrompt() string {
-	if s.CommonPrompt != nil {
-		return *s.CommonPrompt
-	}
-	return "" // default
+	return s.CommonPrompt
 }
 
 func (s *WorkerSettings) GetMaxAttempts() int {
-	if s.MaxAttempts != nil {
-		return *s.MaxAttempts
+	if s.MaxAttempts > 0 {
+		return s.MaxAttempts
 	}
 	return 3 // default
 }
 
 func (s *WorkerSettings) GetDebug() bool {
-	if s.Debug != nil {
-		return *s.Debug
-	}
-	return false // default
+	return s.Debug
 }
 
 // StepStats tracks execution statistics for a single flow step

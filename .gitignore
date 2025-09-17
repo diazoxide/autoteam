@@ -22,3 +22,4 @@ var/
 
 # Coverage
 coverage.html
+/autoteam-debug.db

@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -31,15 +32,54 @@ type DockerRuntime struct {
 
 // NewDockerRuntime creates a new Docker runtime instance
 func NewDockerRuntime(runtimeConfig map[string]interface{}) (Runtime, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	var clientOpts []client.Opt
+
+	// Configure Docker host
+	if dockerHost, ok := runtimeConfig["docker_host"].(string); ok && dockerHost != "" {
+		clientOpts = append(clientOpts, client.WithHost(dockerHost))
+	}
+
+	// Configure API version
+	if apiVersion, ok := runtimeConfig["api_version"].(string); ok && apiVersion != "" {
+		clientOpts = append(clientOpts, client.WithVersion(apiVersion))
+	} else {
+		// Default to API version negotiation
+		clientOpts = append(clientOpts, client.WithAPIVersionNegotiation())
+	}
+
+	// Configure TLS settings
+	if tlsVerify, ok := runtimeConfig["tls_verify"].(bool); ok && tlsVerify {
+		if certPath, ok := runtimeConfig["cert_path"].(string); ok && certPath != "" {
+			clientOpts = append(clientOpts, client.WithTLSClientConfig(certPath, "", ""))
+		}
+	}
+
+	// Configure timeout
+	if timeoutSeconds, ok := runtimeConfig["timeout"].(float64); ok && timeoutSeconds > 0 {
+		timeout := time.Duration(timeoutSeconds) * time.Second
+		clientOpts = append(clientOpts, client.WithTimeout(timeout))
+	}
+
+	// If no custom configuration is provided, use environment variables
+	if len(clientOpts) == 0 {
+		clientOpts = append(clientOpts, client.FromEnv, client.WithAPIVersionNegotiation())
+	}
+
+	cli, err := client.NewClientWithOpts(clientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Docker client: %w", err)
+	}
+
+	// Get default image name from config or use default
+	imageName := "alpine:latest"
+	if configImageName, ok := runtimeConfig["default_image"].(string); ok && configImageName != "" {
+		imageName = configImageName
 	}
 
 	return &DockerRuntime{
 		client:    cli,
 		config:    runtimeConfig,
-		imageName: "autoteam:latest", // Default image name
+		imageName: imageName,
 	}, nil
 }
 
@@ -176,6 +216,91 @@ func (d *DockerRuntime) DeployService(ctx context.Context, name string, serviceC
 func (d *DockerRuntime) StopWorker(ctx context.Context, workerName string, cfg *config.Config) error {
 	containerName := d.getWorkerContainerNameByName(workerName, cfg)
 	return d.stopContainer(ctx, containerName)
+}
+
+// RestartWorker restarts a specific worker container
+func (d *DockerRuntime) RestartWorker(ctx context.Context, workerName string, cfg *config.Config) error {
+	log := logger.FromContext(ctx)
+	containerName := d.getWorkerContainerNameByName(workerName, cfg)
+
+	timeout := int(30) // 30 seconds
+	if err := d.client.ContainerRestart(ctx, containerName, container.StopOptions{Timeout: &timeout}); err != nil {
+		return fmt.Errorf("failed to restart worker container %s: %w", containerName, err)
+	}
+
+	log.Info("Worker restarted successfully", zap.String("worker", workerName), zap.String("container", containerName))
+	return nil
+}
+
+// PauseWorker pauses a specific worker container
+func (d *DockerRuntime) PauseWorker(ctx context.Context, workerName string, cfg *config.Config) error {
+	log := logger.FromContext(ctx)
+	containerName := d.getWorkerContainerNameByName(workerName, cfg)
+
+	if err := d.client.ContainerPause(ctx, containerName); err != nil {
+		return fmt.Errorf("failed to pause worker container %s: %w", containerName, err)
+	}
+
+	log.Info("Worker paused successfully", zap.String("worker", workerName), zap.String("container", containerName))
+	return nil
+}
+
+// UnpauseWorker unpauses a specific worker container
+func (d *DockerRuntime) UnpauseWorker(ctx context.Context, workerName string, cfg *config.Config) error {
+	log := logger.FromContext(ctx)
+	containerName := d.getWorkerContainerNameByName(workerName, cfg)
+
+	if err := d.client.ContainerUnpause(ctx, containerName); err != nil {
+		return fmt.Errorf("failed to unpause worker container %s: %w", containerName, err)
+	}
+
+	log.Info("Worker unpaused successfully", zap.String("worker", workerName), zap.String("container", containerName))
+	return nil
+}
+
+// GetWorkerStatus returns the status of a specific worker
+func (d *DockerRuntime) GetWorkerStatus(ctx context.Context, workerName string, cfg *config.Config) (*ServiceStatus, error) {
+	containerName := d.getWorkerContainerNameByName(workerName, cfg)
+
+	inspect, err := d.client.ContainerInspect(ctx, containerName)
+	if err != nil {
+		if client.IsErrNotFound(err) {
+			return &ServiceStatus{
+				Name:   workerName,
+				Status: "not_deployed",
+				Health: "unknown",
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to inspect worker container %s: %w", containerName, err)
+	}
+
+	// Parse the created timestamp from string to time.Time
+	createdTime, err := time.Parse(time.RFC3339, inspect.Created)
+	if err != nil {
+		// Fallback to zero time if parsing fails
+		createdTime = time.Time{}
+	}
+
+	status := &ServiceStatus{
+		Name:      workerName,
+		Status:    d.getContainerStatusString(inspect.State),
+		Health:    d.getContainerHealthString(inspect.State),
+		CreatedAt: createdTime,
+		Image:     inspect.Config.Image,
+	}
+
+	// Add port mappings if available
+	if inspect.NetworkSettings != nil && inspect.NetworkSettings.Ports != nil {
+		for containerPort, hostBindings := range inspect.NetworkSettings.Ports {
+			for _, binding := range hostBindings {
+				if binding.HostPort != "" {
+					status.Ports = append(status.Ports, fmt.Sprintf("%s:%s", binding.HostPort, containerPort))
+				}
+			}
+		}
+	}
+
+	return status, nil
 }
 
 // StopControlPlane stops the control plane service
@@ -341,17 +466,54 @@ func (d *DockerRuntime) getNetworkName(cfg *config.Config) string {
 	if networkName, ok := d.config["network_name"].(string); ok {
 		return networkName
 	}
-	return fmt.Sprintf("%s-network", cfg.GetTeamName())
+	teamName := config.DefaultTeamName
+	if cfg != nil {
+		teamName = cfg.GetTeamName()
+	}
+	return fmt.Sprintf("%s-network", teamName)
+}
+
+func (d *DockerRuntime) getDockerSocketPath() string {
+	if socketPath, ok := d.config["docker_socket"].(string); ok && socketPath != "" {
+		return socketPath
+	}
+	// Default Docker socket path
+	return "/var/run/docker.sock"
+}
+
+func (d *DockerRuntime) getHostWorkingDirectory() string {
+	// Check for environment variable set by control plane container
+	if hostDir := os.Getenv("HOST_WORKING_DIR"); hostDir != "" {
+		return hostDir
+	}
+	// Check configuration
+	if hostDir, ok := d.config["host_working_dir"].(string); ok && hostDir != "" {
+		return hostDir
+	}
+	// Default to current working directory
+	if currentDir, err := os.Getwd(); err == nil {
+		return currentDir
+	}
+	// Fallback to /opt/autoteam if we can't get working directory
+	return "/opt/autoteam"
 }
 
 func (d *DockerRuntime) getWorkerContainerName(w worker.Worker, cfg *config.Config) string {
-	return fmt.Sprintf("%s-%s", cfg.GetTeamName(), w.GetNormalizedName())
+	teamName := config.DefaultTeamName
+	if cfg != nil {
+		teamName = cfg.GetTeamName()
+	}
+	return fmt.Sprintf("%s-%s", teamName, w.GetNormalizedName())
 }
 
 func (d *DockerRuntime) getWorkerContainerNameByName(workerName string, cfg *config.Config) string {
 	// Normalize the worker name the same way as in worker package
 	normalized := strings.ToLower(strings.ReplaceAll(workerName, " ", "_"))
-	return fmt.Sprintf("%s-%s", cfg.GetTeamName(), normalized)
+	teamName := config.DefaultTeamName
+	if cfg != nil {
+		teamName = cfg.GetTeamName()
+	}
+	return fmt.Sprintf("%s-%s", teamName, normalized)
 }
 
 func (d *DockerRuntime) getControlPlaneContainerName(cfg *config.Config) string {
@@ -538,12 +700,7 @@ func (d *DockerRuntime) generateConfigFiles(cfg *config.Config) error {
 		return fmt.Errorf("failed to create team directory: %w", err)
 	}
 
-	// Generate worker configs
-	for _, w := range cfg.Workers {
-		if err := d.generateWorkerConfig(w, cfg); err != nil {
-			return fmt.Errorf("failed to generate config for worker %s: %w", w.Name, err)
-		}
-	}
+	// Workers now load configuration directly from database - no config files needed
 
 	// Generate control plane config
 	if cfg.ControlPlane != nil && cfg.ControlPlane.Enabled {
@@ -588,19 +745,13 @@ func (d *DockerRuntime) generateControlPlaneConfig(cfg *config.Config) error {
 		return fmt.Errorf("failed to create control plane directory: %w", err)
 	}
 
-	// Generate worker URLs using actual container names (gRPC format)
-	var workersAPIs []string
-	for _, w := range cfg.Workers {
-		containerName := d.getWorkerContainerName(w, cfg)
-		workerURL := fmt.Sprintf("%s:8080", containerName)
-		workersAPIs = append(workersAPIs, workerURL)
-	}
+	// Note: Workers are now managed through database, not through config file
+	// Control plane will load workers from database at runtime
 
-	// Create control plane config with correct worker URLs
+	// Create control plane config (workers loaded from database, not config)
 	controlPlaneConfig := map[string]interface{}{
-		"enabled":      cfg.ControlPlane.Enabled,
-		"port":         cfg.ControlPlane.Port,
-		"workers_apis": workersAPIs,
+		"enabled": cfg.ControlPlane.Enabled,
+		"port":    cfg.ControlPlane.Port,
 	}
 
 	// Create config file
@@ -618,9 +769,6 @@ func (d *DockerRuntime) generateControlPlaneConfig(cfg *config.Config) error {
 }
 
 func (d *DockerRuntime) buildWorkerContainerConfig(w worker.Worker, settings worker.WorkerSettings, cfg *config.Config) *ContainerConfig {
-	teamName := cfg.GetTeamName()
-	workerDir := w.GetWorkerDir()
-
 	// Build environment variables with proper defaults
 	debugValue := os.Getenv("DEBUG")
 	if debugValue == "" {
@@ -632,13 +780,27 @@ func (d *DockerRuntime) buildWorkerContainerConfig(w worker.Worker, settings wor
 	}
 
 	environment := map[string]string{
-		"CONFIG_FILE":                     fmt.Sprintf("%s/config.yaml", workerDir),
+		"AUTOTEAM_WORKER_ID":              w.ID.String(),
 		"AUTOTEAM_WORKER_NAME":            w.Name,
-		"AUTOTEAM_WORKER_DIR":             workerDir,
 		"AUTOTEAM_WORKER_NORMALIZED_NAME": w.GetNormalizedName(),
 		"DEBUG":                           debugValue,
 		"LOG_LEVEL":                       logLevelValue,
 		"GRPC_PORT":                       "8080",
+	}
+
+	// Prepare worker configuration as JSON to pass to worker
+	workerConfig := map[string]interface{}{
+		"worker":   w,
+		"settings": settings,
+	}
+
+	// Marshal configuration to JSON
+	configJSON, err := json.Marshal(workerConfig)
+	if err != nil {
+		// Log error and continue with empty config
+		log := logger.FromContext(context.Background())
+		log.Error("Failed to marshal worker configuration to JSON", zap.Error(err))
+		configJSON = []byte("{}")
 	}
 
 	// Merge with settings environment
@@ -658,14 +820,10 @@ func (d *DockerRuntime) buildWorkerContainerConfig(w worker.Worker, settings wor
 		}
 	}
 
-	// Build volumes with absolute paths
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return nil
-	}
+	// Build volumes with absolute paths - workers don't need database access
+	hostDir := d.getHostWorkingDirectory()
 	volumes := []string{
-		fmt.Sprintf("%s/.autoteam/%s/workers/%s:%s", currentDir, teamName, w.GetNormalizedName(), workerDir),
-		fmt.Sprintf("%s/bin:/opt/autoteam/bin", currentDir),
+		fmt.Sprintf("%s/bin:/opt/autoteam/bin", hostDir),
 	}
 
 	// Add custom volumes from settings
@@ -692,7 +850,7 @@ func (d *DockerRuntime) buildWorkerContainerConfig(w worker.Worker, settings wor
 	}
 
 	// Get user from settings
-	user := "developer" // default
+	user := "root" // default
 	if settings.Service != nil {
 		if u, ok := settings.Service["user"].(string); ok && u != "" {
 			user = u
@@ -704,7 +862,8 @@ func (d *DockerRuntime) buildWorkerContainerConfig(w worker.Worker, settings wor
 		Image:         imageName,
 		Environment:   environment,
 		Volumes:       volumes,
-		Entrypoint:    []string{"/opt/autoteam/bin/entrypoint.sh"},
+		Entrypoint:    []string{"/opt/autoteam/bin/autoteam-worker"},
+		Command:       []string{"--config-json", string(configJSON)},
 		WorkingDir:    "/opt/autoteam",
 		User:          user,
 		NetworkName:   d.getNetworkName(cfg),
@@ -715,17 +874,34 @@ func (d *DockerRuntime) buildWorkerContainerConfig(w worker.Worker, settings wor
 func (d *DockerRuntime) buildControlPlaneContainerConfig(cfg *config.Config) *ContainerConfig {
 	teamName := cfg.GetTeamName()
 
+	hostDir := d.getHostWorkingDirectory()
 	environment := map[string]string{
 		"CONTROL_PLANE_CONFIG": "/opt/autoteam/control-plane/config.yaml",
+		"HOST_WORKING_DIR":     hostDir, // Pass host working directory to control plane container
 	}
 
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return nil
+	// Add database configuration if available
+	if cfg.Settings.Database != nil {
+		if cfg.Settings.Database.Type != "" {
+			environment["DATABASE_TYPE"] = string(cfg.Settings.Database.Type)
+		}
+		if cfg.Settings.Database.DSN != "" {
+			// Map the DSN to the container path
+			environment["DATABASE_DSN"] = "/opt/autoteam/autoteam-debug.db"
+		}
 	}
+
 	volumes := []string{
-		fmt.Sprintf("%s/.autoteam/%s/control-plane:/opt/autoteam/control-plane", currentDir, teamName),
-		fmt.Sprintf("%s/bin:/opt/autoteam/bin", currentDir),
+		fmt.Sprintf("%s/.autoteam/%s/control-plane:/opt/autoteam/control-plane", hostDir, teamName),
+		fmt.Sprintf("%s/bin:/opt/autoteam/bin", hostDir),
+		fmt.Sprintf("%s:/var/run/docker.sock", d.getDockerSocketPath()), // Docker socket for container management
+		fmt.Sprintf("%s:/opt/autoteam/host", hostDir),                   // Mount host directory to access config files
+	}
+
+	// Add database file volume mount if database configuration exists
+	if cfg.Settings.Database != nil && cfg.Settings.Database.DSN != "" {
+		// Extract database file path and mount it
+		volumes = append(volumes, fmt.Sprintf("%s/autoteam-debug.db:/opt/autoteam/autoteam-debug.db", hostDir))
 	}
 
 	ports := []string{
@@ -739,7 +915,7 @@ func (d *DockerRuntime) buildControlPlaneContainerConfig(cfg *config.Config) *Co
 		Volumes:       volumes,
 		Ports:         ports,
 		Entrypoint:    []string{"/opt/autoteam/bin/autoteam-control-plane"},
-		Command:       []string{"--log-level", "info"},
+		Command:       []string{"--config", "/opt/autoteam/host/autoteam.debug.yaml", "--log-level", "info"},
 		WorkingDir:    "/opt/autoteam",
 		User:          "root",
 		NetworkName:   d.getNetworkName(cfg),
@@ -976,4 +1152,44 @@ func (d *DockerRuntime) mapToEnvSlice(env map[string]string) []string {
 		envSlice = append(envSlice, fmt.Sprintf("%s=%s", k, v))
 	}
 	return envSlice
+}
+
+// getContainerStatusString converts Docker container state to readable status
+func (d *DockerRuntime) getContainerStatusString(state *container.State) string {
+	if state.Running {
+		if state.Paused {
+			return "paused"
+		}
+		return "running"
+	}
+	if state.Dead {
+		return "dead"
+	}
+	if state.Restarting {
+		return "restarting"
+	}
+	if state.ExitCode != 0 {
+		return "error"
+	}
+	return "stopped"
+}
+
+// getContainerHealthString converts Docker container health to readable status
+func (d *DockerRuntime) getContainerHealthString(state *container.State) string {
+	if state.Health != nil {
+		switch state.Health.Status {
+		case "healthy":
+			return "healthy"
+		case "unhealthy":
+			return "unhealthy"
+		case "starting":
+			return "starting"
+		default:
+			return "unknown"
+		}
+	}
+	if state.Running && !state.Paused {
+		return "healthy"
+	}
+	return "unknown"
 }

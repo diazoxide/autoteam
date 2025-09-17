@@ -9,7 +9,9 @@ import (
 	"time"
 
 	controlplaneapi "autoteam/api/control-plane"
+	"autoteam/internal/config"
 	"autoteam/internal/logger"
+	"autoteam/internal/runtime"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -34,20 +36,20 @@ type ServerConfig struct {
 }
 
 // NewServer creates a new HTTP API server for the control plane
-func NewServer(registry *WorkerRegistry, config ServerConfig) *Server {
+func NewServer(registry *WorkerRegistry, serverConfig ServerConfig, rt runtime.Runtime, cfg *config.Config) *Server {
 	e := echo.New()
 	e.HideBanner = true
 
 	server := &Server{
 		echo:      e,
 		registry:  registry,
-		port:      config.Port,
-		apiKey:    config.APIKey,
+		port:      serverConfig.Port,
+		apiKey:    serverConfig.APIKey,
 		startTime: time.Now(),
 	}
 
 	// Create handlers
-	server.handlers = NewHandlers(registry)
+	server.handlers = NewHandlers(registry, rt, cfg)
 
 	// Setup middleware
 	server.setupMiddleware()
@@ -218,4 +220,25 @@ func (a *APIAdapter) GetOpenAPISpec(ctx echo.Context) error {
 
 func (a *APIAdapter) GetSwaggerUI(ctx echo.Context) error {
 	return a.handlers.GetSwaggerUI(ctx)
+}
+
+// Worker action methods
+func (a *APIAdapter) DeployWorker(ctx echo.Context, workerID string) error {
+	return a.handlers.DeployWorker(ctx, workerID)
+}
+
+func (a *APIAdapter) StopWorker(ctx echo.Context, workerID string) error {
+	return a.handlers.StopWorker(ctx, workerID)
+}
+
+func (a *APIAdapter) RestartWorker(ctx echo.Context, workerID string) error {
+	return a.handlers.RestartWorker(ctx, workerID)
+}
+
+func (a *APIAdapter) PauseWorker(ctx echo.Context, workerID string) error {
+	return a.handlers.PauseWorker(ctx, workerID)
+}
+
+func (a *APIAdapter) UnpauseWorker(ctx echo.Context, workerID string) error {
+	return a.handlers.UnpauseWorker(ctx, workerID)
 }
