@@ -122,9 +122,9 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 		Settings worker.WorkerSettings `json:"settings"`
 	}
 
-	if err := json.Unmarshal([]byte(configJSON), &workerConfig); err != nil {
-		log.Error("Failed to parse worker configuration JSON", zap.Error(err))
-		return fmt.Errorf("failed to parse worker configuration: %w", err)
+	if unmarshalErr := json.Unmarshal([]byte(configJSON), &workerConfig); unmarshalErr != nil {
+		log.Error("Failed to parse worker configuration JSON", zap.Error(unmarshalErr))
+		return fmt.Errorf("failed to parse worker configuration: %w", unmarshalErr)
 	}
 
 	log.Info("Worker configuration loaded successfully",

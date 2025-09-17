@@ -18,6 +18,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/errdefs"
 	"github.com/docker/go-connections/nat"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -264,7 +265,7 @@ func (d *DockerRuntime) GetWorkerStatus(ctx context.Context, workerName string, 
 
 	inspect, err := d.client.ContainerInspect(ctx, containerName)
 	if err != nil {
-		if client.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return &ServiceStatus{
 				Name:   workerName,
 				Status: "not_deployed",
@@ -707,30 +708,6 @@ func (d *DockerRuntime) generateConfigFiles(cfg *config.Config) error {
 		if err := d.generateControlPlaneConfig(cfg); err != nil {
 			return fmt.Errorf("failed to generate control plane config: %w", err)
 		}
-	}
-
-	return nil
-}
-
-func (d *DockerRuntime) generateWorkerConfig(w worker.Worker, cfg *config.Config) error {
-	teamName := cfg.GetTeamName()
-	workerNormalizedName := strings.ToLower(strings.ReplaceAll(w.Name, " ", "_"))
-
-	// Create worker-specific directory under .autoteam
-	workerDir := fmt.Sprintf("./.autoteam/%s/workers/%s", teamName, workerNormalizedName)
-	if err := os.MkdirAll(workerDir, 0755); err != nil {
-		return fmt.Errorf("failed to create worker directory: %w", err)
-	}
-
-	// Create worker-specific config file containing just this worker's configuration
-	configPath := fmt.Sprintf("%s/config.yaml", workerDir)
-	configData, err := yaml.Marshal(w)
-	if err != nil {
-		return fmt.Errorf("failed to marshal worker config: %w", err)
-	}
-
-	if err := os.WriteFile(configPath, configData, 0644); err != nil {
-		return fmt.Errorf("failed to write worker config file: %w", err)
 	}
 
 	return nil

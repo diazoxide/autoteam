@@ -35,12 +35,12 @@ func main() {
 
 	// Run migrations
 	fmt.Println("Running migrations...")
-	if err := database.MigrateModels(ctx, conn,
+	if migrateErr := database.MigrateModels(ctx, conn,
 		&worker.Worker{},
 		&worker.WorkerSettings{},
 		&worker.FlowStep{},
-	); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+	); migrateErr != nil {
+		log.Fatalf("Failed to migrate database: %v", migrateErr)
 	}
 
 	// Create repositories

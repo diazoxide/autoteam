@@ -95,43 +95,6 @@ func validateConfig(config *Config) error {
 	return nil
 }
 
-// validateFlow validates flow configuration
-func validateFlow(flow []worker.FlowStep) error {
-	if len(flow) == 0 {
-		return fmt.Errorf("flow must contain at least one step")
-	}
-
-	stepNames := make(map[string]bool)
-	for i, step := range flow {
-		if step.Name == "" {
-			return fmt.Errorf("step[%d].name is required", i)
-		}
-		if step.Type == "" {
-			return fmt.Errorf("step[%d].type is required", i)
-		}
-		if stepNames[step.Name] {
-			return fmt.Errorf("duplicate step name: %s", step.Name)
-		}
-		stepNames[step.Name] = true
-
-		// Validate dependencies exist
-		for _, dep := range step.DependsOn {
-			found := false
-			for _, otherStep := range flow {
-				if otherStep.Name == dep {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return fmt.Errorf("step %s depends on non-existent step: %s", step.Name, dep)
-			}
-		}
-	}
-
-	return nil
-}
-
 func setDefaults(config *Config) {
 	if config.Settings.SleepDuration == 0 {
 		config.Settings.SleepDuration = 60

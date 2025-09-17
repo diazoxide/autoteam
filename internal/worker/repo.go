@@ -230,8 +230,8 @@ func (r *repositoryImpl) CreateOrUpdateSettings(ctx context.Context, settings *W
 
 		if err == gorm.ErrRecordNotFound {
 			// Create new settings
-			if err := tx.Create(settings).Error; err != nil {
-				return fmt.Errorf("failed to create worker settings: %w", err)
+			if createErr := tx.Create(settings).Error; createErr != nil {
+				return fmt.Errorf("failed to create worker settings: %w", createErr)
 			}
 			lgr.Debug("Worker settings created successfully")
 		} else if err != nil {
@@ -239,8 +239,8 @@ func (r *repositoryImpl) CreateOrUpdateSettings(ctx context.Context, settings *W
 		} else {
 			// Update existing settings
 			settings.ID = existing.ID // Keep the same ID
-			if err := tx.Save(settings).Error; err != nil {
-				return fmt.Errorf("failed to update worker settings: %w", err)
+			if updateErr := tx.Save(settings).Error; updateErr != nil {
+				return fmt.Errorf("failed to update worker settings: %w", updateErr)
 			}
 			lgr.Debug("Worker settings updated successfully")
 		}
