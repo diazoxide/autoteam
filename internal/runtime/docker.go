@@ -14,11 +14,11 @@ import (
 	"autoteam/internal/logger"
 	"autoteam/internal/worker"
 
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/errdefs"
 	"github.com/docker/go-connections/nat"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
