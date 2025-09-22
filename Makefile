@@ -124,6 +124,40 @@ build-all: clean-build dashboard-ui ## Build main, worker, control-plane, and da
 	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) $(PLATFORMS) $(PLATFORMS:=/worker) $(PLATFORMS:=/control-plane) $(PLATFORMS:=/dashboard-no-ui)
 	@echo "$(GREEN)✓ All builds completed in $(BUILD_DIR)/$(NC)"
 
+# Build with embedded binaries - single binary containing all components
+build-embedded: clean-build dashboard-ui ## Build main binary with all components embedded
+	@echo "$(BLUE)Building embedded binary with all components...$(NC)"
+
+	# First, build all component binaries for all platforms
+	@echo "$(BLUE)Step 1: Building all component binaries...$(NC)"
+	@$(MAKE) -j$(shell nproc 2>/dev/null || echo 4) $(PLATFORMS:=/worker) $(PLATFORMS:=/control-plane) $(PLATFORMS:=/dashboard-no-ui)
+
+	# Copy binaries to embedded directory
+	@echo "$(BLUE)Step 2: Copying binaries to embedded directory...$(NC)"
+	@mkdir -p internal/embedded/binaries
+	@for platform in $(PLATFORMS); do \
+		os=$$(echo $$platform | cut -d'/' -f1); \
+		arch=$$(echo $$platform | cut -d'/' -f2); \
+		platform_name="$$os-$$arch"; \
+		echo "  Copying binaries for $$platform_name..."; \
+		if [ -f "$(BUILD_DIR)/$(WORKER_BINARY_NAME)-$$platform_name" ]; then \
+			cp "$(BUILD_DIR)/$(WORKER_BINARY_NAME)-$$platform_name" "internal/embedded/binaries/$(WORKER_BINARY_NAME)-$$platform_name"; \
+		fi; \
+		if [ -f "$(BUILD_DIR)/$(CONTROL_PLANE_BINARY_NAME)-$$platform_name" ]; then \
+			cp "$(BUILD_DIR)/$(CONTROL_PLANE_BINARY_NAME)-$$platform_name" "internal/embedded/binaries/$(CONTROL_PLANE_BINARY_NAME)-$$platform_name"; \
+		fi; \
+		if [ -f "$(BUILD_DIR)/$(DASHBOARD_BINARY_NAME)-$$platform_name" ]; then \
+			cp "$(BUILD_DIR)/$(DASHBOARD_BINARY_NAME)-$$platform_name" "internal/embedded/binaries/$(DASHBOARD_BINARY_NAME)-$$platform_name"; \
+		fi; \
+	done
+
+	# Build main binary with embedded assets
+	@echo "$(BLUE)Step 3: Building main binary with embedded assets...$(NC)"
+	$(GO_BUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-embedded $(MAIN_PATH)
+
+	@echo "$(GREEN)✓ Embedded binary built: $(BUILD_DIR)/$(BINARY_NAME)-embedded$(NC)"
+	@echo "$(YELLOW)This binary contains all worker, control-plane, and dashboard components$(NC)"
+
 # Build for macOS platforms - with parallel execution
 build-darwin: clean-build ## Build binaries for macOS (Intel + Apple Silicon)
 	@echo "$(BLUE)Building macOS platforms in parallel...$(NC)"
@@ -398,7 +432,7 @@ release: clean test build-all checksums package ## Create a complete release (te
 	@cat $(BUILD_DIR)/checksums.txt
 
 # Clean targets
-clean: clean-build clean-dist ## Clean all generated files
+clean: clean-build clean-dist clean-embedded ## Clean all generated files
 	@echo "$(GREEN)✓ Cleaned all generated files$(NC)"
 
 clean-build: ## Clean build directory
@@ -409,6 +443,11 @@ clean-build: ## Clean build directory
 clean-dist: ## Clean distribution directory
 	@echo "$(BLUE)Cleaning distribution directory...$(NC)"
 	@rm -rf $(DIST_DIR)
+
+clean-embedded: ## Clean embedded binaries directory
+	@echo "$(BLUE)Cleaning embedded binaries...$(NC)"
+	@rm -f internal/embedded/binaries/*
+	@touch internal/embedded/binaries/.gitkeep
 
 clean-test: ## Clean test artifacts
 	@echo "$(BLUE)Cleaning test artifacts...$(NC)"

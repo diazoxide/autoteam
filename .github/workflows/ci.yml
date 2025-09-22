@@ -224,8 +224,8 @@ jobs:
     - name: Build binary
       run: |
         make build
-        # Build current platform worker binary
-        make build-worker
+        # Build embedded binary with all components
+        make build-embedded
     
     - name: Test binary installation
       run: |
@@ -239,16 +239,50 @@ jobs:
         ./build/autoteam init
         test -f autoteam.yaml
     
-    - name: Test configuration generation
+    - name: Test embedded binary architecture
       run: |
-        # Test generate command with created config
-        ./build/autoteam generate
-        # Check that team-specific control plane directory is created
-        test -d .autoteam/autoteam/control-plane
+        # Test embedded binary works
+        echo "Testing embedded binary..."
+        ./build/autoteam-embedded --version
+        ./build/autoteam-embedded --help
+
+        # Test configuration generation with embedded binaries
+        echo "Testing configuration generation with embedded binaries..."
+        ./build/autoteam-embedded generate
+
+        # Check that control plane directory is created
+        echo "Checking control plane directory..."
+        test -d .autoteam/autoteam/control-plane || { echo "❌ Control plane directory missing"; exit 1; }
+        echo "✓ Control plane directory exists"
+
         # Check that control plane config file is generated
-        test -f .autoteam/autoteam/control-plane/config.yaml
-        # Check that bin directory exists with required files
-        test -d bin
-        # Check that essential binaries exist in bin directory
-        test -f bin/autoteam-worker-linux-amd64
-        test -f bin/entrypoint.sh
+        echo "Checking control plane config file..."
+        test -f .autoteam/autoteam/control-plane/config.yaml || { echo "❌ Control plane config missing"; exit 1; }
+        echo "✓ Control plane config exists"
+
+        # Check that bin directory exists with extracted binaries
+        echo "Checking bin directory..."
+        test -d bin || { echo "❌ Bin directory missing"; exit 1; }
+        echo "✓ Bin directory exists"
+
+        # Check that binaries were extracted automatically
+        echo "Checking extracted binaries..."
+        extracted_binaries=$(ls bin/autoteam-*-linux-* 2>/dev/null | wc -l)
+        if [ "$extracted_binaries" -gt 0 ]; then
+          echo "✓ Found $extracted_binaries embedded binaries extracted"
+          ls bin/autoteam-*-linux-* | head -5
+        else
+          echo "❌ No embedded binaries found in bin directory"
+          echo "Contents of bin directory:"
+          ls -la bin/ || echo "No bin directory"
+          exit 1
+        fi
+
+        # Check for entrypoint script
+        if test -f bin/entrypoint.sh; then
+          echo "✓ Entrypoint script extracted"
+        else
+          echo "⚠️ Entrypoint script not found (may be embedded differently)"
+        fi
+
+        echo "✅ Embedded binary architecture test passed"

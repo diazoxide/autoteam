@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"autoteam/internal/config"
+	"autoteam/internal/embedded"
 	"autoteam/internal/logger"
 	"autoteam/internal/worker"
 
@@ -597,71 +598,82 @@ func (d *DockerRuntime) ensureImage(ctx context.Context, imageName string) error
 func (d *DockerRuntime) ensureBinaries(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 
+	log.Info("Extracting embedded binaries for container deployment")
+
 	// Create local bin directory if it doesn't exist
 	if err := os.MkdirAll("bin", 0755); err != nil {
 		return fmt.Errorf("failed to create bin directory: %w", err)
 	}
 
-	// List of required files to copy from system to local bin
-	systemBinDir := "/opt/autoteam/bin"
-	requiredFiles := []string{
-		"entrypoint.sh",
-		"autoteam-worker-linux-amd64",
-		"autoteam-worker-linux-arm64",
-		"autoteam-worker-darwin-amd64",
-		"autoteam-worker-darwin-arm64",
+	// Define target platforms for containers (Linux platforms only)
+	containerPlatforms := []embedded.Platform{
+		{OS: "linux", Arch: "amd64"},
+		{OS: "linux", Arch: "arm64"},
+		{OS: "linux", Arch: "386"},
+		{OS: "linux", Arch: "arm"},
 	}
 
-	// Add control plane and dashboard binaries from build directory
-	buildBinaries := map[string]string{
-		"autoteam-control-plane": "build/autoteam-control-plane-linux-amd64",
-		"autoteam-dashboard":     "build/autoteam-dashboard-linux-amd64",
+	// Extract all binary types for Linux platforms
+	binaryTypes := []embedded.BinaryType{
+		embedded.Worker,
+		embedded.ControlPlane,
+		embedded.Dashboard,
 	}
 
-	for binary, buildPath := range buildBinaries {
-		localPath := fmt.Sprintf("bin/%s", binary)
-
-		// Copy from build directory if it exists and local is outdated or missing
-		if buildInfo, err := os.Stat(buildPath); err == nil {
-			shouldCopy := true
-			if localInfo, err := os.Stat(localPath); err == nil {
-				if localInfo.ModTime().After(buildInfo.ModTime()) {
-					shouldCopy = false
-				}
+	extractedCount := 0
+	for _, platform := range containerPlatforms {
+		for _, binaryType := range binaryTypes {
+			if !embedded.IsBinaryAvailable(binaryType, platform) {
+				log.Debug("Binary not available for platform",
+					zap.String("type", string(binaryType)),
+					zap.String("platform", platform.String()))
+				continue
 			}
 
-			if shouldCopy {
-				if err := d.copyFile(buildPath, localPath); err != nil {
-					log.Warn("Failed to copy build binary", zap.String("binary", binary), zap.Error(err))
-				} else {
-					log.Debug("Copied build binary to local bin", zap.String("binary", binary))
-				}
+			binaryName := embedded.GetBinaryName(binaryType, platform)
+			localPath := fmt.Sprintf("bin/%s", binaryName)
+
+			// Check if binary already exists and skip if it does
+			if _, err := os.Stat(localPath); err == nil {
+				log.Debug("Binary already exists, skipping extraction",
+					zap.String("binary", binaryName))
+				continue
 			}
+
+			// Extract embedded binary to local bin directory
+			if err := embedded.ExtractBinary(binaryType, platform, localPath); err != nil {
+				log.Warn("Failed to extract embedded binary",
+					zap.String("type", string(binaryType)),
+					zap.String("platform", platform.String()),
+					zap.Error(err))
+				continue
+			}
+
+			extractedCount++
+			log.Debug("Extracted embedded binary",
+				zap.String("type", string(binaryType)),
+				zap.String("platform", platform.String()),
+				zap.String("path", localPath))
 		}
 	}
 
-	for _, file := range requiredFiles {
-		systemPath := fmt.Sprintf("%s/%s", systemBinDir, file)
-		localPath := fmt.Sprintf("bin/%s", file)
-
-		// Check if local file already exists and is newer than system file
-		if localInfo, err := os.Stat(localPath); err == nil {
-			if systemInfo, err := os.Stat(systemPath); err == nil {
-				if localInfo.ModTime().After(systemInfo.ModTime()) {
-					log.Debug("Local binary is up to date", zap.String("file", file))
-					continue
-				}
+	// Extract entrypoint script
+	entrypointPath := "bin/entrypoint.sh"
+	if _, err := os.Stat(entrypointPath); os.IsNotExist(err) {
+		if embedded.IsScriptAvailable(embedded.EntrypointScript) {
+			if err := embedded.ExtractScript(embedded.EntrypointScript, entrypointPath); err != nil {
+				log.Warn("Failed to extract entrypoint script", zap.Error(err))
+			} else {
+				extractedCount++
+				log.Debug("Extracted entrypoint script", zap.String("path", entrypointPath))
 			}
+		} else {
+			log.Warn("Entrypoint script not available in embedded assets")
 		}
-
-		// Copy file from system to local
-		if err := d.copyFile(systemPath, localPath); err != nil {
-			log.Warn("Failed to copy binary", zap.String("file", file), zap.Error(err))
-			continue
-		}
-
-		log.Debug("Copied binary to local bin", zap.String("file", file))
 	}
+
+	log.Info("Embedded binary extraction completed",
+		zap.Int("extracted_files", extractedCount))
 
 	return nil
 }
