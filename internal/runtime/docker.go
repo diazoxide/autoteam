@@ -595,23 +595,6 @@ func (d *DockerRuntime) ensureImage(ctx context.Context, imageName string) error
 	return nil
 }
 
-// copyFile copies a file from src to dst
-func copyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	_, err = io.Copy(destFile, sourceFile)
-	return err
-}
 
 func (d *DockerRuntime) ensureBinaries(ctx context.Context) error {
 	log := logger.FromContext(ctx)
@@ -846,7 +829,7 @@ func (d *DockerRuntime) ensureBinaries(ctx context.Context) error {
 	return nil
 }
 
-func (d *DockerRuntime) copyFile(src, dst string) error {
+func copyFile(src, dst string) error {
 	sourceFile, err := os.Open(src)
 	if err != nil {
 		return err

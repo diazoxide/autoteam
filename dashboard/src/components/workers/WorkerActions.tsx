@@ -39,7 +39,7 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
   const { mutate: pauseWorker, isLoading: isPausing } = useCustomMutation();
   const { mutate: unpauseWorker, isLoading: isUnpausing } = useCustomMutation();
 
-  const handleAction = (action: string, actionFn: any, successMessage: string) => {
+  const handleAction = (action: string, actionFn: (args: unknown, options?: unknown) => void, successMessage: string) => {
     actionFn({
       url: `/workers/${workerId}/actions/${action}`,
       method: "post",
@@ -53,7 +53,7 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
           severity: "success",
         });
       },
-      onError: (error: any) => {
+      onError: (error: Error) => {
         setNotification({
           message: `Failed to ${action} worker: ${error?.message || 'Unknown error'}`,
           severity: "error",

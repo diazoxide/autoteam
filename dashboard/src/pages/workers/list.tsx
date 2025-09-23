@@ -6,7 +6,7 @@ import {
 } from "@refinedev/mui";
 import { useCustom } from "@refinedev/core";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
-import { Chip, Box, Typography } from "@mui/material";
+import { Chip, Box } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import { WorkerActions } from "../../components/workers/WorkerActions";
