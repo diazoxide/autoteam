@@ -223,9 +223,10 @@ jobs:
     
     - name: Build binary
       run: |
-        make build
-        # Build embedded binary with all components
+        # Build embedded binary with all components first
         make build-embedded
+        # Build regular binary for current platform (after embedded build)
+        make build
     
     - name: Test binary installation
       run: |
