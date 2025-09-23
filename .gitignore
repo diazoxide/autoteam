@@ -9,7 +9,6 @@ api/worker/client.gen.go
 
 # Build artifacts
 build/
-bin/
 
 # Embedded binaries (generated during build)
 internal/embedded/binaries/*

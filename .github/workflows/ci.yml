@@ -260,26 +260,26 @@ jobs:
         test -f .autoteam/autoteam/control-plane/config.yaml || { echo "❌ Control plane config missing"; exit 1; }
         echo "✓ Control plane config exists"
 
-        # Check that bin directory exists with extracted binaries
-        echo "Checking bin directory..."
-        test -d bin || { echo "❌ Bin directory missing"; exit 1; }
-        echo "✓ Bin directory exists"
+        # Check that .autoteam/bin directory exists with extracted binaries
+        echo "Checking .autoteam/bin directory..."
+        test -d .autoteam/bin || { echo "❌ .autoteam/bin directory missing"; exit 1; }
+        echo "✓ .autoteam/bin directory exists"
 
         # Check that binaries were extracted automatically
         echo "Checking extracted binaries..."
-        extracted_binaries=$(ls bin/autoteam-*-linux-* 2>/dev/null | wc -l)
+        extracted_binaries=$(ls .autoteam/bin/autoteam-*-linux-* 2>/dev/null | wc -l)
         if [ "$extracted_binaries" -gt 0 ]; then
           echo "✓ Found $extracted_binaries embedded binaries extracted"
-          ls bin/autoteam-*-linux-* | head -5
+          ls .autoteam/bin/autoteam-*-linux-* | head -5
         else
-          echo "❌ No embedded binaries found in bin directory"
-          echo "Contents of bin directory:"
-          ls -la bin/ || echo "No bin directory"
+          echo "❌ No embedded binaries found in .autoteam/bin directory"
+          echo "Contents of .autoteam/bin directory:"
+          ls -la .autoteam/bin/ || echo "No .autoteam/bin directory"
           exit 1
         fi
 
         # Check for entrypoint script
-        if test -f bin/entrypoint.sh; then
+        if test -f .autoteam/bin/entrypoint.sh; then
           echo "✓ Entrypoint script extracted"
         else
           echo "⚠️ Entrypoint script not found (may be embedded differently)"

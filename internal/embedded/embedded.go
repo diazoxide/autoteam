@@ -20,8 +20,9 @@ type Manager struct {
 
 // NewManager creates a new embedded assets manager
 func NewManager() *Manager {
+	log, _ := logger.NewLogger(logger.InfoLevel)
 	return &Manager{
-		log: logger.NewLogger(logger.InfoLevel),
+		log: log,
 	}
 }
 

@@ -3,6 +3,7 @@ package embedded
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -130,6 +131,149 @@ func TestExtractAllForPlatformWhenAvailable(t *testing.T) {
 		t.Logf("Successfully extracted %d assets to %s", len(files), tempDir)
 		for _, file := range files {
 			t.Logf("  - %s", filepath.Base(file))
+		}
+	}
+}
+
+func TestBinaryTypeConstants(t *testing.T) {
+	tests := []struct {
+		binaryType BinaryType
+		expected   string
+	}{
+		{Worker, "worker"},
+		{ControlPlane, "control-plane"},
+		{Dashboard, "dashboard"},
+	}
+
+	for _, tt := range tests {
+		if string(tt.binaryType) != tt.expected {
+			t.Errorf("BinaryType constant mismatch: got %s, want %s", tt.binaryType, tt.expected)
+		}
+	}
+}
+
+func TestPlatformString(t *testing.T) {
+	tests := []struct {
+		platform Platform
+		expected string
+	}{
+		{Platform{OS: "linux", Arch: "amd64"}, "linux-amd64"},
+		{Platform{OS: "darwin", Arch: "arm64"}, "darwin-arm64"},
+		{Platform{OS: "windows", Arch: "386"}, "windows-386"},
+	}
+
+	for _, tt := range tests {
+		result := tt.platform.String()
+		if result != tt.expected {
+			t.Errorf("Platform.String() = %s, want %s", result, tt.expected)
+		}
+	}
+}
+
+func TestListEmbeddedBinaries(t *testing.T) {
+	binaries, err := ListEmbeddedBinaries()
+	if err != nil {
+		t.Errorf("ListEmbeddedBinaries failed: %v", err)
+	}
+
+	// Should not crash even if no binaries are embedded
+	t.Logf("Found %d embedded binaries", len(binaries))
+	for _, binary := range binaries {
+		if !strings.HasPrefix(binary, "binaries/autoteam-") {
+			t.Errorf("Unexpected binary path format: %s", binary)
+		}
+	}
+}
+
+func TestIsBinaryAvailable(t *testing.T) {
+	// Test with current platform (should work regardless of embedded binaries)
+	currentPlatform := GetCurrentPlatform()
+
+	binaryTypes := []BinaryType{Worker, ControlPlane, Dashboard}
+	for _, binaryType := range binaryTypes {
+		available := IsBinaryAvailable(binaryType, currentPlatform)
+		t.Logf("Binary %s available for %s: %v", binaryType, currentPlatform.String(), available)
+		// Don't assert true/false since it depends on build state
+	}
+}
+
+func TestGetAvailablePlatforms(t *testing.T) {
+	binaryTypes := []BinaryType{Worker, ControlPlane, Dashboard}
+
+	for _, binaryType := range binaryTypes {
+		platforms, err := GetAvailablePlatforms(binaryType)
+		if err != nil {
+			t.Errorf("GetAvailablePlatforms(%s) failed: %v", binaryType, err)
+			continue
+		}
+
+		t.Logf("Available platforms for %s: %d", binaryType, len(platforms))
+		for _, platform := range platforms {
+			if platform.OS == "" || platform.Arch == "" {
+				t.Errorf("Invalid platform returned: %+v", platform)
+			}
+		}
+	}
+}
+
+func TestExtractBinaryToTemp(t *testing.T) {
+	// Test with current platform
+	currentPlatform := GetCurrentPlatform()
+
+	// Only test if binary is available (to avoid test failures in different build contexts)
+	if IsBinaryAvailable(Worker, currentPlatform) {
+		tempPath, err := ExtractBinaryToTemp(Worker, currentPlatform)
+		if err != nil {
+			t.Errorf("ExtractBinaryToTemp failed: %v", err)
+		} else {
+			defer os.Remove(tempPath) // Clean up
+
+			// Verify temp file exists and is executable
+			info, err := os.Stat(tempPath)
+			if err != nil {
+				t.Errorf("Temp binary does not exist: %v", err)
+			} else if info.Mode()&0111 == 0 {
+				t.Error("Temp binary is not executable")
+			}
+
+			t.Logf("Successfully extracted binary to temp: %s", tempPath)
+		}
+	} else {
+		t.Logf("Worker binary not available for %s, skipping temp extraction test", currentPlatform.String())
+	}
+}
+
+func TestIsScriptAvailable(t *testing.T) {
+	available := IsScriptAvailable(EntrypointScript)
+	t.Logf("Entrypoint script available: %v", available)
+
+	// Test should not fail regardless of availability
+}
+
+func TestExtractAllBinariesForPlatform(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Test with Linux AMD64 (most common platform)
+	linuxPlatform := Platform{OS: "linux", Arch: "amd64"}
+
+	err := ExtractAllBinariesForPlatform(linuxPlatform, tempDir)
+	if err != nil {
+		// This might fail if no embedded binaries are available, which is OK for testing
+		t.Logf("ExtractAllBinariesForPlatform failed (expected in some build contexts): %v", err)
+		return
+	}
+
+	// Check that files were extracted
+	files, err := os.ReadDir(tempDir)
+	if err != nil {
+		t.Errorf("Failed to read temp directory: %v", err)
+		return
+	}
+
+	t.Logf("Extracted %d files for platform %s", len(files), linuxPlatform.String())
+	for _, file := range files {
+		if !strings.HasPrefix(file.Name(), "autoteam-") {
+			t.Errorf("Unexpected file extracted: %s", file.Name())
 		}
 	}
 }

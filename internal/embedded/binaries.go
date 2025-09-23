@@ -22,9 +22,9 @@ var embeddedBinaries embed.FS
 type BinaryType string
 
 const (
-	Worker      BinaryType = "worker"
+	Worker       BinaryType = "worker"
 	ControlPlane BinaryType = "control-plane"
-	Dashboard   BinaryType = "dashboard"
+	Dashboard    BinaryType = "dashboard"
 )
 
 // Platform represents the target platform
@@ -77,7 +77,7 @@ func ListEmbeddedBinaries() ([]string, error) {
 
 // ExtractBinary extracts an embedded binary to a destination path
 func ExtractBinary(binaryType BinaryType, platform Platform, destPath string) error {
-	log := logger.NewLogger(logger.InfoLevel)
+	log, _ := logger.NewLogger(logger.InfoLevel)
 
 	embeddedPath := GetEmbeddedBinaryPath(binaryType, platform)
 
@@ -113,7 +113,7 @@ func ExtractBinary(binaryType BinaryType, platform Platform, destPath string) er
 
 // ExtractBinaryToTemp extracts an embedded binary to a temporary file and returns the path
 func ExtractBinaryToTemp(binaryType BinaryType, platform Platform) (string, error) {
-	log := logger.NewLogger(logger.InfoLevel)
+	log, _ := logger.NewLogger(logger.InfoLevel)
 
 	// Create temporary file
 	binaryName := GetBinaryName(binaryType, platform)
@@ -186,7 +186,7 @@ func GetAvailablePlatforms(binaryType BinaryType) ([]Platform, error) {
 
 // ExtractAllBinariesForPlatform extracts all binary types for a specific platform to a directory
 func ExtractAllBinariesForPlatform(platform Platform, destDir string) error {
-	log := logger.NewLogger(logger.InfoLevel)
+	log, _ := logger.NewLogger(logger.InfoLevel)
 
 	binaryTypes := []BinaryType{Worker, ControlPlane, Dashboard}
 

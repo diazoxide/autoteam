@@ -29,7 +29,7 @@ func GetEmbeddedScriptPath(scriptType ScriptType) string {
 
 // ExtractScript extracts an embedded script to a destination path
 func ExtractScript(scriptType ScriptType, destPath string) error {
-	log := logger.NewLogger(logger.InfoLevel)
+	log, _ := logger.NewLogger(logger.InfoLevel)
 
 	embeddedPath := GetEmbeddedScriptPath(scriptType)
 

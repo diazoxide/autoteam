@@ -595,23 +595,164 @@ func (d *DockerRuntime) ensureImage(ctx context.Context, imageName string) error
 	return nil
 }
 
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	return err
+}
+
 func (d *DockerRuntime) ensureBinaries(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 
-	log.Info("Extracting embedded binaries for container deployment")
+	log.Info("Ensuring binaries are available for container deployment")
 
-	// Create local bin directory if it doesn't exist
-	if err := os.MkdirAll("bin", 0755); err != nil {
-		return fmt.Errorf("failed to create bin directory: %w", err)
+	// Create local .autoteam/bin directory if it doesn't exist
+	if err := os.MkdirAll(".autoteam/bin", 0755); err != nil {
+		return fmt.Errorf("failed to create .autoteam/bin directory: %w", err)
 	}
 
-	// Define target platforms for containers (Linux platforms only)
+	// Check if we have embedded binaries available
+	hasEmbeddedBinaries := false
 	containerPlatforms := []embedded.Platform{
 		{OS: "linux", Arch: "amd64"},
 		{OS: "linux", Arch: "arm64"},
 		{OS: "linux", Arch: "386"},
 		{OS: "linux", Arch: "arm"},
 	}
+
+	for _, platform := range containerPlatforms {
+		if embedded.IsBinaryAvailable(embedded.Worker, platform) {
+			hasEmbeddedBinaries = true
+			break
+		}
+	}
+
+	if !hasEmbeddedBinaries {
+		log.Info("No embedded binaries available in this build - checking for built binaries to extract")
+
+		// First, check if binaries already exist in .autoteam/bin
+		existingBinaries := 0
+		for _, platform := range containerPlatforms {
+			binaryName := embedded.GetBinaryName(embedded.Worker, platform)
+			if _, err := os.Stat(fmt.Sprintf(".autoteam/bin/%s", binaryName)); err == nil {
+				existingBinaries++
+			}
+		}
+
+		if existingBinaries > 0 {
+			log.Info("Found existing binaries in .autoteam/bin", zap.Int("count", existingBinaries))
+			return nil
+		}
+
+		// Try to extract binaries from build/ directory
+		log.Info("Extracting binaries from build/ directory")
+		extractedCount := 0
+
+		binaryTypes := []embedded.BinaryType{
+			embedded.Worker,
+			embedded.ControlPlane,
+			embedded.Dashboard,
+		}
+
+		for _, platform := range containerPlatforms {
+			for _, binaryType := range binaryTypes {
+				binaryName := embedded.GetBinaryName(binaryType, platform)
+				buildPath := fmt.Sprintf("build/%s", binaryName)
+				destPath := fmt.Sprintf(".autoteam/bin/%s", binaryName)
+
+				// Check if binary exists in build/ directory
+				if _, err := os.Stat(buildPath); err == nil {
+					// Copy binary to .autoteam/bin/
+					if err := copyFile(buildPath, destPath); err != nil {
+						log.Warn("Failed to copy binary from build directory",
+							zap.String("source", buildPath),
+							zap.String("dest", destPath),
+							zap.Error(err))
+						continue
+					}
+
+					// Make binary executable
+					if err := os.Chmod(destPath, 0755); err != nil {
+						log.Warn("Failed to make binary executable",
+							zap.String("path", destPath),
+							zap.Error(err))
+					}
+
+					extractedCount++
+					log.Debug("Extracted binary from build directory",
+						zap.String("type", string(binaryType)),
+						zap.String("platform", platform.String()),
+						zap.String("source", buildPath),
+						zap.String("dest", destPath))
+				}
+			}
+		}
+
+		// Extract entrypoint script if it exists
+		entrypointSource := "scripts/entrypoint.sh"
+		entrypointDest := ".autoteam/bin/entrypoint.sh"
+		if _, err := os.Stat(entrypointSource); err == nil {
+			if err := copyFile(entrypointSource, entrypointDest); err == nil {
+				if err := os.Chmod(entrypointDest, 0755); err == nil {
+					extractedCount++
+					log.Debug("Extracted entrypoint script", zap.String("dest", entrypointDest))
+				}
+			}
+		}
+
+		if extractedCount == 0 {
+			return fmt.Errorf("no binaries found in build/ directory and no embedded binaries available.\n" +
+				"Solutions:\n" +
+				"  1. Build binaries first: make build-worker-all build-control-plane-all build-dashboard-all\n" +
+				"  2. Build with embedded binaries: make build-embedded && use autoteam-embedded command\n" +
+				"  3. Use the installation script which includes all required binaries")
+		}
+
+		// Create generic symlinks for container compatibility
+		// Containers expect generic names like "autoteam-worker", but we have platform-specific names
+		genericLinksCreated := 0
+		for _, binaryType := range binaryTypes {
+			// Find the amd64 version as the default (most common)
+			platformBinaryName := embedded.GetBinaryName(binaryType, embedded.Platform{OS: "linux", Arch: "amd64"})
+			genericBinaryName := fmt.Sprintf("autoteam-%s", binaryType)
+
+			platformPath := fmt.Sprintf(".autoteam/bin/%s", platformBinaryName)
+			genericPath := fmt.Sprintf(".autoteam/bin/%s", genericBinaryName)
+
+			// Check if platform-specific binary exists
+			if _, err := os.Stat(platformPath); err == nil {
+				// Create a copy with generic name (symlinks don't work well with Docker volumes)
+				if err := copyFile(platformPath, genericPath); err == nil {
+					if err := os.Chmod(genericPath, 0755); err == nil {
+						genericLinksCreated++
+						log.Debug("Created generic binary copy",
+							zap.String("type", string(binaryType)),
+							zap.String("source", platformPath),
+							zap.String("dest", genericPath))
+					}
+				}
+			}
+		}
+
+		log.Info("Successfully extracted binaries from build directory",
+			zap.Int("extracted_files", extractedCount),
+			zap.Int("generic_copies", genericLinksCreated))
+		return nil
+	}
+
+	log.Info("Extracting embedded binaries for container deployment")
 
 	// Extract all binary types for Linux platforms
 	binaryTypes := []embedded.BinaryType{
@@ -631,7 +772,7 @@ func (d *DockerRuntime) ensureBinaries(ctx context.Context) error {
 			}
 
 			binaryName := embedded.GetBinaryName(binaryType, platform)
-			localPath := fmt.Sprintf("bin/%s", binaryName)
+			localPath := fmt.Sprintf(".autoteam/bin/%s", binaryName)
 
 			// Check if binary already exists and skip if it does
 			if _, err := os.Stat(localPath); err == nil {
@@ -658,7 +799,7 @@ func (d *DockerRuntime) ensureBinaries(ctx context.Context) error {
 	}
 
 	// Extract entrypoint script
-	entrypointPath := "bin/entrypoint.sh"
+	entrypointPath := ".autoteam/bin/entrypoint.sh"
 	if _, err := os.Stat(entrypointPath); os.IsNotExist(err) {
 		if embedded.IsScriptAvailable(embedded.EntrypointScript) {
 			if err := embedded.ExtractScript(embedded.EntrypointScript, entrypointPath); err != nil {
@@ -672,8 +813,35 @@ func (d *DockerRuntime) ensureBinaries(ctx context.Context) error {
 		}
 	}
 
+	// Create generic symlinks for container compatibility (embedded path)
+	// Containers expect generic names like "autoteam-worker", but we have platform-specific names
+	genericLinksCreated := 0
+	for _, binaryType := range binaryTypes {
+		// Find the amd64 version as the default (most common)
+		platformBinaryName := embedded.GetBinaryName(binaryType, embedded.Platform{OS: "linux", Arch: "amd64"})
+		genericBinaryName := fmt.Sprintf("autoteam-%s", binaryType)
+
+		platformPath := fmt.Sprintf(".autoteam/bin/%s", platformBinaryName)
+		genericPath := fmt.Sprintf(".autoteam/bin/%s", genericBinaryName)
+
+		// Check if platform-specific binary exists
+		if _, err := os.Stat(platformPath); err == nil {
+			// Create a copy with generic name (symlinks don't work well with Docker volumes)
+			if err := copyFile(platformPath, genericPath); err == nil {
+				if err := os.Chmod(genericPath, 0755); err == nil {
+					genericLinksCreated++
+					log.Debug("Created generic binary copy from embedded",
+						zap.String("type", string(binaryType)),
+						zap.String("source", platformPath),
+						zap.String("dest", genericPath))
+				}
+			}
+		}
+	}
+
 	log.Info("Embedded binary extraction completed",
-		zap.Int("extracted_files", extractedCount))
+		zap.Int("extracted_files", extractedCount),
+		zap.Int("generic_copies", genericLinksCreated))
 
 	return nil
 }
@@ -812,7 +980,7 @@ func (d *DockerRuntime) buildWorkerContainerConfig(w worker.Worker, settings wor
 	// Build volumes with absolute paths - workers don't need database access
 	hostDir := d.getHostWorkingDirectory()
 	volumes := []string{
-		fmt.Sprintf("%s/bin:/opt/autoteam/bin", hostDir),
+		fmt.Sprintf("%s/.autoteam/bin:/opt/autoteam/bin", hostDir),
 	}
 
 	// Add custom volumes from settings
@@ -882,7 +1050,7 @@ func (d *DockerRuntime) buildControlPlaneContainerConfig(cfg *config.Config) *Co
 
 	volumes := []string{
 		fmt.Sprintf("%s/.autoteam/%s/control-plane:/opt/autoteam/control-plane", hostDir, teamName),
-		fmt.Sprintf("%s/bin:/opt/autoteam/bin", hostDir),
+		fmt.Sprintf("%s/.autoteam/bin:/opt/autoteam/bin", hostDir),
 		fmt.Sprintf("%s:/var/run/docker.sock", d.getDockerSocketPath()), // Docker socket for container management
 		fmt.Sprintf("%s:/opt/autoteam/host", hostDir),                   // Mount host directory to access config files
 	}
@@ -930,7 +1098,7 @@ func (d *DockerRuntime) buildDashboardContainerConfig(cfg *config.Config) *Conta
 		return nil
 	}
 	volumes := []string{
-		fmt.Sprintf("%s/bin/autoteam-dashboard:/autoteam-dashboard:ro", currentDir),
+		fmt.Sprintf("%s/.autoteam/bin/autoteam-dashboard:/autoteam-dashboard:ro", currentDir),
 	}
 
 	ports := []string{
