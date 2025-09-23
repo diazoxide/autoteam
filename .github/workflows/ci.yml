@@ -229,26 +229,47 @@ jobs:
     
     - name: Test binary installation
       run: |
-        # Test binary works
-        ./build/autoteam --version
-        ./build/autoteam --help
+        # Test binary works (should exist in build directory)
+        if [ -f "./build/autoteam" ]; then
+          echo "✓ Testing regular binary..."
+          ./build/autoteam --version
+          ./build/autoteam --help
+        else
+          echo "❌ Regular autoteam binary not found in ./build/"
+          echo "Contents of build directory:"
+          ls -la ./build/ || echo "No build directory"
+          exit 1
+        fi
     
     - name: Test configuration initialization
       run: |
-        # Test init command
-        ./build/autoteam init
-        test -f autoteam.yaml
+        # Test init command (should use regular binary)
+        if [ -f "./build/autoteam" ]; then
+          echo "✓ Testing configuration initialization..."
+          ./build/autoteam init
+          test -f autoteam.yaml && echo "✓ autoteam.yaml created successfully"
+        else
+          echo "❌ Cannot test configuration - autoteam binary not found"
+          exit 1
+        fi
     
     - name: Test embedded binary architecture
       run: |
         # Test embedded binary works
-        echo "Testing embedded binary..."
-        ./build/autoteam-embedded --version
-        ./build/autoteam-embedded --help
+        if [ -f "./build/autoteam-embedded" ]; then
+          echo "✓ Testing embedded binary..."
+          ./build/autoteam-embedded --version
+          ./build/autoteam-embedded --help
 
-        # Test configuration generation with embedded binaries
-        echo "Testing configuration generation with embedded binaries..."
-        ./build/autoteam-embedded generate
+          # Test configuration generation with embedded binaries
+          echo "✓ Testing configuration generation with embedded binaries..."
+          ./build/autoteam-embedded generate
+        else
+          echo "❌ Embedded autoteam binary not found in ./build/"
+          echo "Contents of build directory:"
+          ls -la ./build/ || echo "No build directory"
+          exit 1
+        fi
 
         # Check that control plane directory is created
         echo "Checking control plane directory..."
