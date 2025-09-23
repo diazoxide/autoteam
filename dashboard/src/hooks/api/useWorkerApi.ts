@@ -19,7 +19,7 @@ interface UseApiOptions {
   enabled?: boolean;
   refetchInterval?: number;
   onSuccess?: (data: unknown) => void;
-  onError?: (error: Error) => void;
+  onError?: (error: unknown) => void;
 }
 
 /**

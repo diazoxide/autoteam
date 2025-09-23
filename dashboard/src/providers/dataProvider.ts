@@ -138,7 +138,7 @@ export const createControlPlaneDataProvider = (apiUrl: string): DataProvider => 
       if (resource === "workers") {
         const data = await client.getWorkers();
         return {
-          data: (data.workers || []),
+          data: (data.workers || []) as any,
           total: data.total || 0,
         };
       }
@@ -151,7 +151,7 @@ export const createControlPlaneDataProvider = (apiUrl: string): DataProvider => 
       if (resource === "workers") {
         const data = await client.getWorker(id as string);
         return {
-          data: data.worker,
+          data: data.worker as any,
         };
       }
       
@@ -174,7 +174,7 @@ export const createControlPlaneDataProvider = (apiUrl: string): DataProvider => 
         );
         
         return {
-          data: workers.filter(Boolean),
+          data: workers.filter(Boolean) as any,
         };
       }
       

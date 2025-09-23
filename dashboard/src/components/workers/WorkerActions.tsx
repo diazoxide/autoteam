@@ -15,8 +15,7 @@ import {
   Pause as PauseIcon,
   PlayCircle as UnpauseIcon,
 } from "@mui/icons-material";
-import { useCustomMutation, type UseMutateFunction } from "@refinedev/core";
-import type { HttpError, CreateResponse, BaseRecord } from "@refinedev/core";
+import { useCustomMutation } from "@refinedev/core";
 
 interface WorkerActionsProps {
   workerId: string;
@@ -40,9 +39,7 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
   const { mutate: pauseWorker, isLoading: isPausing } = useCustomMutation();
   const { mutate: unpauseWorker, isLoading: isUnpausing } = useCustomMutation();
 
-  type MutationFunction = UseMutateFunction<CreateResponse<BaseRecord>, HttpError, unknown, unknown>;
-
-  const handleAction = (action: string, actionFn: MutationFunction, successMessage: string) => {
+  const handleAction = (action: string, actionFn: any, successMessage: string) => {
     actionFn({
       url: `/workers/${workerId}/actions/${action}`,
       method: "post",
@@ -56,9 +53,9 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
           severity: "success",
         });
       },
-      onError: (error: Error) => {
+      onError: (error: unknown) => {
         setNotification({
-          message: `Failed to ${action} worker: ${error?.message || 'Unknown error'}`,
+          message: `Failed to ${action} worker: ${error instanceof Error ? error.message : 'Unknown error'}`,
           severity: "error",
         });
       },
