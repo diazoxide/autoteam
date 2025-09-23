@@ -595,7 +595,6 @@ func (d *DockerRuntime) ensureImage(ctx context.Context, imageName string) error
 	return nil
 }
 
-
 func (d *DockerRuntime) ensureBinaries(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 

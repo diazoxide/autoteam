@@ -94,7 +94,7 @@ class ControlPlaneApiClient {
     params?: { role?: "collector" | "executor" | "both"; limit?: number }
   ): Promise<LogsResponse> {
     const queryString = params ? 
-      `?${new URLSearchParams(params as any).toString()}` : "";
+      `?${new URLSearchParams(params as Record<string, string>).toString()}` : "";
     return this.request<LogsResponse>(`/workers/${workerId}/logs${queryString}`);
   }
 
@@ -138,7 +138,7 @@ export const createControlPlaneDataProvider = (apiUrl: string): DataProvider => 
       if (resource === "workers") {
         const data = await client.getWorkers();
         return {
-          data: (data.workers || []) as any[],
+          data: (data.workers || []),
           total: data.total || 0,
         };
       }
@@ -151,7 +151,7 @@ export const createControlPlaneDataProvider = (apiUrl: string): DataProvider => 
       if (resource === "workers") {
         const data = await client.getWorker(id as string);
         return {
-          data: data.worker as any,
+          data: data.worker,
         };
       }
       
@@ -174,7 +174,7 @@ export const createControlPlaneDataProvider = (apiUrl: string): DataProvider => 
         );
         
         return {
-          data: workers.filter(Boolean) as any[],
+          data: workers.filter(Boolean),
         };
       }
       
