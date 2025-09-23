@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -10,9 +11,11 @@ import (
 	"time"
 
 	"autoteam/internal/config"
+	"autoteam/internal/embedded"
 	"autoteam/internal/logger"
 	"autoteam/internal/worker"
 
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
@@ -31,15 +34,54 @@ type DockerRuntime struct {
 
 // NewDockerRuntime creates a new Docker runtime instance
 func NewDockerRuntime(runtimeConfig map[string]interface{}) (Runtime, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	var clientOpts []client.Opt
+
+	// Configure Docker host
+	if dockerHost, ok := runtimeConfig["docker_host"].(string); ok && dockerHost != "" {
+		clientOpts = append(clientOpts, client.WithHost(dockerHost))
+	}
+
+	// Configure API version
+	if apiVersion, ok := runtimeConfig["api_version"].(string); ok && apiVersion != "" {
+		clientOpts = append(clientOpts, client.WithVersion(apiVersion))
+	} else {
+		// Default to API version negotiation
+		clientOpts = append(clientOpts, client.WithAPIVersionNegotiation())
+	}
+
+	// Configure TLS settings
+	if tlsVerify, ok := runtimeConfig["tls_verify"].(bool); ok && tlsVerify {
+		if certPath, ok := runtimeConfig["cert_path"].(string); ok && certPath != "" {
+			clientOpts = append(clientOpts, client.WithTLSClientConfig(certPath, "", ""))
+		}
+	}
+
+	// Configure timeout
+	if timeoutSeconds, ok := runtimeConfig["timeout"].(float64); ok && timeoutSeconds > 0 {
+		timeout := time.Duration(timeoutSeconds) * time.Second
+		clientOpts = append(clientOpts, client.WithTimeout(timeout))
+	}
+
+	// If no custom configuration is provided, use environment variables
+	if len(clientOpts) == 0 {
+		clientOpts = append(clientOpts, client.FromEnv, client.WithAPIVersionNegotiation())
+	}
+
+	cli, err := client.NewClientWithOpts(clientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Docker client: %w", err)
+	}
+
+	// Get default image name from config or use default
+	imageName := "alpine:latest"
+	if configImageName, ok := runtimeConfig["default_image"].(string); ok && configImageName != "" {
+		imageName = configImageName
 	}
 
 	return &DockerRuntime{
 		client:    cli,
 		config:    runtimeConfig,
-		imageName: "autoteam:latest", // Default image name
+		imageName: imageName,
 	}, nil
 }
 
@@ -176,6 +218,91 @@ func (d *DockerRuntime) DeployService(ctx context.Context, name string, serviceC
 func (d *DockerRuntime) StopWorker(ctx context.Context, workerName string, cfg *config.Config) error {
 	containerName := d.getWorkerContainerNameByName(workerName, cfg)
 	return d.stopContainer(ctx, containerName)
+}
+
+// RestartWorker restarts a specific worker container
+func (d *DockerRuntime) RestartWorker(ctx context.Context, workerName string, cfg *config.Config) error {
+	log := logger.FromContext(ctx)
+	containerName := d.getWorkerContainerNameByName(workerName, cfg)
+
+	timeout := int(30) // 30 seconds
+	if err := d.client.ContainerRestart(ctx, containerName, container.StopOptions{Timeout: &timeout}); err != nil {
+		return fmt.Errorf("failed to restart worker container %s: %w", containerName, err)
+	}
+
+	log.Info("Worker restarted successfully", zap.String("worker", workerName), zap.String("container", containerName))
+	return nil
+}
+
+// PauseWorker pauses a specific worker container
+func (d *DockerRuntime) PauseWorker(ctx context.Context, workerName string, cfg *config.Config) error {
+	log := logger.FromContext(ctx)
+	containerName := d.getWorkerContainerNameByName(workerName, cfg)
+
+	if err := d.client.ContainerPause(ctx, containerName); err != nil {
+		return fmt.Errorf("failed to pause worker container %s: %w", containerName, err)
+	}
+
+	log.Info("Worker paused successfully", zap.String("worker", workerName), zap.String("container", containerName))
+	return nil
+}
+
+// UnpauseWorker unpauses a specific worker container
+func (d *DockerRuntime) UnpauseWorker(ctx context.Context, workerName string, cfg *config.Config) error {
+	log := logger.FromContext(ctx)
+	containerName := d.getWorkerContainerNameByName(workerName, cfg)
+
+	if err := d.client.ContainerUnpause(ctx, containerName); err != nil {
+		return fmt.Errorf("failed to unpause worker container %s: %w", containerName, err)
+	}
+
+	log.Info("Worker unpaused successfully", zap.String("worker", workerName), zap.String("container", containerName))
+	return nil
+}
+
+// GetWorkerStatus returns the status of a specific worker
+func (d *DockerRuntime) GetWorkerStatus(ctx context.Context, workerName string, cfg *config.Config) (*ServiceStatus, error) {
+	containerName := d.getWorkerContainerNameByName(workerName, cfg)
+
+	inspect, err := d.client.ContainerInspect(ctx, containerName)
+	if err != nil {
+		if errdefs.IsNotFound(err) {
+			return &ServiceStatus{
+				Name:   workerName,
+				Status: "not_deployed",
+				Health: "unknown",
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to inspect worker container %s: %w", containerName, err)
+	}
+
+	// Parse the created timestamp from string to time.Time
+	createdTime, err := time.Parse(time.RFC3339, inspect.Created)
+	if err != nil {
+		// Fallback to zero time if parsing fails
+		createdTime = time.Time{}
+	}
+
+	status := &ServiceStatus{
+		Name:      workerName,
+		Status:    d.getContainerStatusString(inspect.State),
+		Health:    d.getContainerHealthString(inspect.State),
+		CreatedAt: createdTime,
+		Image:     inspect.Config.Image,
+	}
+
+	// Add port mappings if available
+	if inspect.NetworkSettings != nil && inspect.NetworkSettings.Ports != nil {
+		for containerPort, hostBindings := range inspect.NetworkSettings.Ports {
+			for _, binding := range hostBindings {
+				if binding.HostPort != "" {
+					status.Ports = append(status.Ports, fmt.Sprintf("%s:%s", binding.HostPort, containerPort))
+				}
+			}
+		}
+	}
+
+	return status, nil
 }
 
 // StopControlPlane stops the control plane service
@@ -341,17 +468,54 @@ func (d *DockerRuntime) getNetworkName(cfg *config.Config) string {
 	if networkName, ok := d.config["network_name"].(string); ok {
 		return networkName
 	}
-	return fmt.Sprintf("%s-network", cfg.GetTeamName())
+	teamName := config.DefaultTeamName
+	if cfg != nil {
+		teamName = cfg.GetTeamName()
+	}
+	return fmt.Sprintf("%s-network", teamName)
+}
+
+func (d *DockerRuntime) getDockerSocketPath() string {
+	if socketPath, ok := d.config["docker_socket"].(string); ok && socketPath != "" {
+		return socketPath
+	}
+	// Default Docker socket path
+	return "/var/run/docker.sock"
+}
+
+func (d *DockerRuntime) getHostWorkingDirectory() string {
+	// Check for environment variable set by control plane container
+	if hostDir := os.Getenv("HOST_WORKING_DIR"); hostDir != "" {
+		return hostDir
+	}
+	// Check configuration
+	if hostDir, ok := d.config["host_working_dir"].(string); ok && hostDir != "" {
+		return hostDir
+	}
+	// Default to current working directory
+	if currentDir, err := os.Getwd(); err == nil {
+		return currentDir
+	}
+	// Fallback to /opt/autoteam if we can't get working directory
+	return "/opt/autoteam"
 }
 
 func (d *DockerRuntime) getWorkerContainerName(w worker.Worker, cfg *config.Config) string {
-	return fmt.Sprintf("%s-%s", cfg.GetTeamName(), w.GetNormalizedName())
+	teamName := config.DefaultTeamName
+	if cfg != nil {
+		teamName = cfg.GetTeamName()
+	}
+	return fmt.Sprintf("%s-%s", teamName, w.GetNormalizedName())
 }
 
 func (d *DockerRuntime) getWorkerContainerNameByName(workerName string, cfg *config.Config) string {
 	// Normalize the worker name the same way as in worker package
 	normalized := strings.ToLower(strings.ReplaceAll(workerName, " ", "_"))
-	return fmt.Sprintf("%s-%s", cfg.GetTeamName(), normalized)
+	teamName := config.DefaultTeamName
+	if cfg != nil {
+		teamName = cfg.GetTeamName()
+	}
+	return fmt.Sprintf("%s-%s", teamName, normalized)
 }
 
 func (d *DockerRuntime) getControlPlaneContainerName(cfg *config.Config) string {
@@ -434,76 +598,237 @@ func (d *DockerRuntime) ensureImage(ctx context.Context, imageName string) error
 func (d *DockerRuntime) ensureBinaries(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 
-	// Create local bin directory if it doesn't exist
-	if err := os.MkdirAll("bin", 0755); err != nil {
-		return fmt.Errorf("failed to create bin directory: %w", err)
+	log.Info("Ensuring binaries are available for container deployment")
+
+	// Create local .autoteam/bin directory if it doesn't exist
+	if err := os.MkdirAll(".autoteam/bin", 0755); err != nil {
+		return fmt.Errorf("failed to create .autoteam/bin directory: %w", err)
 	}
 
-	// List of required files to copy from system to local bin
-	systemBinDir := "/opt/autoteam/bin"
-	requiredFiles := []string{
-		"entrypoint.sh",
-		"autoteam-worker-linux-amd64",
-		"autoteam-worker-linux-arm64",
-		"autoteam-worker-darwin-amd64",
-		"autoteam-worker-darwin-arm64",
+	// Check if we have embedded binaries available
+	hasEmbeddedBinaries := false
+	containerPlatforms := []embedded.Platform{
+		{OS: "linux", Arch: "amd64"},
+		{OS: "linux", Arch: "arm64"},
+		{OS: "linux", Arch: "386"},
+		{OS: "linux", Arch: "arm"},
 	}
 
-	// Add control plane and dashboard binaries from build directory
-	buildBinaries := map[string]string{
-		"autoteam-control-plane": "build/autoteam-control-plane-linux-amd64",
-		"autoteam-dashboard":     "build/autoteam-dashboard-linux-amd64",
+	for _, platform := range containerPlatforms {
+		if embedded.IsBinaryAvailable(embedded.Worker, platform) {
+			hasEmbeddedBinaries = true
+			break
+		}
 	}
 
-	for binary, buildPath := range buildBinaries {
-		localPath := fmt.Sprintf("bin/%s", binary)
+	if !hasEmbeddedBinaries {
+		log.Info("No embedded binaries available in this build - checking for built binaries to extract")
 
-		// Copy from build directory if it exists and local is outdated or missing
-		if buildInfo, err := os.Stat(buildPath); err == nil {
-			shouldCopy := true
-			if localInfo, err := os.Stat(localPath); err == nil {
-				if localInfo.ModTime().After(buildInfo.ModTime()) {
-					shouldCopy = false
+		// First, check if binaries already exist in .autoteam/bin
+		existingBinaries := 0
+		for _, platform := range containerPlatforms {
+			binaryName := embedded.GetBinaryName(embedded.Worker, platform)
+			if _, err := os.Stat(fmt.Sprintf(".autoteam/bin/%s", binaryName)); err == nil {
+				existingBinaries++
+			}
+		}
+
+		if existingBinaries > 0 {
+			log.Info("Found existing binaries in .autoteam/bin", zap.Int("count", existingBinaries))
+			return nil
+		}
+
+		// Try to extract binaries from build/ directory
+		log.Info("Extracting binaries from build/ directory")
+		extractedCount := 0
+
+		binaryTypes := []embedded.BinaryType{
+			embedded.Worker,
+			embedded.ControlPlane,
+			embedded.Dashboard,
+		}
+
+		for _, platform := range containerPlatforms {
+			for _, binaryType := range binaryTypes {
+				binaryName := embedded.GetBinaryName(binaryType, platform)
+				buildPath := fmt.Sprintf("build/%s", binaryName)
+				destPath := fmt.Sprintf(".autoteam/bin/%s", binaryName)
+
+				// Check if binary exists in build/ directory
+				if _, err := os.Stat(buildPath); err == nil {
+					// Copy binary to .autoteam/bin/
+					if err := copyFile(buildPath, destPath); err != nil {
+						log.Warn("Failed to copy binary from build directory",
+							zap.String("source", buildPath),
+							zap.String("dest", destPath),
+							zap.Error(err))
+						continue
+					}
+
+					// Make binary executable
+					if err := os.Chmod(destPath, 0755); err != nil {
+						log.Warn("Failed to make binary executable",
+							zap.String("path", destPath),
+							zap.Error(err))
+					}
+
+					extractedCount++
+					log.Debug("Extracted binary from build directory",
+						zap.String("type", string(binaryType)),
+						zap.String("platform", platform.String()),
+						zap.String("source", buildPath),
+						zap.String("dest", destPath))
 				}
 			}
+		}
 
-			if shouldCopy {
-				if err := d.copyFile(buildPath, localPath); err != nil {
-					log.Warn("Failed to copy build binary", zap.String("binary", binary), zap.Error(err))
-				} else {
-					log.Debug("Copied build binary to local bin", zap.String("binary", binary))
+		// Extract entrypoint script if it exists
+		entrypointSource := "scripts/entrypoint.sh"
+		entrypointDest := ".autoteam/bin/entrypoint.sh"
+		if _, err := os.Stat(entrypointSource); err == nil {
+			if err := copyFile(entrypointSource, entrypointDest); err == nil {
+				if err := os.Chmod(entrypointDest, 0755); err == nil {
+					extractedCount++
+					log.Debug("Extracted entrypoint script", zap.String("dest", entrypointDest))
+				}
+			}
+		}
+
+		if extractedCount == 0 {
+			return fmt.Errorf("no binaries found in build/ directory and no embedded binaries available.\n" +
+				"Solutions:\n" +
+				"  1. Build binaries first: make build-worker-all build-control-plane-all build-dashboard-all\n" +
+				"  2. Build with embedded binaries: make build-embedded && use autoteam-embedded command\n" +
+				"  3. Use the installation script which includes all required binaries")
+		}
+
+		// Create generic symlinks for container compatibility
+		// Containers expect generic names like "autoteam-worker", but we have platform-specific names
+		genericLinksCreated := 0
+		for _, binaryType := range binaryTypes {
+			// Find the amd64 version as the default (most common)
+			platformBinaryName := embedded.GetBinaryName(binaryType, embedded.Platform{OS: "linux", Arch: "amd64"})
+			genericBinaryName := fmt.Sprintf("autoteam-%s", binaryType)
+
+			platformPath := fmt.Sprintf(".autoteam/bin/%s", platformBinaryName)
+			genericPath := fmt.Sprintf(".autoteam/bin/%s", genericBinaryName)
+
+			// Check if platform-specific binary exists
+			if _, err := os.Stat(platformPath); err == nil {
+				// Create a copy with generic name (symlinks don't work well with Docker volumes)
+				if err := copyFile(platformPath, genericPath); err == nil {
+					if err := os.Chmod(genericPath, 0755); err == nil {
+						genericLinksCreated++
+						log.Debug("Created generic binary copy",
+							zap.String("type", string(binaryType)),
+							zap.String("source", platformPath),
+							zap.String("dest", genericPath))
+					}
+				}
+			}
+		}
+
+		log.Info("Successfully extracted binaries from build directory",
+			zap.Int("extracted_files", extractedCount),
+			zap.Int("generic_copies", genericLinksCreated))
+		return nil
+	}
+
+	log.Info("Extracting embedded binaries for container deployment")
+
+	// Extract all binary types for Linux platforms
+	binaryTypes := []embedded.BinaryType{
+		embedded.Worker,
+		embedded.ControlPlane,
+		embedded.Dashboard,
+	}
+
+	extractedCount := 0
+	for _, platform := range containerPlatforms {
+		for _, binaryType := range binaryTypes {
+			if !embedded.IsBinaryAvailable(binaryType, platform) {
+				log.Debug("Binary not available for platform",
+					zap.String("type", string(binaryType)),
+					zap.String("platform", platform.String()))
+				continue
+			}
+
+			binaryName := embedded.GetBinaryName(binaryType, platform)
+			localPath := fmt.Sprintf(".autoteam/bin/%s", binaryName)
+
+			// Check if binary already exists and skip if it does
+			if _, err := os.Stat(localPath); err == nil {
+				log.Debug("Binary already exists, skipping extraction",
+					zap.String("binary", binaryName))
+				continue
+			}
+
+			// Extract embedded binary to local bin directory
+			if err := embedded.ExtractBinary(binaryType, platform, localPath); err != nil {
+				log.Warn("Failed to extract embedded binary",
+					zap.String("type", string(binaryType)),
+					zap.String("platform", platform.String()),
+					zap.Error(err))
+				continue
+			}
+
+			extractedCount++
+			log.Debug("Extracted embedded binary",
+				zap.String("type", string(binaryType)),
+				zap.String("platform", platform.String()),
+				zap.String("path", localPath))
+		}
+	}
+
+	// Extract entrypoint script
+	entrypointPath := ".autoteam/bin/entrypoint.sh"
+	if _, err := os.Stat(entrypointPath); os.IsNotExist(err) {
+		if embedded.IsScriptAvailable(embedded.EntrypointScript) {
+			if err := embedded.ExtractScript(embedded.EntrypointScript, entrypointPath); err != nil {
+				log.Warn("Failed to extract entrypoint script", zap.Error(err))
+			} else {
+				extractedCount++
+				log.Debug("Extracted entrypoint script", zap.String("path", entrypointPath))
+			}
+		} else {
+			log.Warn("Entrypoint script not available in embedded assets")
+		}
+	}
+
+	// Create generic symlinks for container compatibility (embedded path)
+	// Containers expect generic names like "autoteam-worker", but we have platform-specific names
+	genericLinksCreated := 0
+	for _, binaryType := range binaryTypes {
+		// Find the amd64 version as the default (most common)
+		platformBinaryName := embedded.GetBinaryName(binaryType, embedded.Platform{OS: "linux", Arch: "amd64"})
+		genericBinaryName := fmt.Sprintf("autoteam-%s", binaryType)
+
+		platformPath := fmt.Sprintf(".autoteam/bin/%s", platformBinaryName)
+		genericPath := fmt.Sprintf(".autoteam/bin/%s", genericBinaryName)
+
+		// Check if platform-specific binary exists
+		if _, err := os.Stat(platformPath); err == nil {
+			// Create a copy with generic name (symlinks don't work well with Docker volumes)
+			if err := copyFile(platformPath, genericPath); err == nil {
+				if err := os.Chmod(genericPath, 0755); err == nil {
+					genericLinksCreated++
+					log.Debug("Created generic binary copy from embedded",
+						zap.String("type", string(binaryType)),
+						zap.String("source", platformPath),
+						zap.String("dest", genericPath))
 				}
 			}
 		}
 	}
 
-	for _, file := range requiredFiles {
-		systemPath := fmt.Sprintf("%s/%s", systemBinDir, file)
-		localPath := fmt.Sprintf("bin/%s", file)
-
-		// Check if local file already exists and is newer than system file
-		if localInfo, err := os.Stat(localPath); err == nil {
-			if systemInfo, err := os.Stat(systemPath); err == nil {
-				if localInfo.ModTime().After(systemInfo.ModTime()) {
-					log.Debug("Local binary is up to date", zap.String("file", file))
-					continue
-				}
-			}
-		}
-
-		// Copy file from system to local
-		if err := d.copyFile(systemPath, localPath); err != nil {
-			log.Warn("Failed to copy binary", zap.String("file", file), zap.Error(err))
-			continue
-		}
-
-		log.Debug("Copied binary to local bin", zap.String("file", file))
-	}
+	log.Info("Embedded binary extraction completed",
+		zap.Int("extracted_files", extractedCount),
+		zap.Int("generic_copies", genericLinksCreated))
 
 	return nil
 }
 
-func (d *DockerRuntime) copyFile(src, dst string) error {
+func copyFile(src, dst string) error {
 	sourceFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -538,42 +863,13 @@ func (d *DockerRuntime) generateConfigFiles(cfg *config.Config) error {
 		return fmt.Errorf("failed to create team directory: %w", err)
 	}
 
-	// Generate worker configs
-	for _, w := range cfg.Workers {
-		if err := d.generateWorkerConfig(w, cfg); err != nil {
-			return fmt.Errorf("failed to generate config for worker %s: %w", w.Name, err)
-		}
-	}
+	// Workers now load configuration directly from database - no config files needed
 
 	// Generate control plane config
 	if cfg.ControlPlane != nil && cfg.ControlPlane.Enabled {
 		if err := d.generateControlPlaneConfig(cfg); err != nil {
 			return fmt.Errorf("failed to generate control plane config: %w", err)
 		}
-	}
-
-	return nil
-}
-
-func (d *DockerRuntime) generateWorkerConfig(w worker.Worker, cfg *config.Config) error {
-	teamName := cfg.GetTeamName()
-	workerNormalizedName := strings.ToLower(strings.ReplaceAll(w.Name, " ", "_"))
-
-	// Create worker-specific directory under .autoteam
-	workerDir := fmt.Sprintf("./.autoteam/%s/workers/%s", teamName, workerNormalizedName)
-	if err := os.MkdirAll(workerDir, 0755); err != nil {
-		return fmt.Errorf("failed to create worker directory: %w", err)
-	}
-
-	// Create worker-specific config file containing just this worker's configuration
-	configPath := fmt.Sprintf("%s/config.yaml", workerDir)
-	configData, err := yaml.Marshal(w)
-	if err != nil {
-		return fmt.Errorf("failed to marshal worker config: %w", err)
-	}
-
-	if err := os.WriteFile(configPath, configData, 0644); err != nil {
-		return fmt.Errorf("failed to write worker config file: %w", err)
 	}
 
 	return nil
@@ -588,19 +884,13 @@ func (d *DockerRuntime) generateControlPlaneConfig(cfg *config.Config) error {
 		return fmt.Errorf("failed to create control plane directory: %w", err)
 	}
 
-	// Generate worker URLs using actual container names (gRPC format)
-	var workersAPIs []string
-	for _, w := range cfg.Workers {
-		containerName := d.getWorkerContainerName(w, cfg)
-		workerURL := fmt.Sprintf("%s:8080", containerName)
-		workersAPIs = append(workersAPIs, workerURL)
-	}
+	// Note: Workers are now managed through database, not through config file
+	// Control plane will load workers from database at runtime
 
-	// Create control plane config with correct worker URLs
+	// Create control plane config (workers loaded from database, not config)
 	controlPlaneConfig := map[string]interface{}{
-		"enabled":      cfg.ControlPlane.Enabled,
-		"port":         cfg.ControlPlane.Port,
-		"workers_apis": workersAPIs,
+		"enabled": cfg.ControlPlane.Enabled,
+		"port":    cfg.ControlPlane.Port,
 	}
 
 	// Create config file
@@ -618,9 +908,6 @@ func (d *DockerRuntime) generateControlPlaneConfig(cfg *config.Config) error {
 }
 
 func (d *DockerRuntime) buildWorkerContainerConfig(w worker.Worker, settings worker.WorkerSettings, cfg *config.Config) *ContainerConfig {
-	teamName := cfg.GetTeamName()
-	workerDir := w.GetWorkerDir()
-
 	// Build environment variables with proper defaults
 	debugValue := os.Getenv("DEBUG")
 	if debugValue == "" {
@@ -632,13 +919,27 @@ func (d *DockerRuntime) buildWorkerContainerConfig(w worker.Worker, settings wor
 	}
 
 	environment := map[string]string{
-		"CONFIG_FILE":                     fmt.Sprintf("%s/config.yaml", workerDir),
+		"AUTOTEAM_WORKER_ID":              w.ID.String(),
 		"AUTOTEAM_WORKER_NAME":            w.Name,
-		"AUTOTEAM_WORKER_DIR":             workerDir,
 		"AUTOTEAM_WORKER_NORMALIZED_NAME": w.GetNormalizedName(),
 		"DEBUG":                           debugValue,
 		"LOG_LEVEL":                       logLevelValue,
 		"GRPC_PORT":                       "8080",
+	}
+
+	// Prepare worker configuration as JSON to pass to worker
+	workerConfig := map[string]interface{}{
+		"worker":   w,
+		"settings": settings,
+	}
+
+	// Marshal configuration to JSON
+	configJSON, err := json.Marshal(workerConfig)
+	if err != nil {
+		// Log error and continue with empty config
+		log := logger.FromContext(context.Background())
+		log.Error("Failed to marshal worker configuration to JSON", zap.Error(err))
+		configJSON = []byte("{}")
 	}
 
 	// Merge with settings environment
@@ -658,14 +959,10 @@ func (d *DockerRuntime) buildWorkerContainerConfig(w worker.Worker, settings wor
 		}
 	}
 
-	// Build volumes with absolute paths
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return nil
-	}
+	// Build volumes with absolute paths - workers don't need database access
+	hostDir := d.getHostWorkingDirectory()
 	volumes := []string{
-		fmt.Sprintf("%s/.autoteam/%s/workers/%s:%s", currentDir, teamName, w.GetNormalizedName(), workerDir),
-		fmt.Sprintf("%s/bin:/opt/autoteam/bin", currentDir),
+		fmt.Sprintf("%s/.autoteam/bin:/opt/autoteam/bin", hostDir),
 	}
 
 	// Add custom volumes from settings
@@ -692,7 +989,7 @@ func (d *DockerRuntime) buildWorkerContainerConfig(w worker.Worker, settings wor
 	}
 
 	// Get user from settings
-	user := "developer" // default
+	user := "root" // default
 	if settings.Service != nil {
 		if u, ok := settings.Service["user"].(string); ok && u != "" {
 			user = u
@@ -704,7 +1001,8 @@ func (d *DockerRuntime) buildWorkerContainerConfig(w worker.Worker, settings wor
 		Image:         imageName,
 		Environment:   environment,
 		Volumes:       volumes,
-		Entrypoint:    []string{"/opt/autoteam/bin/entrypoint.sh"},
+		Entrypoint:    []string{"/opt/autoteam/bin/autoteam-worker"},
+		Command:       []string{"--config-json", string(configJSON)},
 		WorkingDir:    "/opt/autoteam",
 		User:          user,
 		NetworkName:   d.getNetworkName(cfg),
@@ -715,17 +1013,34 @@ func (d *DockerRuntime) buildWorkerContainerConfig(w worker.Worker, settings wor
 func (d *DockerRuntime) buildControlPlaneContainerConfig(cfg *config.Config) *ContainerConfig {
 	teamName := cfg.GetTeamName()
 
+	hostDir := d.getHostWorkingDirectory()
 	environment := map[string]string{
 		"CONTROL_PLANE_CONFIG": "/opt/autoteam/control-plane/config.yaml",
+		"HOST_WORKING_DIR":     hostDir, // Pass host working directory to control plane container
 	}
 
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return nil
+	// Add database configuration if available
+	if cfg.Settings.Database != nil {
+		if cfg.Settings.Database.Type != "" {
+			environment["DATABASE_TYPE"] = string(cfg.Settings.Database.Type)
+		}
+		if cfg.Settings.Database.DSN != "" {
+			// Map the DSN to the container path
+			environment["DATABASE_DSN"] = "/opt/autoteam/autoteam-debug.db"
+		}
 	}
+
 	volumes := []string{
-		fmt.Sprintf("%s/.autoteam/%s/control-plane:/opt/autoteam/control-plane", currentDir, teamName),
-		fmt.Sprintf("%s/bin:/opt/autoteam/bin", currentDir),
+		fmt.Sprintf("%s/.autoteam/%s/control-plane:/opt/autoteam/control-plane", hostDir, teamName),
+		fmt.Sprintf("%s/.autoteam/bin:/opt/autoteam/bin", hostDir),
+		fmt.Sprintf("%s:/var/run/docker.sock", d.getDockerSocketPath()), // Docker socket for container management
+		fmt.Sprintf("%s:/opt/autoteam/host", hostDir),                   // Mount host directory to access config files
+	}
+
+	// Add database file volume mount if database configuration exists
+	if cfg.Settings.Database != nil && cfg.Settings.Database.DSN != "" {
+		// Extract database file path and mount it
+		volumes = append(volumes, fmt.Sprintf("%s/autoteam-debug.db:/opt/autoteam/autoteam-debug.db", hostDir))
 	}
 
 	ports := []string{
@@ -739,7 +1054,7 @@ func (d *DockerRuntime) buildControlPlaneContainerConfig(cfg *config.Config) *Co
 		Volumes:       volumes,
 		Ports:         ports,
 		Entrypoint:    []string{"/opt/autoteam/bin/autoteam-control-plane"},
-		Command:       []string{"--log-level", "info"},
+		Command:       []string{"--config", "/opt/autoteam/host/autoteam.debug.yaml", "--log-level", "info"},
 		WorkingDir:    "/opt/autoteam",
 		User:          "root",
 		NetworkName:   d.getNetworkName(cfg),
@@ -765,7 +1080,7 @@ func (d *DockerRuntime) buildDashboardContainerConfig(cfg *config.Config) *Conta
 		return nil
 	}
 	volumes := []string{
-		fmt.Sprintf("%s/bin/autoteam-dashboard:/autoteam-dashboard:ro", currentDir),
+		fmt.Sprintf("%s/.autoteam/bin/autoteam-dashboard:/autoteam-dashboard:ro", currentDir),
 	}
 
 	ports := []string{
@@ -976,4 +1291,44 @@ func (d *DockerRuntime) mapToEnvSlice(env map[string]string) []string {
 		envSlice = append(envSlice, fmt.Sprintf("%s=%s", k, v))
 	}
 	return envSlice
+}
+
+// getContainerStatusString converts Docker container state to readable status
+func (d *DockerRuntime) getContainerStatusString(state *container.State) string {
+	if state.Running {
+		if state.Paused {
+			return "paused"
+		}
+		return "running"
+	}
+	if state.Dead {
+		return "dead"
+	}
+	if state.Restarting {
+		return "restarting"
+	}
+	if state.ExitCode != 0 {
+		return "error"
+	}
+	return "stopped"
+}
+
+// getContainerHealthString converts Docker container health to readable status
+func (d *DockerRuntime) getContainerHealthString(state *container.State) string {
+	if state.Health != nil {
+		switch state.Health.Status {
+		case "healthy":
+			return "healthy"
+		case "unhealthy":
+			return "unhealthy"
+		case "starting":
+			return "starting"
+		default:
+			return "unknown"
+		}
+	}
+	if state.Running && !state.Paused {
+		return "healthy"
+	}
+	return "unknown"
 }

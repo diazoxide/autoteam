@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -36,13 +37,13 @@ func main() {
 		Version: fmt.Sprintf("%s (built %s, commit %s)", Version, BuildTime, GitCommit),
 		Action:  runWorker,
 		Flags: []cli.Flag{
-			// Primary configuration file
+			// Configuration passed as JSON from control plane
 			&cli.StringFlag{
-				Name:     "config-file",
-				Aliases:  []string{"c"},
-				Usage:    "Path to worker configuration file (YAML)",
+				Name:     "config-json",
+				Aliases:  []string{"j"},
+				Usage:    "Worker configuration as JSON string passed from control plane",
 				Required: true,
-				Sources:  cli.EnvVars("CONFIG_FILE"),
+				Sources:  cli.EnvVars("WORKER_CONFIG_JSON"),
 			},
 
 			// Runtime Configuration
@@ -106,19 +107,33 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 		zap.String("log_level", string(logLevel)),
 	)
 
-	// Load worker configuration from file
-	configPath := cmd.String("config-file")
-	workerConfig, err := worker.LoadWorkerFromFile(configPath)
-	if err != nil {
-		log.Error("Failed to load worker configuration from file", zap.String("config_path", configPath), zap.Error(err))
-		return fmt.Errorf("failed to load worker configuration from file %s: %w", configPath, err)
+	// Parse JSON configuration from control plane
+	configJSON := cmd.String("config-json")
+	if configJSON == "" {
+		log.Error("No configuration provided")
+		return fmt.Errorf("config-json is required")
 	}
 
-	// Get worker effective settings (without global settings - worker is standalone)
-	effectiveSettings := workerConfig.GetEffectiveSettings(worker.WorkerSettings{})
+	log.Info("Parsing worker configuration from JSON", zap.Int("json_length", len(configJSON)))
+
+	// Parse the JSON configuration
+	var workerConfig struct {
+		Worker   worker.Worker         `json:"worker"`
+		Settings worker.WorkerSettings `json:"settings"`
+	}
+
+	if unmarshalErr := json.Unmarshal([]byte(configJSON), &workerConfig); unmarshalErr != nil {
+		log.Error("Failed to parse worker configuration JSON", zap.Error(unmarshalErr))
+		return fmt.Errorf("failed to parse worker configuration: %w", unmarshalErr)
+	}
+
+	log.Info("Worker configuration loaded successfully",
+		zap.String("worker_id", workerConfig.Worker.ID.String()),
+		zap.String("worker_name", workerConfig.Worker.Name),
+		zap.Bool("enabled", workerConfig.Worker.Enabled))
 
 	// Check if debug is enabled in config and update log level if needed
-	if effectiveSettings.GetDebug() && logLevel != logger.DebugLevel {
+	if workerConfig.Settings.GetDebug() && logLevel != logger.DebugLevel {
 		logLevel = logger.DebugLevel
 		ctx, err = logger.SetupContext(ctx, logLevel)
 		if err != nil {
@@ -128,14 +143,21 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 		log.Debug("Updated log level to debug based on worker configuration")
 	}
 
-	log.Debug("Worker configuration loaded successfully",
-		zap.String("worker_name", workerConfig.Name),
-		zap.String("team_name", effectiveSettings.GetTeamName()),
-		zap.Bool("debug_enabled", effectiveSettings.GetDebug()),
+	log.Debug("Worker configuration details",
+		zap.String("worker_name", workerConfig.Worker.Name),
+		zap.String("team_name", workerConfig.Settings.GetTeamName()),
+		zap.Bool("debug_enabled", workerConfig.Settings.GetDebug()),
+		zap.Int("flow_steps", len(workerConfig.Settings.Flow)),
 	)
 
-	// Create Worker instance for HTTP server
-	workerRuntime := worker.NewWorkerRuntime(workerConfig, effectiveSettings)
+	// Always log flow configuration for debugging
+	log.Info("Worker flow configuration",
+		zap.String("worker_id", workerConfig.Worker.ID.String()),
+		zap.Int("flow_steps_received", len(workerConfig.Settings.Flow)),
+		zap.Bool("flow_is_nil", workerConfig.Settings.Flow == nil))
+
+	// Create Worker instance for gRPC server
+	workerRuntime := worker.NewWorkerRuntime(&workerConfig.Worker, workerConfig.Settings)
 
 	// Start gRPC server if not disabled
 	var grpcServer *grpcworker.Server
@@ -165,7 +187,7 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// Execute on_init hooks from worker settings
-	if hookErr := worker.ExecuteHooks(ctx, effectiveSettings.Hooks, "on_init"); hookErr != nil {
+	if hookErr := worker.ExecuteHooks(ctx, workerConfig.Settings.Hooks, "on_init"); hookErr != nil {
 		log.Error("Failed to execute on_init hooks", zap.Error(hookErr))
 		return fmt.Errorf("failed to execute on_init hooks: %w", hookErr)
 	}
@@ -182,7 +204,7 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 		log.Info("Shutting down gracefully", zap.String("signal", sig.String()))
 
 		// Execute on_stop hooks from worker settings
-		if hookErr := worker.ExecuteHooks(ctx, effectiveSettings.Hooks, "on_stop"); hookErr != nil {
+		if hookErr := worker.ExecuteHooks(ctx, workerConfig.Settings.Hooks, "on_stop"); hookErr != nil {
 			log.Error("Failed to execute on_stop hooks", zap.Error(hookErr))
 		}
 
@@ -190,20 +212,18 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 	}()
 
 	// Flow configuration is required
-	if len(effectiveSettings.Flow) == 0 {
+	if len(workerConfig.Settings.Flow) == 0 {
 		log.Error("No flow configuration found")
 		return fmt.Errorf("flow configuration is required")
 	}
 
-	// Note: Git operations now handled via MCP servers
-
 	// Initialize flow-based monitor with worker and effective settings
 	monitorConfig := monitor.Config{
-		SleepDuration: time.Duration(effectiveSettings.GetSleepDuration()) * time.Second,
-		TeamName:      effectiveSettings.GetTeamName(),
+		SleepDuration: time.Duration(workerConfig.Settings.GetSleepDuration()) * time.Second,
+		TeamName:      workerConfig.Settings.GetTeamName(),
 	}
 
-	log.Info("Creating flow-based monitor", zap.Int("flow_steps", len(effectiveSettings.Flow)))
+	log.Info("Creating flow-based monitor", zap.Int("flow_steps", len(workerConfig.Settings.Flow)))
 	mon := monitor.New(workerRuntime, monitorConfig)
 
 	// Pass the gRPC server to monitor for management
@@ -212,14 +232,14 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// Execute on_start hooks from worker settings
-	if hookErr := worker.ExecuteHooks(ctx, effectiveSettings.Hooks, "on_start"); hookErr != nil {
+	if hookErr := worker.ExecuteHooks(ctx, workerConfig.Settings.Hooks, "on_start"); hookErr != nil {
 		log.Error("Failed to execute on_start hooks", zap.Error(hookErr))
 		return fmt.Errorf("failed to execute on_start hooks: %w", hookErr)
 	}
 
 	log.Info("Starting flow-based agent monitoring loop",
-		zap.Duration("sleep_duration", time.Duration(effectiveSettings.GetSleepDuration())*time.Second),
-		zap.Int("flow_steps", len(effectiveSettings.Flow)))
+		zap.Duration("sleep_duration", time.Duration(workerConfig.Settings.GetSleepDuration())*time.Second),
+		zap.Int("flow_steps", len(workerConfig.Settings.Flow)))
 
 	// Start monitoring with error handling for on_error hooks
 	err = mon.Start(ctx)
@@ -227,7 +247,7 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 		log.Error("Monitoring loop failed", zap.Error(err))
 
 		// Execute on_error hooks from worker settings
-		if hookErr := worker.ExecuteHooks(ctx, effectiveSettings.Hooks, "on_error"); hookErr != nil {
+		if hookErr := worker.ExecuteHooks(ctx, workerConfig.Settings.Hooks, "on_error"); hookErr != nil {
 			log.Error("Failed to execute on_error hooks", zap.Error(hookErr))
 		}
 

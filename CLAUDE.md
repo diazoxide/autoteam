@@ -14,6 +14,22 @@
 - Run `make check` before committing to ensure code passes all checks
 - Use `make fmt` to format Go code properly
 - All tests should pass before creating commits
+- Use `make build-embedded` to build the single binary with all embedded components
+
+## Embedded Binary Architecture
+- **IMPLEMENTED**: Single final binary `autoteam-embedded` that includes all components (worker, control-plane, dashboard) using Go's embed.FS
+- **BUILD PROCESS**: All component binaries are built for all platforms then embedded into the main binary
+- **AUTOMATIC EXTRACTION**: Binaries are automatically extracted to `.autoteam/bin/` directory when running `autoteam up`
+  - **From embedded assets**: When using `autoteam-embedded` binary (full embedded approach)
+  - **From build directory**: When using regular `autoteam` binary, automatically copies from `build/` directory
+- **PLATFORM SUPPORT**: Supports all Linux and Darwin platforms (386, amd64, arm, arm64)
+- **INTEGRATION**: GitHub Actions CI now uses the embedded binary architecture for integration tests
+- **PACKAGES**: Core functionality in `internal/embedded/` package with binaries.go, scripts.go, and embedded.go modules
+- **FIRST-RUN READY**: No manual binary generation required - `autoteam up` automatically extracts all needed binaries before starting containers
+- **GRACEFUL FALLBACK**: Regular `autoteam` binary detects missing embedded binaries and provides helpful error messages with clear solutions
+- **FLEXIBLE DEPLOYMENT**: Works with embedded binaries (autoteam-embedded) OR automatically extracts from build directory (autoteam)
+- **ZERO MANUAL SETUP**: `autoteam up` handles all binary extraction automatically - no manual copying required
+- **CONTAINER COMPATIBILITY**: Automatically creates generic binary names (autoteam-worker, autoteam-control-plane, autoteam-dashboard) that containers expect
 
 ## CLI Commands Enhancement
 - Added `--docker-compose-args` flag to `autoteam up` command for passing additional arguments to docker compose
@@ -99,7 +115,7 @@
 - **NEW**: Unified binary directory architecture with comprehensive dependency management
   - Consolidated all binaries (entrypoints, MCP servers, tools) into single `/opt/autoteam/bin` directory
   - Replaced separate `entrypoints` and `bin` directories with unified read/write `/opt/autoteam/bin`
-  - Updated Docker Compose volume mounting: `./bin:/opt/autoteam/bin` (read/write, no `:ro` restriction)
+  - Updated Docker Compose volume mounting: `./.autoteam/bin:/opt/autoteam/bin` (read/write, no `:ro` restriction)
   - Enhanced dependency installer with comprehensive existence checking before installation
   - Added smart package management supporting apt, apk, and yum with missing package detection
   - Implemented efficient logging showing which dependencies are already installed vs newly installed

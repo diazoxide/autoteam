@@ -6,9 +6,10 @@ import {
 } from "@refinedev/mui";
 import { useCustom } from "@refinedev/core";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
-import { Chip, Box, Typography } from "@mui/material";
+import { Chip, Box } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
+import { WorkerActions } from "../../components/workers/WorkerActions";
 
 // Removed unused interface - using inline types as needed
 
@@ -93,13 +94,18 @@ export const WorkersList = () => {
       headerName: "Actions",
       sortable: false,
       renderCell: ({ row }) => (
-        <Box>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <WorkerActions
+            workerId={row.id}
+            status={row.status}
+            compact={true}
+          />
           <ShowButton hideText recordItemId={row.id} />
         </Box>
       ),
       align: "center",
       headerAlign: "center",
-      minWidth: 80,
+      minWidth: 200,
     },
   ];
 

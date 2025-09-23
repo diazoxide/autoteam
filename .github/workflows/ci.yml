@@ -223,32 +223,88 @@ jobs:
     
     - name: Build binary
       run: |
+        # Build embedded binary with all components first
+        make build-embedded
+        # Build regular binary for current platform (after embedded build)
         make build
-        # Build current platform worker binary
-        make build-worker
     
     - name: Test binary installation
       run: |
-        # Test binary works
-        ./build/autoteam --version
-        ./build/autoteam --help
+        # Test binary works (should exist in build directory)
+        if [ -f "./build/autoteam" ]; then
+          echo "✓ Testing regular binary..."
+          ./build/autoteam --version
+          ./build/autoteam --help
+        else
+          echo "❌ Regular autoteam binary not found in ./build/"
+          echo "Contents of build directory:"
+          ls -la ./build/ || echo "No build directory"
+          exit 1
+        fi
     
     - name: Test configuration initialization
       run: |
-        # Test init command
-        ./build/autoteam init
-        test -f autoteam.yaml
-    
-    - name: Test configuration generation
-      run: |
-        # Test generate command with created config
-        ./build/autoteam generate
-        # Check that team-specific directories are created
-        test -d .autoteam/autoteam/workers
-        # Check that worker config files are generated (using first worker if available)
-        if [ -d .autoteam/autoteam/workers ]; then
-          # Check if any worker directory exists
-          ls .autoteam/autoteam/workers/ || echo "No worker directories found"
+        # Test init command (should use regular binary)
+        if [ -f "./build/autoteam" ]; then
+          echo "✓ Testing configuration initialization..."
+          ./build/autoteam init
+          test -f autoteam.yaml && echo "✓ autoteam.yaml created successfully"
+        else
+          echo "❌ Cannot test configuration - autoteam binary not found"
+          exit 1
         fi
-        # Check that bin directory exists with required files
-        test -d bin
+    
+    - name: Test embedded binary architecture
+      run: |
+        # Test embedded binary works
+        if [ -f "./build/autoteam-embedded" ]; then
+          echo "✓ Testing embedded binary..."
+          ./build/autoteam-embedded --version
+          ./build/autoteam-embedded --help
+
+          # Test configuration generation with embedded binaries
+          echo "✓ Testing configuration generation with embedded binaries..."
+          ./build/autoteam-embedded generate
+        else
+          echo "❌ Embedded autoteam binary not found in ./build/"
+          echo "Contents of build directory:"
+          ls -la ./build/ || echo "No build directory"
+          exit 1
+        fi
+
+        # Check that control plane directory is created
+        echo "Checking control plane directory..."
+        test -d .autoteam/autoteam/control-plane || { echo "❌ Control plane directory missing"; exit 1; }
+        echo "✓ Control plane directory exists"
+
+        # Check that control plane config file is generated
+        echo "Checking control plane config file..."
+        test -f .autoteam/autoteam/control-plane/config.yaml || { echo "❌ Control plane config missing"; exit 1; }
+        echo "✓ Control plane config exists"
+
+        # Check that .autoteam/bin directory exists with extracted binaries
+        echo "Checking .autoteam/bin directory..."
+        test -d .autoteam/bin || { echo "❌ .autoteam/bin directory missing"; exit 1; }
+        echo "✓ .autoteam/bin directory exists"
+
+        # Check that binaries were extracted automatically
+        echo "Checking extracted binaries..."
+        extracted_binaries=$(ls .autoteam/bin/autoteam-*-linux-* 2>/dev/null | wc -l)
+        if [ "$extracted_binaries" -gt 0 ]; then
+          echo "✓ Found $extracted_binaries embedded binaries extracted"
+          ls .autoteam/bin/autoteam-*-linux-* | head -5
+        else
+          echo "❌ No embedded binaries found in .autoteam/bin directory"
+          echo "Contents of .autoteam/bin directory:"
+          ls -la .autoteam/bin/ || echo "No .autoteam/bin directory"
+          exit 1
+        fi
+
+        # Check for entrypoint script
+        if test -f .autoteam/bin/entrypoint.sh; then
+          echo "✓ Entrypoint script extracted"
+        else
+          echo "⚠️ Entrypoint script not found (may be embedded differently)"
+        fi
+
+        echo "✅ Embedded binary architecture test passed"

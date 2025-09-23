@@ -6,8 +6,10 @@ import (
 	"time"
 
 	controlplaneapi "autoteam/api/control-plane"
+	"autoteam/internal/config"
 	workerv1 "autoteam/internal/grpc/gen/proto/autoteam/worker/v1"
 	"autoteam/internal/logger"
+	"autoteam/internal/runtime"
 	"autoteam/internal/types"
 
 	"github.com/labstack/echo/v4"
@@ -18,12 +20,16 @@ import (
 // Handlers implements the control plane API handlers
 type Handlers struct {
 	registry *WorkerRegistry
+	runtime  runtime.Runtime
+	config   *config.Config
 }
 
 // NewHandlers creates new control plane handlers
-func NewHandlers(registry *WorkerRegistry) *Handlers {
+func NewHandlers(registry *WorkerRegistry, rt runtime.Runtime, cfg *config.Config) *Handlers {
 	return &Handlers{
 		registry: registry,
+		runtime:  rt,
+		config:   cfg,
 	}
 }
 
@@ -84,12 +90,23 @@ func (h *Handlers) GetWorkers(ctx echo.Context) error {
 
 	var workerDetails []types.WorkerDetails
 	for id, worker := range workers {
+		// Create basic worker info from database if available
+		var workerInfo *types.WorkerInfo
+		if worker.DBWorker != nil {
+			workerInfo = &types.WorkerInfo{
+				Name: worker.DBWorker.Name, // Display name for UI
+				Type: "database",           // Could be enhanced to include agent type info
+			}
+		} else if worker.WorkerInfo != nil {
+			workerInfo = worker.WorkerInfo
+		}
+
 		details := types.WorkerDetails{
-			ID:         id,
+			ID:         id, // Use UUID as ID for API routing
 			URL:        worker.URL,
 			Status:     worker.Status,
 			LastCheck:  worker.LastCheck,
-			WorkerInfo: worker.WorkerInfo,
+			WorkerInfo: workerInfo,
 		}
 		workerDetails = append(workerDetails, details)
 	}
@@ -137,6 +154,12 @@ func (h *Handlers) GetWorkerHealth(ctx echo.Context, workerID string) error {
 		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
 	}
 
+	// Check if worker has gRPC client connection
+	if worker.Client == nil {
+		log.Warn("Worker has no gRPC connection", zap.String("worker_id", workerID), zap.String("status", worker.Status))
+		return echo.NewHTTPError(http.StatusServiceUnavailable, fmt.Sprintf("Worker not deployed: %s", workerID))
+	}
+
 	// Create context with authentication
 	grpcCtx := h.registry.createContext(ctx.Request().Context(), worker.APIKey)
 
@@ -168,6 +191,12 @@ func (h *Handlers) GetWorkerStatus(ctx echo.Context, workerID string) error {
 	if err != nil {
 		log.Warn("Worker not found", zap.String("worker_id", workerID))
 		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Check if worker has gRPC client connection
+	if worker.Client == nil {
+		log.Warn("Worker has no gRPC connection", zap.String("worker_id", workerID), zap.String("status", worker.Status))
+		return echo.NewHTTPError(http.StatusServiceUnavailable, fmt.Sprintf("Worker not deployed: %s", workerID))
 	}
 
 	// Create context with authentication
@@ -203,6 +232,12 @@ func (h *Handlers) GetWorkerConfig(ctx echo.Context, workerID string) error {
 		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
 	}
 
+	// Check if worker has gRPC client connection
+	if worker.Client == nil {
+		log.Warn("Worker has no gRPC connection", zap.String("worker_id", workerID), zap.String("status", worker.Status))
+		return echo.NewHTTPError(http.StatusServiceUnavailable, fmt.Sprintf("Worker not deployed: %s", workerID))
+	}
+
 	// Create context with authentication
 	grpcCtx := h.registry.createContext(ctx.Request().Context(), worker.APIKey)
 
@@ -234,6 +269,12 @@ func (h *Handlers) GetWorkerLogs(ctx echo.Context, workerID string, params contr
 	if err != nil {
 		log.Warn("Worker not found", zap.String("worker_id", workerID))
 		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Check if worker has gRPC client connection
+	if worker.Client == nil {
+		log.Warn("Worker has no gRPC connection", zap.String("worker_id", workerID), zap.String("status", worker.Status))
+		return echo.NewHTTPError(http.StatusServiceUnavailable, fmt.Sprintf("Worker not deployed: %s", workerID))
 	}
 
 	// Create context with authentication
@@ -280,6 +321,12 @@ func (h *Handlers) GetWorkerLogFile(ctx echo.Context, workerID string, filename 
 		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
 	}
 
+	// Check if worker has gRPC client connection
+	if worker.Client == nil {
+		log.Warn("Worker has no gRPC connection", zap.String("worker_id", workerID), zap.String("status", worker.Status))
+		return echo.NewHTTPError(http.StatusServiceUnavailable, fmt.Sprintf("Worker not deployed: %s", workerID))
+	}
+
 	// Create context with authentication
 	grpcCtx := h.registry.createContext(ctx.Request().Context(), worker.APIKey)
 
@@ -323,6 +370,12 @@ func (h *Handlers) GetWorkerFlow(ctx echo.Context, workerID string) error {
 		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
 	}
 
+	// Check if worker has gRPC client connection
+	if worker.Client == nil {
+		log.Warn("Worker has no gRPC connection", zap.String("worker_id", workerID), zap.String("status", worker.Status))
+		return echo.NewHTTPError(http.StatusServiceUnavailable, fmt.Sprintf("Worker not deployed: %s", workerID))
+	}
+
 	// Create context with authentication
 	grpcCtx := h.registry.createContext(ctx.Request().Context(), worker.APIKey)
 
@@ -356,6 +409,12 @@ func (h *Handlers) GetWorkerFlowSteps(ctx echo.Context, workerID string) error {
 		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
 	}
 
+	// Check if worker has gRPC client connection
+	if worker.Client == nil {
+		log.Warn("Worker has no gRPC connection", zap.String("worker_id", workerID), zap.String("status", worker.Status))
+		return echo.NewHTTPError(http.StatusServiceUnavailable, fmt.Sprintf("Worker not deployed: %s", workerID))
+	}
+
 	// Create context with authentication
 	grpcCtx := h.registry.createContext(ctx.Request().Context(), worker.APIKey)
 
@@ -387,6 +446,12 @@ func (h *Handlers) GetWorkerMetrics(ctx echo.Context, workerID string) error {
 	if err != nil {
 		log.Warn("Worker not found", zap.String("worker_id", workerID))
 		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Check if worker has gRPC client connection
+	if worker.Client == nil {
+		log.Warn("Worker has no gRPC connection", zap.String("worker_id", workerID), zap.String("status", worker.Status))
+		return echo.NewHTTPError(http.StatusServiceUnavailable, fmt.Sprintf("Worker not deployed: %s", workerID))
 	}
 
 	// Create context with authentication
@@ -452,4 +517,171 @@ func (h *Handlers) GetSwaggerUI(ctx echo.Context) error {
 </html>`
 
 	return ctx.HTML(http.StatusOK, html)
+}
+
+// Worker action handlers
+
+// DeployWorker deploys a specific worker
+func (h *Handlers) DeployWorker(ctx echo.Context, workerID string) error {
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Get worker from registry
+	worker, err := h.registry.GetWorker(workerID)
+	if err != nil {
+		log.Warn("Worker not found", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Check if we have database worker info
+	if worker.DBWorker == nil {
+		log.Warn("Worker has no database info for deployment", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Worker %s cannot be deployed: no configuration found", workerID))
+	}
+
+	// Start with global settings as base
+	effectiveSettings := h.config.Settings
+	if worker.DBWorker.Settings != nil {
+		// Merge database worker settings with global settings (database settings override global ones)
+		// Keep global settings as base and only override specific fields from database worker settings
+		if worker.DBWorker.Settings.TeamName != "" {
+			effectiveSettings.TeamName = worker.DBWorker.Settings.TeamName
+		}
+		if worker.DBWorker.Settings.SleepDuration != 0 {
+			effectiveSettings.SleepDuration = worker.DBWorker.Settings.SleepDuration
+		}
+		// Always use the database worker's debug setting
+		effectiveSettings.Debug = worker.DBWorker.Settings.Debug
+	}
+
+	// Use flow configuration from database worker (FlowSteps), not global settings
+	if len(worker.DBWorker.FlowSteps) > 0 {
+		// Assign database flow steps directly (both FlowSteps and Flow are []FlowStep)
+		effectiveSettings.Flow = worker.DBWorker.FlowSteps
+		log.Debug("Using flow configuration from database worker",
+			zap.String("worker_id", workerID),
+			zap.Int("database_flow_steps", len(worker.DBWorker.FlowSteps)))
+	} else {
+		log.Warn("No flow steps found in database worker, using global flow as fallback",
+			zap.String("worker_id", workerID),
+			zap.Int("global_flow_steps", len(effectiveSettings.Flow)))
+	}
+
+	// Debug: Log the effective settings flow configuration
+	log.Info("Deploying worker with effective settings",
+		zap.String("worker_id", workerID),
+		zap.Int("flow_steps_count", len(effectiveSettings.Flow)),
+		zap.Bool("debug", effectiveSettings.Debug))
+
+	// Deploy worker using runtime
+	if err := h.runtime.DeployWorker(ctx.Request().Context(), *worker.DBWorker, effectiveSettings, h.config); err != nil {
+		log.Error("Failed to deploy worker", zap.String("worker_id", workerID), zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Failed to deploy worker: %s", err.Error()))
+	}
+
+	log.Info("Worker deployed successfully", zap.String("worker_id", workerID))
+	return ctx.JSON(http.StatusOK, map[string]interface{}{
+		"message":   "Worker deployed successfully",
+		"worker_id": workerID,
+		"timestamp": time.Now(),
+	})
+}
+
+// StopWorker stops a specific worker
+func (h *Handlers) StopWorker(ctx echo.Context, workerID string) error {
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Get worker from registry
+	worker, err := h.registry.GetWorker(workerID)
+	if err != nil {
+		log.Warn("Worker not found", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Stop worker using runtime
+	if err := h.runtime.StopWorker(ctx.Request().Context(), worker.Name, h.config); err != nil {
+		log.Error("Failed to stop worker", zap.String("worker_id", workerID), zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Failed to stop worker: %s", err.Error()))
+	}
+
+	log.Info("Worker stopped successfully", zap.String("worker_id", workerID))
+	return ctx.JSON(http.StatusOK, map[string]interface{}{
+		"message":   "Worker stopped successfully",
+		"worker_id": workerID,
+		"timestamp": time.Now(),
+	})
+}
+
+// RestartWorker restarts a specific worker
+func (h *Handlers) RestartWorker(ctx echo.Context, workerID string) error {
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Get worker from registry
+	worker, err := h.registry.GetWorker(workerID)
+	if err != nil {
+		log.Warn("Worker not found", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Restart worker using runtime
+	if err := h.runtime.RestartWorker(ctx.Request().Context(), worker.Name, h.config); err != nil {
+		log.Error("Failed to restart worker", zap.String("worker_id", workerID), zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Failed to restart worker: %s", err.Error()))
+	}
+
+	log.Info("Worker restarted successfully", zap.String("worker_id", workerID))
+	return ctx.JSON(http.StatusOK, map[string]interface{}{
+		"message":   "Worker restarted successfully",
+		"worker_id": workerID,
+		"timestamp": time.Now(),
+	})
+}
+
+// PauseWorker pauses a specific worker
+func (h *Handlers) PauseWorker(ctx echo.Context, workerID string) error {
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Get worker from registry
+	worker, err := h.registry.GetWorker(workerID)
+	if err != nil {
+		log.Warn("Worker not found", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Pause worker using runtime
+	if err := h.runtime.PauseWorker(ctx.Request().Context(), worker.Name, h.config); err != nil {
+		log.Error("Failed to pause worker", zap.String("worker_id", workerID), zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Failed to pause worker: %s", err.Error()))
+	}
+
+	log.Info("Worker paused successfully", zap.String("worker_id", workerID))
+	return ctx.JSON(http.StatusOK, map[string]interface{}{
+		"message":   "Worker paused successfully",
+		"worker_id": workerID,
+		"timestamp": time.Now(),
+	})
+}
+
+// UnpauseWorker unpauses a specific worker
+func (h *Handlers) UnpauseWorker(ctx echo.Context, workerID string) error {
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Get worker from registry
+	worker, err := h.registry.GetWorker(workerID)
+	if err != nil {
+		log.Warn("Worker not found", zap.String("worker_id", workerID))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
+	}
+
+	// Unpause worker using runtime
+	if err := h.runtime.UnpauseWorker(ctx.Request().Context(), worker.Name, h.config); err != nil {
+		log.Error("Failed to unpause worker", zap.String("worker_id", workerID), zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Failed to unpause worker: %s", err.Error()))
+	}
+
+	log.Info("Worker unpaused successfully", zap.String("worker_id", workerID))
+	return ctx.JSON(http.StatusOK, map[string]interface{}{
+		"message":   "Worker unpaused successfully",
+		"worker_id": workerID,
+		"timestamp": time.Now(),
+	})
 }

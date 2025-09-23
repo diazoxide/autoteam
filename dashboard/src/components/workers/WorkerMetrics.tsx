@@ -6,7 +6,6 @@ import {
   Grid,
   Typography,
   Paper,
-  LinearProgress,
   Box,
   Stack,
   Chip,
@@ -27,26 +26,13 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
   metricsLoading,
   flowData,
 }) => {
-  const formatUptime = (seconds: number) => {
-    if (!seconds) return "N/A";
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}h ${minutes}m`;
-  };
-
-  const formatBytes = (bytes: number) => {
-    if (!bytes) return "0 B";
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return `${Math.round(bytes / Math.pow(1024, i) * 100) / 100} ${sizes[i]}`;
-  };
 
   if (metricsLoading) {
     return <CircularProgress />;
   }
 
-  const metrics = metricsData?.metrics || {};
-  const flowMetrics = flowData?.flow || {};
+  const metrics = metricsData?.metrics;
+  const flowMetrics = flowData?.flow;
 
   return (
     <Stack spacing={3}>
@@ -58,7 +44,7 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
             <Grid item xs={12} sm={6} md={3}>
               <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h4" color="primary">
-                  {(flowMetrics as any)?.execution_count || 0}
+                  {flowMetrics?.execution_count || 0}
                 </Typography>
                 <Typography variant="body2">Total Executions</Typography>
               </Paper>
@@ -66,7 +52,7 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
             <Grid item xs={12} sm={6} md={3}>
               <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h4" color="success.main">
-                  {Math.round(((flowMetrics as any)?.success_rate || 0) * 100)}%
+                  {Math.round((flowMetrics?.success_rate || 0) * 100)}%
                 </Typography>
                 <Typography variant="body2">Success Rate</Typography>
               </Paper>
@@ -74,7 +60,7 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
             <Grid item xs={12} sm={6} md={3}>
               <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h4" color="info.main">
-                  {(flowMetrics as any)?.total_steps || 0}
+                  {flowMetrics?.total_steps || 0}
                 </Typography>
                 <Typography variant="body2">Total Steps</Typography>
               </Paper>
@@ -82,7 +68,7 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
             <Grid item xs={12} sm={6} md={3}>
               <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h4" color="warning.main">
-                  {(flowMetrics as any)?.enabled_steps || 0}
+                  {flowMetrics?.enabled_steps || 0}
                 </Typography>
                 <Typography variant="body2">Enabled Steps</Typography>
               </Paper>
@@ -132,13 +118,13 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
                     </Typography>
                   </Box>
 
-                  {(flowMetrics as any)?.last_execution && (
+                  {flowMetrics?.last_execution && (
                     <Box>
                       <Typography variant="subtitle2" gutterBottom>
                         Last Execution
                       </Typography>
                       <Typography variant="body2">
-                        {new Date((flowMetrics as any)?.last_execution).toLocaleString()}
+                        {new Date(flowMetrics.last_execution).toLocaleString()}
                       </Typography>
                     </Box>
                   )}

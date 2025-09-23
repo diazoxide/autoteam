@@ -41,7 +41,7 @@ export const WorkerOverview: React.FC<WorkerOverviewProps> = ({
   healthLoading,
   statusLoading,
 }) => {
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): "success" | "error" | "warning" | "default" => {
     switch (status?.toLowerCase()) {
       case "healthy":
       case "running":
@@ -88,7 +88,7 @@ export const WorkerOverview: React.FC<WorkerOverviewProps> = ({
                 <Chip
                   icon={getStatusIcon(healthData?.status || "unknown")}
                   label={healthData?.status || "Unknown"}
-                  color={getStatusColor(healthData?.status || "unknown") as any}
+                  color={getStatusColor(healthData?.status || "unknown")}
                   size="medium"
                 />
                 <Chip

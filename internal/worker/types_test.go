@@ -2,8 +2,6 @@ package worker
 
 import (
 	"testing"
-
-	"autoteam/internal/util"
 )
 
 func TestWorker_IsEnabled(t *testing.T) {
@@ -13,18 +11,18 @@ func TestWorker_IsEnabled(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "enabled by default",
-			worker:   &Worker{Name: "test"},
+			name:     "enabled by default (database context)",
+			worker:   &Worker{Name: "test", Enabled: true}, // In database, default is true
 			expected: true,
 		},
 		{
 			name:     "explicitly enabled",
-			worker:   &Worker{Name: "test", Enabled: util.BoolPtr(true)},
+			worker:   &Worker{Name: "test", Enabled: true},
 			expected: true,
 		},
 		{
 			name:     "explicitly disabled",
-			worker:   &Worker{Name: "test", Enabled: util.BoolPtr(false)},
+			worker:   &Worker{Name: "test", Enabled: false},
 			expected: false,
 		},
 	}

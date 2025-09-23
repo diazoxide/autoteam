@@ -18,8 +18,8 @@ import type {
 interface UseApiOptions {
   enabled?: boolean;
   refetchInterval?: number;
-  onSuccess?: (data: any) => void;
-  onError?: (error: any) => void;
+  onSuccess?: (data: unknown) => void;
+  onError?: (error: unknown) => void;
 }
 
 /**

@@ -55,6 +55,18 @@ type Runtime interface {
 	// StopWorker stops a specific worker container
 	StopWorker(ctx context.Context, workerName string, cfg *config.Config) error
 
+	// RestartWorker restarts a specific worker container
+	RestartWorker(ctx context.Context, workerName string, cfg *config.Config) error
+
+	// PauseWorker pauses a specific worker container
+	PauseWorker(ctx context.Context, workerName string, cfg *config.Config) error
+
+	// UnpauseWorker unpauses a specific worker container
+	UnpauseWorker(ctx context.Context, workerName string, cfg *config.Config) error
+
+	// GetWorkerStatus returns the status of a specific worker
+	GetWorkerStatus(ctx context.Context, workerName string, cfg *config.Config) (*ServiceStatus, error)
+
 	// StopControlPlane stops the control plane service
 	StopControlPlane(ctx context.Context, cfg *config.Config) error
 

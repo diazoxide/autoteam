@@ -49,15 +49,18 @@ func TestInitCommand(t *testing.T) {
 		t.Errorf("autoteam.yaml should be created")
 	}
 
-	// Verify content contains expected sample data
+	// Verify content contains expected database-driven configuration
 	content := testutil.ReadFile(t, "autoteam.yaml")
-	if !strings.Contains(content, "workers:") {
-		t.Errorf("autoteam.yaml should contain workers section")
+	if !strings.Contains(content, "control_plane:") {
+		t.Errorf("autoteam.yaml should contain control_plane section")
 	}
-	if !strings.Contains(content, "dev1") {
-		t.Errorf("autoteam.yaml should contain dev1 worker")
+	if !strings.Contains(content, "enabled: true") {
+		t.Errorf("autoteam.yaml should have control plane enabled")
 	}
-	if !strings.Contains(content, "arch1") {
-		t.Errorf("autoteam.yaml should contain arch1 agent")
+	if !strings.Contains(content, "dashboard:") {
+		t.Errorf("autoteam.yaml should contain dashboard section")
+	}
+	if !strings.Contains(content, "flow:") {
+		t.Errorf("autoteam.yaml should contain global flow configuration")
 	}
 }
