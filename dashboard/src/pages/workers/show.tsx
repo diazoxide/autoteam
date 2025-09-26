@@ -49,22 +49,22 @@ export const WorkersShow = () => {
   const isWorkerDeployed = runtimeData?.worker?.status === "reachable";
 
   // Get worker health status - only if deployed
-  const {
-    data: healthData,
-    isLoading: healthLoading,
-  } = useWorkerRuntimeHealth(id, { enabled: isWorkerDeployed });
+  const { data: healthData, isLoading: healthLoading } = useWorkerRuntimeHealth(
+    id,
+    { enabled: isWorkerDeployed }
+  );
 
   // Get worker status details - only if deployed
-  const {
-    data: statusData,
-    isLoading: statusLoading,
-  } = useWorkerRuntimeStatus(id, { enabled: isWorkerDeployed });
+  const { data: statusData, isLoading: statusLoading } = useWorkerRuntimeStatus(
+    id,
+    { enabled: isWorkerDeployed }
+  );
 
   // Get worker configuration - only if deployed
-  const {
-    data: configData,
-    isLoading: configLoading,
-  } = useWorkerRuntimeConfig(id, { enabled: isWorkerDeployed });
+  const { data: configData, isLoading: configLoading } = useWorkerRuntimeConfig(
+    id,
+    { enabled: isWorkerDeployed }
+  );
 
   // Get worker flow - only if deployed
   const { data: flowData } = useWorkerRuntimeFlow(id, {
@@ -77,10 +77,8 @@ export const WorkersShow = () => {
   });
 
   // Get worker metrics - only if deployed
-  const {
-    data: metricsData,
-    isLoading: metricsLoading,
-  } = useWorkerRuntimeMetrics(id, { enabled: isWorkerDeployed });
+  const { data: metricsData, isLoading: metricsLoading } =
+    useWorkerRuntimeMetrics(id, { enabled: isWorkerDeployed });
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -135,7 +133,9 @@ export const WorkersShow = () => {
         {/* Deployment Status Alert */}
         {!isWorkerDeployed && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            This worker is not currently deployed. Deploy it using the Actions tab to view runtime information such as metrics, logs, and flow execution status.
+            This worker is not currently deployed. Deploy it using the Actions
+            tab to view runtime information such as metrics, logs, and flow
+            execution status.
           </Alert>
         )}
 
