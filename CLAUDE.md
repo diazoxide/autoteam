@@ -30,6 +30,7 @@
 - **FLEXIBLE DEPLOYMENT**: Works with embedded binaries (autoteam-embedded) OR automatically extracts from build directory (autoteam)
 - **ZERO MANUAL SETUP**: `autoteam up` handles all binary extraction automatically - no manual copying required
 - **CONTAINER COMPATIBILITY**: Automatically creates generic binary names (autoteam-worker, autoteam-control-plane, autoteam-dashboard) that containers expect
+- **ALWAYS FRESH BINARIES**: Binary extraction always overwrites existing files to ensure latest versions are used - no need to manually remove `.autoteam/bin/*`
 
 ## CLI Commands Enhancement
 - Added `--docker-compose-args` flag to `autoteam up` command for passing additional arguments to docker compose

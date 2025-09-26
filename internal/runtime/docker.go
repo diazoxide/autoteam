@@ -622,23 +622,9 @@ func (d *DockerRuntime) ensureBinaries(ctx context.Context) error {
 	}
 
 	if !hasEmbeddedBinaries {
-		log.Info("No embedded binaries available in this build - checking for built binaries to extract")
+		log.Info("No embedded binaries available in this build - extracting from build/ directory")
 
-		// First, check if binaries already exist in .autoteam/bin
-		existingBinaries := 0
-		for _, platform := range containerPlatforms {
-			binaryName := embedded.GetBinaryName(embedded.Worker, platform)
-			if _, err := os.Stat(fmt.Sprintf(".autoteam/bin/%s", binaryName)); err == nil {
-				existingBinaries++
-			}
-		}
-
-		if existingBinaries > 0 {
-			log.Info("Found existing binaries in .autoteam/bin", zap.Int("count", existingBinaries))
-			return nil
-		}
-
-		// Try to extract binaries from build/ directory
+		// Always extract/update binaries from build/ directory to ensure latest versions
 		log.Info("Extracting binaries from build/ directory")
 		extractedCount := 0
 
@@ -756,13 +742,7 @@ func (d *DockerRuntime) ensureBinaries(ctx context.Context) error {
 			binaryName := embedded.GetBinaryName(binaryType, platform)
 			localPath := fmt.Sprintf(".autoteam/bin/%s", binaryName)
 
-			// Check if binary already exists and skip if it does
-			if _, err := os.Stat(localPath); err == nil {
-				log.Debug("Binary already exists, skipping extraction",
-					zap.String("binary", binaryName))
-				continue
-			}
-
+			// Always extract embedded binary to ensure latest version (overwriting existing)
 			// Extract embedded binary to local bin directory
 			if err := embedded.ExtractBinary(binaryType, platform, localPath); err != nil {
 				log.Warn("Failed to extract embedded binary",
@@ -780,19 +760,17 @@ func (d *DockerRuntime) ensureBinaries(ctx context.Context) error {
 		}
 	}
 
-	// Extract entrypoint script
+	// Extract entrypoint script (always overwrite to ensure latest version)
 	entrypointPath := ".autoteam/bin/entrypoint.sh"
-	if _, err := os.Stat(entrypointPath); os.IsNotExist(err) {
-		if embedded.IsScriptAvailable(embedded.EntrypointScript) {
-			if err := embedded.ExtractScript(embedded.EntrypointScript, entrypointPath); err != nil {
-				log.Warn("Failed to extract entrypoint script", zap.Error(err))
-			} else {
-				extractedCount++
-				log.Debug("Extracted entrypoint script", zap.String("path", entrypointPath))
-			}
+	if embedded.IsScriptAvailable(embedded.EntrypointScript) {
+		if err := embedded.ExtractScript(embedded.EntrypointScript, entrypointPath); err != nil {
+			log.Warn("Failed to extract entrypoint script", zap.Error(err))
 		} else {
-			log.Warn("Entrypoint script not available in embedded assets")
+			extractedCount++
+			log.Debug("Extracted entrypoint script", zap.String("path", entrypointPath))
 		}
+	} else {
+		log.Warn("Entrypoint script not available in embedded assets")
 	}
 
 	// Create generic symlinks for container compatibility (embedded path)

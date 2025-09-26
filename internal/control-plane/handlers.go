@@ -11,7 +11,9 @@ import (
 	"autoteam/internal/logger"
 	"autoteam/internal/runtime"
 	"autoteam/internal/types"
+	"autoteam/internal/worker"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -19,17 +21,19 @@ import (
 
 // Handlers implements the control plane API handlers
 type Handlers struct {
-	registry *WorkerRegistry
-	runtime  runtime.Runtime
-	config   *config.Config
+	registry   *WorkerRegistry
+	runtime    runtime.Runtime
+	config     *config.Config
+	workerRepo worker.Repository
 }
 
 // NewHandlers creates new control plane handlers
-func NewHandlers(registry *WorkerRegistry, rt runtime.Runtime, cfg *config.Config) *Handlers {
+func NewHandlers(registry *WorkerRegistry, rt runtime.Runtime, cfg *config.Config, workerRepo worker.Repository) *Handlers {
 	return &Handlers{
-		registry: registry,
-		runtime:  rt,
-		config:   cfg,
+		registry:   registry,
+		runtime:    rt,
+		config:     cfg,
+		workerRepo: workerRepo,
 	}
 }
 
@@ -84,36 +88,47 @@ func (h *Handlers) GetHealth(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, response)
 }
 
-// GetWorkers returns list of all workers
+// GetWorkers returns list of all workers (CRUD data from database)
 func (h *Handlers) GetWorkers(ctx echo.Context) error {
-	workers := h.registry.GetAllWorkers()
+	log := logger.FromContext(ctx.Request().Context())
 
-	var workerDetails []types.WorkerDetails
-	for id, worker := range workers {
-		// Create basic worker info from database if available
-		var workerInfo *types.WorkerInfo
-		if worker.DBWorker != nil {
-			workerInfo = &types.WorkerInfo{
-				Name: worker.DBWorker.Name, // Display name for UI
-				Type: "database",           // Could be enhanced to include agent type info
-			}
-		} else if worker.WorkerInfo != nil {
-			workerInfo = worker.WorkerInfo
+	// Get all workers from database (CRUD data)
+	dbWorkers, err := h.workerRepo.List(ctx.Request().Context())
+	if err != nil {
+		log.Error("Failed to get workers from database", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get workers")
+	}
+
+	// Convert to API response format
+	var workerResponses []types.WorkerResponse
+	for _, dbWorker := range dbWorkers {
+		// Get settings for this worker
+		settings, err := h.workerRepo.GetSettingsByWorkerID(ctx.Request().Context(), dbWorker.ID)
+		if err != nil {
+			log.Warn("Failed to get settings for worker", zap.String("worker_id", dbWorker.ID.String()), zap.Error(err))
+			settings = nil // Let converter handle nil settings
 		}
 
-		details := types.WorkerDetails{
-			ID:         id, // Use UUID as ID for API routing
-			URL:        worker.URL,
-			Status:     worker.Status,
-			LastCheck:  worker.LastCheck,
-			WorkerInfo: workerInfo,
+		// Get flow steps for this worker
+		flowSteps, err := h.workerRepo.GetFlowStepsByWorkerID(ctx.Request().Context(), dbWorker.ID)
+		if err != nil {
+			log.Warn("Failed to get flow steps for worker", zap.String("worker_id", dbWorker.ID.String()), zap.Error(err))
+			flowSteps = []worker.FlowStep{} // Default to empty flow steps
 		}
-		workerDetails = append(workerDetails, details)
+
+		// Set flow steps for conversion
+		dbWorker.FlowSteps = flowSteps
+		dbWorker.Settings = settings
+
+		// Use converter utility
+		if response := h.convertWorkerToResponse(dbWorker); response != nil {
+			workerResponses = append(workerResponses, *response)
+		}
 	}
 
 	response := types.WorkersResponse{
-		Workers:   workerDetails,
-		Total:     len(workerDetails),
+		Workers:   workerResponses,
+		Total:     len(workerResponses),
 		Timestamp: time.Now(),
 	}
 
@@ -122,6 +137,53 @@ func (h *Handlers) GetWorkers(ctx echo.Context) error {
 
 // GetWorker returns details about a specific worker
 func (h *Handlers) GetWorker(ctx echo.Context, workerID string) error {
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Validate and parse worker ID
+	id, err := validateWorkerID(workerID)
+	if err != nil {
+		return err
+	}
+
+	// Get worker from database (CRUD data)
+	dbWorker, err := h.workerRepo.GetByID(ctx.Request().Context(), id)
+	if err != nil {
+		log.Error("Failed to get worker from database", zap.Error(err))
+		if err.Error() == fmt.Sprintf("worker not found: %s", id) {
+			return echo.NewHTTPError(http.StatusNotFound, "Worker not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get worker")
+	}
+
+	// Get settings from database
+	settings, err := h.workerRepo.GetSettingsByWorkerID(ctx.Request().Context(), id)
+	if err != nil {
+		log.Warn("Failed to get worker settings", zap.Error(err))
+		settings = nil // Let converter handle nil settings
+	}
+
+	// Get flow steps
+	flowSteps, err := h.workerRepo.GetFlowStepsByWorkerID(ctx.Request().Context(), id)
+	if err != nil {
+		log.Warn("Failed to get flow steps", zap.Error(err))
+		flowSteps = []worker.FlowStep{} // Default to empty flow steps
+	}
+
+	// Set flow steps and settings for conversion
+	dbWorker.FlowSteps = flowSteps
+	dbWorker.Settings = settings
+
+	// Use converter utility
+	response := h.convertWorkerToResponse(dbWorker)
+	if response == nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to convert worker response")
+	}
+
+	return ctx.JSON(http.StatusOK, response)
+}
+
+// GetWorkerRuntime returns runtime details about a specific worker from the registry
+func (h *Handlers) GetWorkerRuntime(ctx echo.Context, workerID string) error {
 	worker, err := h.registry.GetWorker(workerID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Worker not found: %s", workerID))
@@ -143,8 +205,8 @@ func (h *Handlers) GetWorker(ctx echo.Context, workerID string) error {
 	return ctx.JSON(http.StatusOK, response)
 }
 
-// Proxy handlers - forward requests to worker API
-func (h *Handlers) GetWorkerHealth(ctx echo.Context, workerID string) error {
+// Runtime handlers - forward requests to worker API (require running containers)
+func (h *Handlers) GetWorkerRuntimeHealth(ctx echo.Context, workerID string) error {
 	log := logger.FromContext(ctx.Request().Context())
 
 	// Get worker from registry
@@ -183,7 +245,7 @@ func (h *Handlers) GetWorkerHealth(ctx echo.Context, workerID string) error {
 	return ctx.JSON(http.StatusOK, resp)
 }
 
-func (h *Handlers) GetWorkerStatus(ctx echo.Context, workerID string) error {
+func (h *Handlers) GetWorkerRuntimeStatus(ctx echo.Context, workerID string) error {
 	log := logger.FromContext(ctx.Request().Context())
 
 	// Get worker from registry
@@ -222,7 +284,7 @@ func (h *Handlers) GetWorkerStatus(ctx echo.Context, workerID string) error {
 	return ctx.JSON(http.StatusOK, resp)
 }
 
-func (h *Handlers) GetWorkerConfig(ctx echo.Context, workerID string) error {
+func (h *Handlers) GetWorkerRuntimeConfig(ctx echo.Context, workerID string) error {
 	log := logger.FromContext(ctx.Request().Context())
 
 	// Get worker from registry
@@ -261,7 +323,7 @@ func (h *Handlers) GetWorkerConfig(ctx echo.Context, workerID string) error {
 	return ctx.JSON(http.StatusOK, resp)
 }
 
-func (h *Handlers) GetWorkerLogs(ctx echo.Context, workerID string, params controlplaneapi.GetWorkerLogsParams) error {
+func (h *Handlers) GetWorkerRuntimeLogs(ctx echo.Context, workerID string, params controlplaneapi.GetWorkerRuntimeLogsParams) error {
 	log := logger.FromContext(ctx.Request().Context())
 
 	// Get worker from registry
@@ -311,7 +373,7 @@ func (h *Handlers) GetWorkerLogs(ctx echo.Context, workerID string, params contr
 	return ctx.JSON(http.StatusOK, resp)
 }
 
-func (h *Handlers) GetWorkerLogFile(ctx echo.Context, workerID string, filename string, params controlplaneapi.GetWorkerLogFileParams) error {
+func (h *Handlers) GetWorkerRuntimeLogFile(ctx echo.Context, workerID string, filename string, params controlplaneapi.GetWorkerRuntimeLogFileParams) error {
 	log := logger.FromContext(ctx.Request().Context())
 
 	// Get worker from registry
@@ -360,7 +422,7 @@ func (h *Handlers) GetWorkerLogFile(ctx echo.Context, workerID string, filename 
 	return ctx.JSON(http.StatusOK, resp)
 }
 
-func (h *Handlers) GetWorkerFlow(ctx echo.Context, workerID string) error {
+func (h *Handlers) GetWorkerRuntimeFlow(ctx echo.Context, workerID string) error {
 	log := logger.FromContext(ctx.Request().Context())
 
 	// Get worker from registry
@@ -399,7 +461,7 @@ func (h *Handlers) GetWorkerFlow(ctx echo.Context, workerID string) error {
 	return ctx.JSON(http.StatusOK, resp)
 }
 
-func (h *Handlers) GetWorkerFlowSteps(ctx echo.Context, workerID string) error {
+func (h *Handlers) GetWorkerRuntimeFlowSteps(ctx echo.Context, workerID string) error {
 	log := logger.FromContext(ctx.Request().Context())
 
 	// Get worker from registry
@@ -438,7 +500,7 @@ func (h *Handlers) GetWorkerFlowSteps(ctx echo.Context, workerID string) error {
 	return ctx.JSON(http.StatusOK, resp)
 }
 
-func (h *Handlers) GetWorkerMetrics(ctx echo.Context, workerID string) error {
+func (h *Handlers) GetWorkerRuntimeMetrics(ctx echo.Context, workerID string) error {
 	log := logger.FromContext(ctx.Request().Context())
 
 	// Get worker from registry
@@ -684,4 +746,449 @@ func (h *Handlers) UnpauseWorker(ctx echo.Context, workerID string) error {
 		"worker_id": workerID,
 		"timestamp": time.Now(),
 	})
+}
+
+// CRUD handlers for workers
+
+// CreateWorker creates a new worker
+func (h *Handlers) CreateWorker(ctx echo.Context) error {
+	log := logger.FromContext(ctx.Request().Context())
+
+	var req types.CreateWorkerRequest
+	if err := ctx.Bind(&req); err != nil {
+		log.Warn("Invalid create worker request", zap.Error(err))
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+
+	// Validate request
+	if err := validateCreateWorkerRequest(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	// Create worker entity
+	w := createWorkerFromRequest(&req)
+
+	// Check if worker name already exists
+	exists, err := h.workerRepo.ExistsByName(ctx.Request().Context(), req.Name)
+	if err != nil {
+		log.Error("Failed to check worker name existence", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to check worker name")
+	}
+	if exists {
+		return echo.NewHTTPError(http.StatusConflict, fmt.Sprintf("worker with name '%s' already exists", req.Name))
+	}
+
+	// Create settings and flow steps if provided
+	settings, flowSteps := createWorkerSettingsFromRequest(&req, w.ID)
+
+	// Create worker in database
+	err = h.workerRepo.Create(ctx.Request().Context(), w)
+	if err != nil {
+		log.Error("Failed to create worker", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create worker")
+	}
+
+	// Create settings if provided
+	if settings != nil {
+		err = h.workerRepo.CreateOrUpdateSettings(ctx.Request().Context(), settings)
+		if err != nil {
+			log.Error("Failed to create worker settings", zap.Error(err))
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create worker settings")
+		}
+	}
+
+	// Create flow steps if provided
+	if len(flowSteps) > 0 {
+		err = h.workerRepo.CreateFlowSteps(ctx.Request().Context(), flowSteps)
+		if err != nil {
+			log.Error("Failed to create flow steps", zap.Error(err))
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create flow steps")
+		}
+	}
+
+	// Get the created worker with settings
+	createdWorker, err := h.workerRepo.GetByID(ctx.Request().Context(), w.ID)
+	if err != nil {
+		log.Error("Failed to retrieve created worker", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve created worker")
+	}
+
+	// Convert to response format
+	response := h.convertWorkerToResponse(createdWorker)
+
+	// Register worker with registry for deployment
+	if h.registry != nil {
+		h.registry.RefreshFromDatabase(ctx.Request().Context())
+	}
+
+	log.Info("Worker created successfully", zap.String("worker_id", createdWorker.ID.String()), zap.String("name", createdWorker.Name))
+	return ctx.JSON(http.StatusCreated, response)
+}
+
+// UpdateWorker updates an existing worker
+func (h *Handlers) UpdateWorker(ctx echo.Context, workerID string) error {
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Validate worker ID
+	id, err := validateWorkerID(workerID)
+	if err != nil {
+		return err
+	}
+
+	var req types.UpdateWorkerRequest
+	if err := ctx.Bind(&req); err != nil {
+		log.Warn("Invalid update worker request", zap.Error(err))
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+
+	// Validate request
+	if err := validateUpdateWorkerRequest(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	// Get existing worker
+	existingWorker, err := h.workerRepo.GetByID(ctx.Request().Context(), id)
+	if err != nil {
+		log.Error("Failed to get existing worker", zap.Error(err))
+		if err.Error() == fmt.Sprintf("worker not found: %s", id) {
+			return echo.NewHTTPError(http.StatusNotFound, "Worker not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get worker")
+	}
+
+	// Check if new name conflicts with existing workers
+	if req.Name != nil && *req.Name != existingWorker.Name {
+		exists, err := h.workerRepo.ExistsByName(ctx.Request().Context(), *req.Name)
+		if err != nil {
+			log.Error("Failed to check worker name existence", zap.Error(err))
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to check worker name")
+		}
+		if exists {
+			return echo.NewHTTPError(http.StatusConflict, fmt.Sprintf("worker with name '%s' already exists", *req.Name))
+		}
+	}
+
+	// Update worker fields
+	updateWorkerFromRequest(existingWorker, &req)
+
+	// Update worker in database
+	err = h.workerRepo.Update(ctx.Request().Context(), existingWorker)
+	if err != nil {
+		log.Error("Failed to update worker", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update worker")
+	}
+
+	// Update settings if provided
+	if req.Settings != nil {
+		settings := updateWorkerSettingsFromRequest(req.Settings, id)
+		if settings != nil {
+			// Update settings using repository
+			err = h.workerRepo.CreateOrUpdateSettings(ctx.Request().Context(), settings)
+			if err != nil {
+				log.Error("Failed to update worker settings", zap.Error(err))
+				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update worker settings")
+			}
+		}
+	}
+
+	// Get the updated worker with settings
+	updatedWorker, err := h.workerRepo.GetByID(ctx.Request().Context(), id)
+	if err != nil {
+		log.Error("Failed to retrieve updated worker", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve updated worker")
+	}
+
+	// Convert to response format
+	response := h.convertWorkerToResponse(updatedWorker)
+
+	// Refresh registry and potentially redeploy if worker is running
+	if h.registry != nil {
+		h.registry.RefreshFromDatabase(ctx.Request().Context())
+	}
+
+	log.Info("Worker updated successfully", zap.String("worker_id", id.String()))
+	return ctx.JSON(http.StatusOK, response)
+}
+
+// DeleteWorker deletes a worker
+func (h *Handlers) DeleteWorker(ctx echo.Context, workerID string) error {
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Validate worker ID
+	id, err := validateWorkerID(workerID)
+	if err != nil {
+		return err
+	}
+
+	// Check if worker exists
+	existingWorker, err := h.workerRepo.GetByID(ctx.Request().Context(), id)
+	if err != nil {
+		if err.Error() == fmt.Sprintf("worker not found: %s", id) {
+			return echo.NewHTTPError(http.StatusNotFound, "Worker not found")
+		}
+		log.Error("Failed to check worker existence", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to check worker existence")
+	}
+
+	// Stop worker if it's running
+	workerName := existingWorker.Name
+	if err := h.runtime.StopWorker(ctx.Request().Context(), workerName, h.config); err != nil {
+		log.Warn("Failed to stop worker before deletion", zap.Error(err), zap.String("worker_name", workerName))
+		// Continue with deletion even if stop fails
+	}
+
+	// Delete worker from database
+	if err := h.workerRepo.Delete(ctx.Request().Context(), id); err != nil {
+		log.Error("Failed to delete worker", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to delete worker")
+	}
+
+	// Remove from registry
+	if h.registry != nil {
+		h.registry.RefreshFromDatabase(ctx.Request().Context())
+	}
+
+	log.Info("Worker deleted successfully", zap.String("worker_id", id.String()), zap.String("name", workerName))
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// GetWorkerSettings returns detailed worker settings
+func (h *Handlers) GetWorkerSettings(ctx echo.Context, workerID string) error {
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Parse worker ID
+	id, err := uuid.Parse(workerID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid worker ID")
+	}
+
+	// Get worker with settings
+	w, err := h.workerRepo.GetByID(ctx.Request().Context(), id)
+	if err != nil {
+		if err.Error() == fmt.Sprintf("worker not found: %s", id) {
+			return echo.NewHTTPError(http.StatusNotFound, "Worker not found")
+		}
+		log.Error("Failed to get worker", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get worker")
+	}
+
+	if w.Settings == nil {
+		return echo.NewHTTPError(http.StatusNotFound, "Worker settings not found")
+	}
+
+	// Convert to response format
+	settingsOutput := convertWorkerSettingsToOutput(w.Settings, w.FlowSteps)
+
+	response := types.WorkerSettingsResponse{
+		Settings:  *settingsOutput,
+		Timestamp: time.Now(),
+	}
+
+	return ctx.JSON(http.StatusOK, response)
+}
+
+// UpdateWorkerSettings updates worker settings
+func (h *Handlers) UpdateWorkerSettings(ctx echo.Context, workerID string) error {
+	log := logger.FromContext(ctx.Request().Context())
+
+	// Validate and parse worker ID
+	id, err := validateWorkerID(workerID)
+	if err != nil {
+		return err
+	}
+
+	var req controlplaneapi.UpdateWorkerSettingsRequest
+	if err := ctx.Bind(&req); err != nil {
+		log.Warn("Invalid update worker settings request", zap.Error(err))
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+
+	// Check if worker exists
+	_, err = h.workerRepo.GetByID(ctx.Request().Context(), id)
+	if err != nil {
+		if err.Error() == fmt.Sprintf("worker not found: %s", id) {
+			return echo.NewHTTPError(http.StatusNotFound, "Worker not found")
+		}
+		log.Error("Failed to check worker existence", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to check worker existence")
+	}
+
+	// Create settings object with default values
+	settings := &worker.WorkerSettings{
+		InstallDeps: false,
+		MaxAttempts: 3,
+		Debug:       false,
+	}
+
+	// Handle pointer fields
+	if req.SleepDuration != nil {
+		settings.SleepDuration = *req.SleepDuration
+	}
+
+	// Set default values if not provided
+	if req.TeamName != nil {
+		settings.TeamName = *req.TeamName
+	} else {
+		settings.TeamName = "autoteam"
+	}
+
+	if req.InstallDeps != nil {
+		settings.InstallDeps = *req.InstallDeps
+	}
+
+	if req.CommonPrompt != nil {
+		settings.CommonPrompt = *req.CommonPrompt
+	}
+
+	if req.MaxAttempts != nil {
+		settings.MaxAttempts = *req.MaxAttempts
+	}
+
+	if req.Debug != nil {
+		settings.Debug = *req.Debug
+	}
+
+	if req.Service != nil {
+		settings.Service = worker.JSONMap(*req.Service)
+	}
+
+	if req.McpServers != nil {
+		mcpServers := make(worker.MCPServersMap)
+		for k, v := range *req.McpServers {
+			mcpServers[k] = worker.MCPServer{
+				Command: v.Command,
+			}
+			// Handle optional pointer fields in MCP server
+			if v.Args != nil {
+				mcpServers[k] = worker.MCPServer{
+					Command: v.Command,
+					Args:    *v.Args,
+				}
+			}
+			if v.Env != nil {
+				server := mcpServers[k]
+				server.Env = *v.Env
+				mcpServers[k] = server
+			}
+		}
+		settings.MCPServers = mcpServers
+	}
+
+	if req.Meta != nil {
+		settings.Meta = worker.JSONMap(*req.Meta)
+	}
+
+	// Set worker ID for settings
+	settings.WorkerID = id
+
+	// Update settings using repository
+	err = h.workerRepo.CreateOrUpdateSettings(ctx.Request().Context(), settings)
+	if err != nil {
+		log.Error("Failed to update worker settings", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update worker settings")
+	}
+
+	// Get updated settings
+	updatedSettings, err := h.workerRepo.GetSettingsByWorkerID(ctx.Request().Context(), id)
+	if err != nil {
+		log.Error("Failed to get updated settings", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get updated settings")
+	}
+
+	// Handle flow steps update if provided
+	var updatedFlowSteps []worker.FlowStep
+	if req.Flow != nil {
+		// Convert from API types to database types
+		flowSteps := make([]worker.FlowStep, len(*req.Flow))
+		for i, step := range *req.Flow {
+			flowSteps[i] = worker.FlowStep{
+				WorkerID: id,
+				Name:     step.Name,
+				Type:     step.Type,
+				Order:    i, // Set order based on array position
+				Env:      make(map[string]string),
+			}
+
+			// Handle optional pointer fields
+			if step.Args != nil {
+				flowSteps[i].Args = *step.Args
+			}
+			if step.DependsOn != nil {
+				flowSteps[i].DependsOn = *step.DependsOn
+			}
+			if step.Input != nil {
+				flowSteps[i].Input = *step.Input
+			}
+			if step.Output != nil {
+				flowSteps[i].Output = *step.Output
+			}
+			if step.SkipWhen != nil {
+				flowSteps[i].SkipWhen = *step.SkipWhen
+			}
+			if step.DependencyPolicy != nil {
+				flowSteps[i].DependencyPolicy = string(*step.DependencyPolicy)
+			}
+
+			// Copy env from API request (already map[string]string)
+			if step.Env != nil {
+				for k, v := range *step.Env {
+					flowSteps[i].Env[k] = v
+				}
+			}
+
+			// Handle retry configuration
+			if step.Retry != nil {
+				retryConfig := &worker.RetryConfig{}
+				if step.Retry.MaxAttempts != nil {
+					retryConfig.MaxAttempts = *step.Retry.MaxAttempts
+				}
+				if step.Retry.Delay != nil {
+					retryConfig.Delay = *step.Retry.Delay
+				}
+				if step.Retry.Backoff != nil {
+					retryConfig.Backoff = string(*step.Retry.Backoff)
+				}
+				if step.Retry.MaxDelay != nil {
+					retryConfig.MaxDelay = *step.Retry.MaxDelay
+				}
+				flowSteps[i].Retry = retryConfig
+			}
+		}
+
+		// Update flow steps using repository
+		err = h.workerRepo.UpdateFlowSteps(ctx.Request().Context(), id, flowSteps)
+		if err != nil {
+			log.Error("Failed to update flow steps", zap.Error(err))
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update flow steps")
+		}
+
+		updatedFlowSteps = flowSteps
+		log.Info("Flow steps updated successfully",
+			zap.String("worker_id", id.String()),
+			zap.Int("steps_count", len(flowSteps)))
+	} else {
+		// Get existing flow steps if no update provided
+		existingFlowSteps, err := h.workerRepo.GetFlowStepsByWorkerID(ctx.Request().Context(), id)
+		if err != nil {
+			log.Error("Failed to get existing flow steps", zap.Error(err))
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get existing flow steps")
+		}
+		updatedFlowSteps = existingFlowSteps
+	}
+
+	// Convert to response format with updated flow steps
+	settingsOutput := convertWorkerSettingsToOutput(updatedSettings, updatedFlowSteps)
+
+	response := types.WorkerSettingsResponse{
+		Settings:  *settingsOutput,
+		Timestamp: time.Now(),
+	}
+
+	// Refresh registry and potentially redeploy if worker is running
+	if h.registry != nil {
+		h.registry.RefreshFromDatabase(ctx.Request().Context())
+	}
+
+	log.Info("Worker settings updated successfully", zap.String("worker_id", id.String()))
+	return ctx.JSON(http.StatusOK, response)
 }

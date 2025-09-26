@@ -12,6 +12,7 @@ import (
 	"autoteam/internal/config"
 	"autoteam/internal/logger"
 	"autoteam/internal/runtime"
+	"autoteam/internal/worker"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -48,8 +49,11 @@ func NewServer(registry *WorkerRegistry, serverConfig ServerConfig, rt runtime.R
 		startTime: time.Now(),
 	}
 
+	// Create worker repository from registry's database
+	workerRepo := worker.NewRepository(registry.GetDB())
+
 	// Create handlers
-	server.handlers = NewHandlers(registry, rt, cfg)
+	server.handlers = NewHandlers(registry, rt, cfg, workerRepo)
 
 	// Setup middleware
 	server.setupMiddleware()
@@ -65,7 +69,7 @@ func (s *Server) setupMiddleware() {
 	// CORS middleware
 	s.echo.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},
-		AllowMethods: []string{http.MethodGet, http.MethodOptions},
+		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
 		AllowHeaders: []string{"*"},
 	}))
 
@@ -182,36 +186,41 @@ func (a *APIAdapter) GetWorker(ctx echo.Context, workerID string) error {
 	return a.handlers.GetWorker(ctx, workerID)
 }
 
-func (a *APIAdapter) GetWorkerHealth(ctx echo.Context, workerID string) error {
-	return a.handlers.GetWorkerHealth(ctx, workerID)
+func (a *APIAdapter) GetWorkerRuntime(ctx echo.Context, workerID string) error {
+	return a.handlers.GetWorkerRuntime(ctx, workerID)
 }
 
-func (a *APIAdapter) GetWorkerStatus(ctx echo.Context, workerID string) error {
-	return a.handlers.GetWorkerStatus(ctx, workerID)
+// Runtime method mappings
+func (a *APIAdapter) GetWorkerRuntimeHealth(ctx echo.Context, workerID string) error {
+	return a.handlers.GetWorkerRuntimeHealth(ctx, workerID)
 }
 
-func (a *APIAdapter) GetWorkerConfig(ctx echo.Context, workerID string) error {
-	return a.handlers.GetWorkerConfig(ctx, workerID)
+func (a *APIAdapter) GetWorkerRuntimeStatus(ctx echo.Context, workerID string) error {
+	return a.handlers.GetWorkerRuntimeStatus(ctx, workerID)
 }
 
-func (a *APIAdapter) GetWorkerLogs(ctx echo.Context, workerID string, params controlplaneapi.GetWorkerLogsParams) error {
-	return a.handlers.GetWorkerLogs(ctx, workerID, params)
+func (a *APIAdapter) GetWorkerRuntimeConfig(ctx echo.Context, workerID string) error {
+	return a.handlers.GetWorkerRuntimeConfig(ctx, workerID)
 }
 
-func (a *APIAdapter) GetWorkerLogFile(ctx echo.Context, workerID string, filename string, params controlplaneapi.GetWorkerLogFileParams) error {
-	return a.handlers.GetWorkerLogFile(ctx, workerID, filename, params)
+func (a *APIAdapter) GetWorkerRuntimeLogs(ctx echo.Context, workerID string, params controlplaneapi.GetWorkerRuntimeLogsParams) error {
+	return a.handlers.GetWorkerRuntimeLogs(ctx, workerID, params)
 }
 
-func (a *APIAdapter) GetWorkerFlow(ctx echo.Context, workerID string) error {
-	return a.handlers.GetWorkerFlow(ctx, workerID)
+func (a *APIAdapter) GetWorkerRuntimeLogFile(ctx echo.Context, workerID string, filename string, params controlplaneapi.GetWorkerRuntimeLogFileParams) error {
+	return a.handlers.GetWorkerRuntimeLogFile(ctx, workerID, filename, params)
 }
 
-func (a *APIAdapter) GetWorkerFlowSteps(ctx echo.Context, workerID string) error {
-	return a.handlers.GetWorkerFlowSteps(ctx, workerID)
+func (a *APIAdapter) GetWorkerRuntimeFlow(ctx echo.Context, workerID string) error {
+	return a.handlers.GetWorkerRuntimeFlow(ctx, workerID)
 }
 
-func (a *APIAdapter) GetWorkerMetrics(ctx echo.Context, workerID string) error {
-	return a.handlers.GetWorkerMetrics(ctx, workerID)
+func (a *APIAdapter) GetWorkerRuntimeFlowSteps(ctx echo.Context, workerID string) error {
+	return a.handlers.GetWorkerRuntimeFlowSteps(ctx, workerID)
+}
+
+func (a *APIAdapter) GetWorkerRuntimeMetrics(ctx echo.Context, workerID string) error {
+	return a.handlers.GetWorkerRuntimeMetrics(ctx, workerID)
 }
 
 func (a *APIAdapter) GetOpenAPISpec(ctx echo.Context) error {
@@ -241,4 +250,26 @@ func (a *APIAdapter) PauseWorker(ctx echo.Context, workerID string) error {
 
 func (a *APIAdapter) UnpauseWorker(ctx echo.Context, workerID string) error {
 	return a.handlers.UnpauseWorker(ctx, workerID)
+}
+
+// CRUD operations for workers
+
+func (a *APIAdapter) CreateWorker(ctx echo.Context) error {
+	return a.handlers.CreateWorker(ctx)
+}
+
+func (a *APIAdapter) UpdateWorker(ctx echo.Context, workerID string) error {
+	return a.handlers.UpdateWorker(ctx, workerID)
+}
+
+func (a *APIAdapter) DeleteWorker(ctx echo.Context, workerID string) error {
+	return a.handlers.DeleteWorker(ctx, workerID)
+}
+
+func (a *APIAdapter) GetWorkerSettings(ctx echo.Context, workerID string) error {
+	return a.handlers.GetWorkerSettings(ctx, workerID)
+}
+
+func (a *APIAdapter) UpdateWorkerSettings(ctx echo.Context, workerID string) error {
+	return a.handlers.UpdateWorkerSettings(ctx, workerID)
 }

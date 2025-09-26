@@ -3,9 +3,15 @@ info:
   title: AutoTeam Control Plane API
   description: |
     HTTP API for managing and monitoring multiple AutoTeam workers.
-    
-    This API acts as a central orchestrator that proxies requests to individual worker APIs.
-    All endpoints are read-only, providing monitoring and status information only.
+
+    This API provides both CRUD operations for worker management and runtime monitoring capabilities.
+
+    **CRUD Endpoints** (/workers/*): Manage worker configurations stored in the database.
+    These endpoints are always available and work independently of worker container status.
+
+    **Runtime Endpoints** (/workers/*/runtime/*): Monitor live worker containers and proxy
+    requests to running worker APIs. These endpoints require active worker containers and
+    return 502 errors when containers are not running.
   version: 1.0.0
   contact:
     name: AutoTeam
@@ -20,11 +26,11 @@ servers:
 
 tags:
   - name: workers
-    description: Worker management and discovery endpoints
+    description: Worker CRUD operations and settings management
   - name: health
-    description: Health check endpoints
-  - name: proxy
-    description: Proxied worker API endpoints
+    description: Control plane health check endpoints
+  - name: runtime
+    description: Runtime endpoints that require running worker containers
   - name: actions
     description: Worker lifecycle action endpoints
 
@@ -68,6 +74,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create worker
+      description: Creates a new worker with the provided configuration
+      operationId: createWorker
+      tags: [workers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkerRequest'
+      responses:
+        '201':
+          description: Worker created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Worker name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /workers/{worker_id}:
     get:
@@ -88,6 +130,115 @@ paths:
           content:
             application/json:
               schema:
+                $ref: '#/components/schemas/WorkerResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Update worker
+      description: Updates an existing worker configuration
+      operationId: updateWorker
+      tags: [workers]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkerRequest'
+      responses:
+        '200':
+          description: Worker updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Worker name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete worker
+      description: Deletes a worker and stops it if running
+      operationId: deleteWorker
+      tags: [workers]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Worker deleted successfully
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workers/{worker_id}/runtime:
+    get:
+      summary: Get worker runtime info
+      description: Returns runtime information about a worker from the registry
+      operationId: getWorkerRuntime
+      tags: [workers]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker runtime information
+          content:
+            application/json:
+              schema:
                 $ref: '#/components/schemas/WorkerDetailsResponse'
         '404':
           description: Worker not found
@@ -102,13 +253,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  # Proxied worker API endpoints
-  /workers/{worker_id}/health:
+  # Runtime endpoints (require running worker containers)
+  /workers/{worker_id}/runtime/health:
     get:
-      summary: Worker health check
-      description: Proxy to worker's health endpoint
-      operationId: getWorkerHealth
-      tags: [proxy]
+      summary: Worker runtime health check
+      description: Proxy to worker's health endpoint (requires running container)
+      operationId: getWorkerRuntimeHealth
+      tags: [runtime]
       parameters:
         - name: worker_id
           in: path
@@ -130,7 +281,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '502':
-          description: Worker unreachable
+          description: Worker unreachable (container not running)
           content:
             application/json:
               schema:
@@ -142,12 +293,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /workers/{worker_id}/status:
+  /workers/{worker_id}/runtime/status:
     get:
-      summary: Worker status
-      description: Proxy to worker's status endpoint
-      operationId: getWorkerStatus
-      tags: [proxy]
+      summary: Worker runtime status
+      description: Proxy to worker's status endpoint (requires running container)
+      operationId: getWorkerRuntimeStatus
+      tags: [runtime]
       parameters:
         - name: worker_id
           in: path
@@ -169,18 +320,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '502':
-          description: Worker unreachable
+          description: Worker unreachable (container not running)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /workers/{worker_id}/config:
+  /workers/{worker_id}/runtime/config:
     get:
-      summary: Worker configuration
-      description: Proxy to worker's config endpoint
-      operationId: getWorkerConfig
-      tags: [proxy]
+      summary: Worker runtime configuration
+      description: Proxy to worker's config endpoint (requires running container)
+      operationId: getWorkerRuntimeConfig
+      tags: [runtime]
       parameters:
         - name: worker_id
           in: path
@@ -202,18 +353,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '502':
-          description: Worker unreachable
+          description: Worker unreachable (container not running)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /workers/{worker_id}/logs:
+  /workers/{worker_id}/runtime/logs:
     get:
-      summary: Worker logs
-      description: Proxy to worker's logs endpoint
-      operationId: getWorkerLogs
-      tags: [proxy]
+      summary: Worker runtime logs
+      description: Proxy to worker's logs endpoint (requires running container)
+      operationId: getWorkerRuntimeLogs
+      tags: [runtime]
       parameters:
         - name: worker_id
           in: path
@@ -251,18 +402,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '502':
-          description: Worker unreachable
+          description: Worker unreachable (container not running)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /workers/{worker_id}/logs/{filename}:
+  /workers/{worker_id}/runtime/logs/{filename}:
     get:
-      summary: Worker log file
-      description: Proxy to worker's log file endpoint
-      operationId: getWorkerLogFile
-      tags: [proxy]
+      summary: Worker runtime log file
+      description: Proxy to worker's log file endpoint (requires running container)
+      operationId: getWorkerRuntimeLogFile
+      tags: [runtime]
       parameters:
         - name: worker_id
           in: path
@@ -299,18 +450,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '502':
-          description: Worker unreachable
+          description: Worker unreachable (container not running)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /workers/{worker_id}/flow:
+  /workers/{worker_id}/runtime/flow:
     get:
-      summary: Worker flow configuration
-      description: Proxy to worker's flow endpoint
-      operationId: getWorkerFlow
-      tags: [proxy]
+      summary: Worker runtime flow execution state
+      description: Proxy to worker's flow endpoint (requires running container)
+      operationId: getWorkerRuntimeFlow
+      tags: [runtime]
       parameters:
         - name: worker_id
           in: path
@@ -320,7 +471,7 @@ paths:
             type: string
       responses:
         '200':
-          description: Worker flow configuration
+          description: Worker flow execution state
           content:
             application/json:
               schema:
@@ -332,18 +483,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '502':
-          description: Worker unreachable
+          description: Worker unreachable (container not running)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /workers/{worker_id}/flow/steps:
+  /workers/{worker_id}/runtime/flow/steps:
     get:
-      summary: Worker flow steps
-      description: Proxy to worker's flow steps endpoint
-      operationId: getWorkerFlowSteps
-      tags: [proxy]
+      summary: Worker runtime flow steps
+      description: Proxy to worker's flow steps endpoint with execution details (requires running container)
+      operationId: getWorkerRuntimeFlowSteps
+      tags: [runtime]
       parameters:
         - name: worker_id
           in: path
@@ -353,7 +504,7 @@ paths:
             type: string
       responses:
         '200':
-          description: Worker flow steps
+          description: Worker flow steps with execution details
           content:
             application/json:
               schema:
@@ -365,18 +516,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '502':
-          description: Worker unreachable
+          description: Worker unreachable (container not running)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /workers/{worker_id}/metrics:
+  /workers/{worker_id}/runtime/metrics:
     get:
-      summary: Worker metrics
-      description: Proxy to worker's metrics endpoint
-      operationId: getWorkerMetrics
-      tags: [proxy]
+      summary: Worker runtime metrics
+      description: Proxy to worker's metrics endpoint (requires running container)
+      operationId: getWorkerRuntimeMetrics
+      tags: [runtime]
       parameters:
         - name: worker_id
           in: path
@@ -398,7 +549,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '502':
-          description: Worker unreachable
+          description: Worker unreachable (container not running)
           content:
             application/json:
               schema:
@@ -604,6 +755,83 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  # Worker settings endpoints
+  /workers/{worker_id}/settings:
+    get:
+      summary: Get worker settings
+      description: Returns detailed settings for a specific worker
+      operationId: getWorkerSettings
+      tags: [workers]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerSettingsResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Update worker settings
+      description: Updates settings for a specific worker
+      operationId: updateWorkerSettings
+      tags: [workers]
+      parameters:
+        - name: worker_id
+          in: path
+          description: Worker ID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkerSettingsRequest'
+      responses:
+        '200':
+          description: Worker settings updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerSettingsResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   schemas:
     # Control plane specific types
@@ -642,7 +870,7 @@ components:
         workers:
           type: array
           items:
-            $ref: '#/components/schemas/WorkerDetails'
+            $ref: '#/components/schemas/WorkerResponse'
         total:
           type: integer
           description: Total number of configured workers
@@ -1100,6 +1328,372 @@ components:
           type: string
           format: date-time
           description: Action timestamp
+
+    # Worker CRUD API types
+    CreateWorkerRequest:
+      type: object
+      required:
+        - name
+        - prompt
+      properties:
+        name:
+          type: string
+          description: Worker name (must be unique)
+          minLength: 1
+          maxLength: 255
+        prompt:
+          type: string
+          description: Worker-specific prompt
+        enabled:
+          type: boolean
+          description: Whether the worker is enabled
+          default: true
+        settings:
+          $ref: '#/components/schemas/WorkerSettingsInput'
+
+    UpdateWorkerRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Worker name (must be unique)
+          minLength: 1
+          maxLength: 255
+        prompt:
+          type: string
+          description: Worker-specific prompt
+        enabled:
+          type: boolean
+          description: Whether the worker is enabled
+        settings:
+          $ref: '#/components/schemas/WorkerSettingsInput'
+
+    WorkerResponse:
+      type: object
+      required:
+        - id
+        - name
+        - prompt
+        - enabled
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Worker UUID
+        name:
+          type: string
+          description: Worker name
+        prompt:
+          type: string
+          description: Worker-specific prompt
+        enabled:
+          type: boolean
+          description: Whether the worker is enabled
+        created_at:
+          type: string
+          format: date-time
+          description: Worker creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Worker last update timestamp
+        settings:
+          $ref: '#/components/schemas/WorkerSettingsOutput'
+
+    WorkerSettingsResponse:
+      type: object
+      required:
+        - settings
+        - timestamp
+      properties:
+        settings:
+          $ref: '#/components/schemas/WorkerSettingsOutput'
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    UpdateWorkerSettingsRequest:
+      type: object
+      properties:
+        sleep_duration:
+          type: integer
+          minimum: 10
+          maximum: 3600
+          description: Sleep duration between flow executions in seconds
+        team_name:
+          type: string
+          description: Team name for this worker
+        install_deps:
+          type: boolean
+          description: Whether to install dependencies
+        common_prompt:
+          type: string
+          description: Common prompt shared across all steps
+        max_attempts:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Maximum retry attempts for failed operations
+        service:
+          type: object
+          additionalProperties: true
+          description: Service configuration options
+        mcp_servers:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/MCPServerConfig'
+          description: Model Context Protocol server configurations
+        debug:
+          type: boolean
+          description: Enable debug mode
+        meta:
+          type: object
+          additionalProperties: true
+          description: Metadata and additional configuration
+        flow:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlowStepInput'
+          description: Flow steps configuration
+
+    WorkerSettingsInput:
+      type: object
+      properties:
+        sleep_duration:
+          type: integer
+          minimum: 10
+          maximum: 3600
+          description: Sleep duration between flow executions in seconds
+        team_name:
+          type: string
+          description: Team name for this worker
+        install_deps:
+          type: boolean
+          description: Whether to install dependencies
+        common_prompt:
+          type: string
+          description: Common prompt shared across all steps
+        max_attempts:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Maximum retry attempts for failed operations
+        service:
+          type: object
+          additionalProperties: true
+          description: Service configuration options
+        mcp_servers:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/MCPServerConfig'
+          description: Model Context Protocol server configurations
+        debug:
+          type: boolean
+          description: Enable debug mode
+        meta:
+          type: object
+          additionalProperties: true
+          description: Metadata and additional configuration
+        flow:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlowStepInput'
+          description: Flow steps configuration
+
+    WorkerSettingsOutput:
+      type: object
+      required:
+        - id
+        - worker_id
+        - sleep_duration
+        - team_name
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Settings UUID
+        worker_id:
+          type: string
+          format: uuid
+          description: Worker UUID
+        sleep_duration:
+          type: integer
+          description: Sleep duration between flow executions in seconds
+        team_name:
+          type: string
+          description: Team name for this worker
+        install_deps:
+          type: boolean
+          description: Whether to install dependencies
+        common_prompt:
+          type: string
+          description: Common prompt shared across all steps
+        max_attempts:
+          type: integer
+          description: Maximum retry attempts for failed operations
+        service:
+          type: object
+          additionalProperties: true
+          description: Service configuration options
+        mcp_servers:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/MCPServerConfig'
+          description: Model Context Protocol server configurations
+        debug:
+          type: boolean
+          description: Enable debug mode
+        meta:
+          type: object
+          additionalProperties: true
+          description: Metadata and additional configuration
+        created_at:
+          type: string
+          format: date-time
+          description: Settings creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Settings last update timestamp
+        flow:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlowStepOutput'
+          description: Flow steps configuration
+
+    FlowStepInput:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          description: Unique step name
+        type:
+          type: string
+          description: Agent type
+        args:
+          type: array
+          items:
+            type: string
+          description: Agent-specific arguments
+        env:
+          type: object
+          additionalProperties:
+            type: string
+          description: Environment variables for the step
+        depends_on:
+          type: array
+          items:
+            type: string
+          description: List of step names this step depends on
+        input:
+          type: string
+          description: Input prompt for the step
+        output:
+          type: string
+          description: Output transformation template
+        skip_when:
+          type: string
+          description: Skip condition template
+        dependency_policy:
+          type: string
+          description: Policy for handling dependency failures
+          enum: [fail_fast, all_success, all_complete, any_success]
+        retry:
+          $ref: '#/components/schemas/RetryConfig'
+
+    FlowStepOutput:
+      type: object
+      required:
+        - id
+        - worker_id
+        - name
+        - type
+        - order
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Step UUID
+        worker_id:
+          type: string
+          format: uuid
+          description: Worker UUID
+        name:
+          type: string
+          description: Unique step name
+        type:
+          type: string
+          description: Agent type
+        order:
+          type: integer
+          description: Execution order within worker
+        args:
+          type: array
+          items:
+            type: string
+          description: Agent-specific arguments
+        env:
+          type: object
+          additionalProperties:
+            type: string
+          description: Environment variables for the step
+        depends_on:
+          type: array
+          items:
+            type: string
+          description: List of step names this step depends on
+        input:
+          type: string
+          description: Input prompt for the step
+        output:
+          type: string
+          description: Output transformation template
+        skip_when:
+          type: string
+          description: Skip condition template
+        dependency_policy:
+          type: string
+          description: Policy for handling dependency failures
+          enum: [fail_fast, all_success, all_complete, any_success]
+        retry:
+          $ref: '#/components/schemas/RetryConfig'
+        created_at:
+          type: string
+          format: date-time
+          description: Step creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Step last update timestamp
+
+    MCPServerConfig:
+      type: object
+      required:
+        - command
+      properties:
+        command:
+          type: string
+          description: Command to run the MCP server
+        args:
+          type: array
+          items:
+            type: string
+          description: Command arguments
+        env:
+          type: object
+          additionalProperties:
+            type: string
+          description: Environment variables
 
     ErrorResponse:
       type: object

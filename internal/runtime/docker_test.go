@@ -275,6 +275,18 @@ func TestEnsureBinaries_ExistingBinaries(t *testing.T) {
 		t.Fatalf("Failed to create existing binary: %v", err)
 	}
 
+	// Create build directory with some test binaries to simulate real environment
+	buildDir := "build"
+	if err := os.MkdirAll(buildDir, 0755); err != nil {
+		t.Fatalf("Failed to create build directory: %v", err)
+	}
+
+	// Create a test binary in build directory
+	buildBinary := filepath.Join(buildDir, "autoteam-worker-linux-amd64")
+	if err := os.WriteFile(buildBinary, []byte("new binary from build"), 0755); err != nil {
+		t.Fatalf("Failed to create build binary: %v", err)
+	}
+
 	// Create Docker runtime and test ensureBinaries
 	runtime := &DockerRuntime{}
 	ctx, err := logger.SetupContext(context.Background(), logger.InfoLevel)
@@ -287,9 +299,19 @@ func TestEnsureBinaries_ExistingBinaries(t *testing.T) {
 		t.Fatalf("ensureBinaries failed with existing binaries: %v", err)
 	}
 
-	// Verify existing binary is still there
+	// Verify binary still exists and was updated with newer content
 	if _, err := os.Stat(existingBinary); os.IsNotExist(err) {
-		t.Error("Existing binary was removed")
+		t.Error("Binary was unexpectedly removed")
+	}
+
+	// Verify binary was updated with content from build directory
+	content, err := os.ReadFile(existingBinary)
+	if err != nil {
+		t.Fatalf("Failed to read updated binary: %v", err)
+	}
+
+	if string(content) != "new binary from build" {
+		t.Errorf("Binary was not updated. Expected 'new binary from build', got '%s'", string(content))
 	}
 }
 

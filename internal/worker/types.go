@@ -47,6 +47,7 @@ type WorkerSettings struct {
 	Database      *database.Config `gorm:"serializer:json" json:"database" yaml:"database,omitempty"`
 	CreatedAt     time.Time        `gorm:"autoCreateTime" json:"created_at" yaml:"-"`
 	UpdatedAt     time.Time        `gorm:"autoUpdateTime" json:"updated_at" yaml:"-"`
+	DeletedAt     gorm.DeletedAt   `gorm:"index" json:"-" yaml:"-"`
 
 	// Note: Flow is now stored separately as FlowStep entities
 	// This field is kept for YAML compatibility during migration and JSON config passing
