@@ -37,7 +37,7 @@ export const WorkerLogs: React.FC<WorkerLogsProps> = ({ workerId }) => {
   return (
     <Stack spacing={2}>
       <Card>
-        <CardHeader 
+        <CardHeader
           title="Worker Logs"
           avatar={<LogsIcon />}
           action={
@@ -70,7 +70,7 @@ export const WorkerLogs: React.FC<WorkerLogsProps> = ({ workerId }) => {
             <Alert severity="info">
               Log viewing functionality will be implemented in a future update.
             </Alert>
-            
+
             <TextField
               multiline
               rows={15}
@@ -79,16 +79,22 @@ export const WorkerLogs: React.FC<WorkerLogsProps> = ({ workerId }) => {
               placeholder="Worker logs will appear here..."
               InputProps={{
                 readOnly: true,
-                style: { 
-                  fontFamily: 'monospace', 
-                  fontSize: '0.875rem',
-                  backgroundColor: '#f5f5f5'
-                }
+                style: {
+                  fontFamily: "monospace",
+                  fontSize: "0.875rem",
+                  backgroundColor: "#f5f5f5",
+                },
               }}
               variant="outlined"
             />
-            
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
               <Typography variant="body2" color="textSecondary">
                 Worker: {workerId}
               </Typography>

@@ -26,6 +26,8 @@ import { createControlPlaneDataProvider } from "./providers/dataProvider";
 import {
   WorkersList,
   WorkersShow,
+  WorkersCreate,
+  WorkersEdit,
 } from "./pages/workers";
 
 function AppContent() {
@@ -50,10 +52,12 @@ function AppContent() {
           name: "workers",
           list: "/workers",
           show: "/workers/show/:id",
+          create: "/workers/create",
+          edit: "/workers/edit/:id",
           meta: {
-            canDelete: false,
-            canCreate: false,
-            canEdit: false,
+            canDelete: true,
+            canCreate: true,
+            canEdit: true,
           },
         },
       ]}
@@ -67,18 +71,20 @@ function AppContent() {
       <Routes>
         <Route
           element={
-            <ThemedLayoutV2 Header={() => <Header sticky />} Title={() => <Title />}>
+            <ThemedLayoutV2
+              Header={() => <Header sticky />}
+              Title={() => <Title />}
+            >
               <Outlet />
             </ThemedLayoutV2>
           }
         >
-          <Route
-            index
-            element={<NavigateToResource resource="workers" />}
-          />
+          <Route index element={<NavigateToResource resource="workers" />} />
           <Route path="/workers">
             <Route index element={<WorkersList />} />
             <Route path="show/:id" element={<WorkersShow />} />
+            <Route path="create" element={<WorkersCreate />} />
+            <Route path="edit/:id" element={<WorkersEdit />} />
           </Route>
           <Route path="*" element={<ErrorComponent />} />
         </Route>

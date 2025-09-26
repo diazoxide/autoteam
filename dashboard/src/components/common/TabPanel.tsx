@@ -7,7 +7,12 @@ interface TabPanelProps {
   value: number;
 }
 
-export const TabPanel: React.FC<TabPanelProps> = ({ children, value, index, ...other }) => {
+export const TabPanel: React.FC<TabPanelProps> = ({
+  children,
+  value,
+  index,
+  ...other
+}) => {
   return (
     <div
       role="tabpanel"
@@ -16,11 +21,7 @@ export const TabPanel: React.FC<TabPanelProps> = ({ children, value, index, ...o
       aria-labelledby={`worker-tab-${index}`}
       {...other}
     >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
+      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
     </div>
   );
 };

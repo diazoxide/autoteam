@@ -37,7 +37,11 @@ export interface paths {
          */
         get: operations["getWorkers"];
         put?: never;
-        post?: never;
+        /**
+         * Create worker
+         * @description Creates a new worker with the provided configuration
+         */
+        post: operations["createWorker"];
         delete?: never;
         options?: never;
         head?: never;
@@ -56,6 +60,34 @@ export interface paths {
          * @description Returns details about a specific worker
          */
         get: operations["getWorker"];
+        /**
+         * Update worker
+         * @description Updates an existing worker configuration
+         */
+        put: operations["updateWorker"];
+        post?: never;
+        /**
+         * Delete worker
+         * @description Deletes a worker and stops it if running
+         */
+        delete: operations["deleteWorker"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workers/{worker_id}/runtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get worker runtime info
+         * @description Returns runtime information about a worker from the registry
+         */
+        get: operations["getWorkerRuntime"];
         put?: never;
         post?: never;
         delete?: never;
@@ -64,7 +96,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workers/{worker_id}/health": {
+    "/workers/{worker_id}/runtime/health": {
         parameters: {
             query?: never;
             header?: never;
@@ -72,10 +104,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Worker health check
-         * @description Proxy to worker's health endpoint
+         * Worker runtime health check
+         * @description Proxy to worker's health endpoint (requires running container)
          */
-        get: operations["getWorkerHealth"];
+        get: operations["getWorkerRuntimeHealth"];
         put?: never;
         post?: never;
         delete?: never;
@@ -84,7 +116,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workers/{worker_id}/status": {
+    "/workers/{worker_id}/runtime/status": {
         parameters: {
             query?: never;
             header?: never;
@@ -92,10 +124,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Worker status
-         * @description Proxy to worker's status endpoint
+         * Worker runtime status
+         * @description Proxy to worker's status endpoint (requires running container)
          */
-        get: operations["getWorkerStatus"];
+        get: operations["getWorkerRuntimeStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -104,7 +136,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workers/{worker_id}/config": {
+    "/workers/{worker_id}/runtime/config": {
         parameters: {
             query?: never;
             header?: never;
@@ -112,10 +144,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Worker configuration
-         * @description Proxy to worker's config endpoint
+         * Worker runtime configuration
+         * @description Proxy to worker's config endpoint (requires running container)
          */
-        get: operations["getWorkerConfig"];
+        get: operations["getWorkerRuntimeConfig"];
         put?: never;
         post?: never;
         delete?: never;
@@ -124,7 +156,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workers/{worker_id}/logs": {
+    "/workers/{worker_id}/runtime/logs": {
         parameters: {
             query?: never;
             header?: never;
@@ -132,10 +164,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Worker logs
-         * @description Proxy to worker's logs endpoint
+         * Worker runtime logs
+         * @description Proxy to worker's logs endpoint (requires running container)
          */
-        get: operations["getWorkerLogs"];
+        get: operations["getWorkerRuntimeLogs"];
         put?: never;
         post?: never;
         delete?: never;
@@ -144,7 +176,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workers/{worker_id}/logs/{filename}": {
+    "/workers/{worker_id}/runtime/logs/{filename}": {
         parameters: {
             query?: never;
             header?: never;
@@ -152,10 +184,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Worker log file
-         * @description Proxy to worker's log file endpoint
+         * Worker runtime log file
+         * @description Proxy to worker's log file endpoint (requires running container)
          */
-        get: operations["getWorkerLogFile"];
+        get: operations["getWorkerRuntimeLogFile"];
         put?: never;
         post?: never;
         delete?: never;
@@ -164,7 +196,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workers/{worker_id}/flow": {
+    "/workers/{worker_id}/runtime/flow": {
         parameters: {
             query?: never;
             header?: never;
@@ -172,10 +204,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Worker flow configuration
-         * @description Proxy to worker's flow endpoint
+         * Worker runtime flow execution state
+         * @description Proxy to worker's flow endpoint (requires running container)
          */
-        get: operations["getWorkerFlow"];
+        get: operations["getWorkerRuntimeFlow"];
         put?: never;
         post?: never;
         delete?: never;
@@ -184,7 +216,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workers/{worker_id}/flow/steps": {
+    "/workers/{worker_id}/runtime/flow/steps": {
         parameters: {
             query?: never;
             header?: never;
@@ -192,10 +224,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Worker flow steps
-         * @description Proxy to worker's flow steps endpoint
+         * Worker runtime flow steps
+         * @description Proxy to worker's flow steps endpoint with execution details (requires running container)
          */
-        get: operations["getWorkerFlowSteps"];
+        get: operations["getWorkerRuntimeFlowSteps"];
         put?: never;
         post?: never;
         delete?: never;
@@ -204,7 +236,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workers/{worker_id}/metrics": {
+    "/workers/{worker_id}/runtime/metrics": {
         parameters: {
             query?: never;
             header?: never;
@@ -212,10 +244,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Worker metrics
-         * @description Proxy to worker's metrics endpoint
+         * Worker runtime metrics
+         * @description Proxy to worker's metrics endpoint (requires running container)
          */
-        get: operations["getWorkerMetrics"];
+        get: operations["getWorkerRuntimeMetrics"];
         put?: never;
         post?: never;
         delete?: never;
@@ -364,6 +396,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workers/{worker_id}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get worker settings
+         * @description Returns detailed settings for a specific worker
+         */
+        get: operations["getWorkerSettings"];
+        /**
+         * Update worker settings
+         * @description Updates settings for a specific worker
+         */
+        put: operations["updateWorkerSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -387,7 +443,7 @@ export interface components {
             message?: string;
         };
         WorkersResponse: {
-            workers: components["schemas"]["WorkerDetails"][];
+            workers: components["schemas"]["WorkerResponse"][];
             /** @description Total number of configured workers */
             total: number;
             /**
@@ -677,6 +733,247 @@ export interface components {
              */
             timestamp: string;
         };
+        CreateWorkerRequest: {
+            /** @description Worker name (must be unique) */
+            name: string;
+            /** @description Worker-specific prompt */
+            prompt: string;
+            /**
+             * @description Whether the worker is enabled
+             * @default true
+             */
+            enabled: boolean;
+            settings?: components["schemas"]["WorkerSettingsInput"];
+        };
+        UpdateWorkerRequest: {
+            /** @description Worker name (must be unique) */
+            name?: string;
+            /** @description Worker-specific prompt */
+            prompt?: string;
+            /** @description Whether the worker is enabled */
+            enabled?: boolean;
+            settings?: components["schemas"]["WorkerSettingsInput"];
+        };
+        WorkerResponse: {
+            /**
+             * Format: uuid
+             * @description Worker UUID
+             */
+            id: string;
+            /** @description Worker name */
+            name: string;
+            /** @description Worker-specific prompt */
+            prompt: string;
+            /** @description Whether the worker is enabled */
+            enabled: boolean;
+            /**
+             * Format: date-time
+             * @description Worker creation timestamp
+             */
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description Worker last update timestamp
+             */
+            updated_at: string;
+            settings?: components["schemas"]["WorkerSettingsOutput"];
+        };
+        WorkerSettingsResponse: {
+            settings: components["schemas"]["WorkerSettingsOutput"];
+            /**
+             * Format: date-time
+             * @description Response timestamp
+             */
+            timestamp: string;
+        };
+        UpdateWorkerSettingsRequest: {
+            /** @description Sleep duration between flow executions in seconds */
+            sleep_duration?: number;
+            /** @description Team name for this worker */
+            team_name?: string;
+            /** @description Whether to install dependencies */
+            install_deps?: boolean;
+            /** @description Common prompt shared across all steps */
+            common_prompt?: string;
+            /** @description Maximum retry attempts for failed operations */
+            max_attempts?: number;
+            /** @description Service configuration options */
+            service?: {
+                [key: string]: unknown;
+            };
+            /** @description Model Context Protocol server configurations */
+            mcp_servers?: {
+                [key: string]: components["schemas"]["MCPServerConfig"];
+            };
+            /** @description Enable debug mode */
+            debug?: boolean;
+            /** @description Metadata and additional configuration */
+            meta?: {
+                [key: string]: unknown;
+            };
+            /** @description Flow steps configuration */
+            flow?: components["schemas"]["FlowStepInput"][];
+        };
+        WorkerSettingsInput: {
+            /** @description Sleep duration between flow executions in seconds */
+            sleep_duration?: number;
+            /** @description Team name for this worker */
+            team_name?: string;
+            /** @description Whether to install dependencies */
+            install_deps?: boolean;
+            /** @description Common prompt shared across all steps */
+            common_prompt?: string;
+            /** @description Maximum retry attempts for failed operations */
+            max_attempts?: number;
+            /** @description Service configuration options */
+            service?: {
+                [key: string]: unknown;
+            };
+            /** @description Model Context Protocol server configurations */
+            mcp_servers?: {
+                [key: string]: components["schemas"]["MCPServerConfig"];
+            };
+            /** @description Enable debug mode */
+            debug?: boolean;
+            /** @description Metadata and additional configuration */
+            meta?: {
+                [key: string]: unknown;
+            };
+            /** @description Flow steps configuration */
+            flow?: components["schemas"]["FlowStepInput"][];
+        };
+        WorkerSettingsOutput: {
+            /**
+             * Format: uuid
+             * @description Settings UUID
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description Worker UUID
+             */
+            worker_id: string;
+            /** @description Sleep duration between flow executions in seconds */
+            sleep_duration: number;
+            /** @description Team name for this worker */
+            team_name: string;
+            /** @description Whether to install dependencies */
+            install_deps?: boolean;
+            /** @description Common prompt shared across all steps */
+            common_prompt?: string;
+            /** @description Maximum retry attempts for failed operations */
+            max_attempts?: number;
+            /** @description Service configuration options */
+            service?: {
+                [key: string]: unknown;
+            };
+            /** @description Model Context Protocol server configurations */
+            mcp_servers?: {
+                [key: string]: components["schemas"]["MCPServerConfig"];
+            };
+            /** @description Enable debug mode */
+            debug?: boolean;
+            /** @description Metadata and additional configuration */
+            meta?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Format: date-time
+             * @description Settings creation timestamp
+             */
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description Settings last update timestamp
+             */
+            updated_at: string;
+            /** @description Flow steps configuration */
+            flow?: components["schemas"]["FlowStepOutput"][];
+        };
+        FlowStepInput: {
+            /** @description Unique step name */
+            name: string;
+            /** @description Agent type */
+            type: string;
+            /** @description Agent-specific arguments */
+            args?: string[];
+            /** @description Environment variables for the step */
+            env?: {
+                [key: string]: string;
+            };
+            /** @description List of step names this step depends on */
+            depends_on?: string[];
+            /** @description Input prompt for the step */
+            input?: string;
+            /** @description Output transformation template */
+            output?: string;
+            /** @description Skip condition template */
+            skip_when?: string;
+            /**
+             * @description Policy for handling dependency failures
+             * @enum {string}
+             */
+            dependency_policy?: "fail_fast" | "all_success" | "all_complete" | "any_success";
+            retry?: components["schemas"]["RetryConfig"];
+        };
+        FlowStepOutput: {
+            /**
+             * Format: uuid
+             * @description Step UUID
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description Worker UUID
+             */
+            worker_id: string;
+            /** @description Unique step name */
+            name: string;
+            /** @description Agent type */
+            type: string;
+            /** @description Execution order within worker */
+            order: number;
+            /** @description Agent-specific arguments */
+            args?: string[];
+            /** @description Environment variables for the step */
+            env?: {
+                [key: string]: string;
+            };
+            /** @description List of step names this step depends on */
+            depends_on?: string[];
+            /** @description Input prompt for the step */
+            input?: string;
+            /** @description Output transformation template */
+            output?: string;
+            /** @description Skip condition template */
+            skip_when?: string;
+            /**
+             * @description Policy for handling dependency failures
+             * @enum {string}
+             */
+            dependency_policy?: "fail_fast" | "all_success" | "all_complete" | "any_success";
+            retry?: components["schemas"]["RetryConfig"];
+            /**
+             * Format: date-time
+             * @description Step creation timestamp
+             */
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description Step last update timestamp
+             */
+            updated_at: string;
+        };
+        MCPServerConfig: {
+            /** @description Command to run the MCP server */
+            command: string;
+            /** @description Command arguments */
+            args?: string[];
+            /** @description Environment variables */
+            env?: {
+                [key: string]: string;
+            };
+        };
         ErrorResponse: {
             /** @description Error message */
             error: string;
@@ -755,6 +1052,57 @@ export interface operations {
             };
         };
     };
+    createWorker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWorkerRequest"];
+            };
+        };
+        responses: {
+            /** @description Worker created successfully */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerResponse"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Worker name already exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getWorker: {
         parameters: {
             query?: never;
@@ -768,6 +1116,149 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Worker details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerResponse"];
+                };
+            };
+            /** @description Worker not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateWorker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Worker ID */
+                worker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateWorkerRequest"];
+            };
+        };
+        responses: {
+            /** @description Worker updated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerResponse"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Worker not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Worker name already exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteWorker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Worker ID */
+                worker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Worker deleted successfully */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Worker not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getWorkerRuntime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Worker ID */
+                worker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Worker runtime information */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -796,7 +1287,7 @@ export interface operations {
             };
         };
     };
-    getWorkerHealth: {
+    getWorkerRuntimeHealth: {
         parameters: {
             query?: never;
             header?: never;
@@ -835,7 +1326,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Worker unreachable */
+            /** @description Worker unreachable (container not running) */
             502: {
                 headers: {
                     [name: string]: unknown;
@@ -846,7 +1337,7 @@ export interface operations {
             };
         };
     };
-    getWorkerStatus: {
+    getWorkerRuntimeStatus: {
         parameters: {
             query?: never;
             header?: never;
@@ -876,7 +1367,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Worker unreachable */
+            /** @description Worker unreachable (container not running) */
             502: {
                 headers: {
                     [name: string]: unknown;
@@ -887,7 +1378,7 @@ export interface operations {
             };
         };
     };
-    getWorkerConfig: {
+    getWorkerRuntimeConfig: {
         parameters: {
             query?: never;
             header?: never;
@@ -917,7 +1408,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Worker unreachable */
+            /** @description Worker unreachable (container not running) */
             502: {
                 headers: {
                     [name: string]: unknown;
@@ -928,7 +1419,7 @@ export interface operations {
             };
         };
     };
-    getWorkerLogs: {
+    getWorkerRuntimeLogs: {
         parameters: {
             query?: {
                 /** @description Filter logs by role (collector, executor, both) */
@@ -963,7 +1454,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Worker unreachable */
+            /** @description Worker unreachable (container not running) */
             502: {
                 headers: {
                     [name: string]: unknown;
@@ -974,7 +1465,7 @@ export interface operations {
             };
         };
     };
-    getWorkerLogFile: {
+    getWorkerRuntimeLogFile: {
         parameters: {
             query?: {
                 /** @description Number of last lines to return */
@@ -1009,7 +1500,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Worker unreachable */
+            /** @description Worker unreachable (container not running) */
             502: {
                 headers: {
                     [name: string]: unknown;
@@ -1020,7 +1511,7 @@ export interface operations {
             };
         };
     };
-    getWorkerFlow: {
+    getWorkerRuntimeFlow: {
         parameters: {
             query?: never;
             header?: never;
@@ -1032,7 +1523,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Worker flow configuration */
+            /** @description Worker flow execution state */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1050,7 +1541,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Worker unreachable */
+            /** @description Worker unreachable (container not running) */
             502: {
                 headers: {
                     [name: string]: unknown;
@@ -1061,7 +1552,7 @@ export interface operations {
             };
         };
     };
-    getWorkerFlowSteps: {
+    getWorkerRuntimeFlowSteps: {
         parameters: {
             query?: never;
             header?: never;
@@ -1073,7 +1564,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Worker flow steps */
+            /** @description Worker flow steps with execution details */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1091,7 +1582,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Worker unreachable */
+            /** @description Worker unreachable (container not running) */
             502: {
                 headers: {
                     [name: string]: unknown;
@@ -1102,7 +1593,7 @@ export interface operations {
             };
         };
     };
-    getWorkerMetrics: {
+    getWorkerRuntimeMetrics: {
         parameters: {
             query?: never;
             header?: never;
@@ -1132,7 +1623,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Worker unreachable */
+            /** @description Worker unreachable (container not running) */
             502: {
                 headers: {
                     [name: string]: unknown;
@@ -1375,6 +1866,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActionResponse"];
+                };
+            };
+            /** @description Worker not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getWorkerSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Worker ID */
+                worker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Worker settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerSettingsResponse"];
+                };
+            };
+            /** @description Worker not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateWorkerSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Worker ID */
+                worker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateWorkerSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Worker settings updated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerSettingsResponse"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Worker not found */

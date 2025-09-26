@@ -1,5 +1,5 @@
-import React, { createContext, useEffect, useState, ReactNode } from 'react';
-import { Box, CircularProgress, Alert, Typography } from '@mui/material';
+import React, { createContext, useEffect, useState, ReactNode } from "react";
+import { Box, CircularProgress, Alert, Typography } from "@mui/material";
 
 export interface Config {
   apiUrl: string;
@@ -25,35 +25,35 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const response = await fetch('/config.json');
+        const response = await fetch("/config.json");
         if (!response.ok) {
           throw new Error(`Failed to load config: ${response.status}`);
         }
         const configData = await response.json();
-        
+
         // Validate required fields
         if (!configData.apiUrl) {
-          throw new Error('Config missing required field: apiUrl');
+          throw new Error("Config missing required field: apiUrl");
         }
-        
+
         setConfig(configData);
-        
+
         // Set document title if provided
         if (configData.title) {
           document.title = configData.title;
         }
       } catch (err) {
-        console.error('Failed to load configuration:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
-        
+        console.error("Failed to load configuration:", err);
+        setError(err instanceof Error ? err.message : "Unknown error");
+
         // Fallback configuration for development
         const fallbackConfig = {
-          apiUrl: 'http://localhost:9090',
-          title: 'AutoTeam Dashboard (Fallback)',
-          version: 'dev'
+          apiUrl: "http://localhost:9090",
+          title: "AutoTeam Dashboard (Fallback)",
+          version: "dev",
         };
-        
-        console.warn('Using fallback configuration:', fallbackConfig);
+
+        console.warn("Using fallback configuration:", fallbackConfig);
         setConfig(fallbackConfig);
       } finally {
         setLoading(false);
@@ -65,11 +65,11 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
   if (loading) {
     return (
-      <Box 
-        display="flex" 
+      <Box
+        display="flex"
         flexDirection="column"
-        justifyContent="center" 
-        alignItems="center" 
+        justifyContent="center"
+        alignItems="center"
         minHeight="100vh"
         gap={2}
       >
@@ -83,10 +83,10 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
   if (!config) {
     return (
-      <Box 
-        display="flex" 
-        justifyContent="center" 
-        alignItems="center" 
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
         minHeight="100vh"
         p={4}
       >
@@ -95,7 +95,8 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
             Configuration Error
           </Typography>
           <Typography variant="body2">
-            {error || 'Failed to load dashboard configuration. Please check the server status.'}
+            {error ||
+              "Failed to load dashboard configuration. Please check the server status."}
           </Typography>
         </Alert>
       </Box>
@@ -108,4 +109,3 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     </ConfigContext.Provider>
   );
 };
-

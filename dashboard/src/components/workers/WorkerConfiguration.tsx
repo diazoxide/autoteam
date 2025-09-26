@@ -47,12 +47,14 @@ export const WorkerConfiguration: React.FC<WorkerConfigurationProps> = ({
   configData,
   configLoading,
 }) => {
-  const [expandedSections, setExpandedSections] = useState<{[key: string]: boolean}>({});
+  const [expandedSections, setExpandedSections] = useState<{
+    [key: string]: boolean;
+  }>({});
 
   const toggleExpanded = (section: string) => {
-    setExpandedSections(prev => ({
+    setExpandedSections((prev) => ({
       ...prev,
-      [section]: !prev[section]
+      [section]: !prev[section],
     }));
   };
 
@@ -65,35 +67,50 @@ export const WorkerConfiguration: React.FC<WorkerConfigurationProps> = ({
       {/* Agent Configuration */}
       {configData?.data?.agent && (
         <Card>
-          <CardHeader 
-            title="Agent Configuration" 
+          <CardHeader
+            title="Agent Configuration"
             avatar={<CodeIcon />}
             action={
-              <IconButton onClick={() => toggleExpanded('agent')}>
-                {expandedSections['agent'] ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              <IconButton onClick={() => toggleExpanded("agent")}>
+                {expandedSections["agent"] ? (
+                  <ExpandLessIcon />
+                ) : (
+                  <ExpandMoreIcon />
+                )}
               </IconButton>
             }
           />
-          <Collapse in={expandedSections['agent']}>
+          <Collapse in={expandedSections["agent"]}>
             <CardContent>
               <Stack spacing={2}>
                 <Box>
-                  <Typography variant="subtitle2" gutterBottom>Name</Typography>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Name
+                  </Typography>
                   <Chip label={configData.data.agent?.name || "Unknown"} />
                 </Box>
                 <Box>
-                  <Typography variant="subtitle2" gutterBottom>Type</Typography>
-                  <Chip label={configData.data.agent?.type || "Unknown"} color="primary" />
+                  <Typography variant="subtitle2" gutterBottom>
+                    Type
+                  </Typography>
+                  <Chip
+                    label={configData.data.agent?.type || "Unknown"}
+                    color="primary"
+                  />
                 </Box>
                 {configData.data.agent?.args && (
                   <Box>
-                    <Typography variant="subtitle2" gutterBottom>Arguments</Typography>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Arguments
+                    </Typography>
                     <List dense>
-                      {configData.data.agent.args.map((arg: string, index: number) => (
-                        <ListItem key={index}>
-                          <ListItemText primary={arg} />
-                        </ListItem>
-                      ))}
+                      {configData.data.agent.args.map(
+                        (arg: string, index: number) => (
+                          <ListItem key={index}>
+                            <ListItemText primary={arg} />
+                          </ListItem>
+                        )
+                      )}
                     </List>
                   </Box>
                 )}
@@ -106,31 +123,38 @@ export const WorkerConfiguration: React.FC<WorkerConfigurationProps> = ({
       {/* Prompts */}
       {configData?.data?.prompts && (
         <Card>
-          <CardHeader 
-            title="Prompts" 
+          <CardHeader
+            title="Prompts"
             avatar={<CodeIcon />}
             action={
-              <IconButton onClick={() => toggleExpanded('prompts')}>
-                {expandedSections['prompts'] ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              <IconButton onClick={() => toggleExpanded("prompts")}>
+                {expandedSections["prompts"] ? (
+                  <ExpandLessIcon />
+                ) : (
+                  <ExpandMoreIcon />
+                )}
               </IconButton>
             }
           />
-          <Collapse in={expandedSections['prompts']}>
+          <Collapse in={expandedSections["prompts"]}>
             <CardContent>
               <Stack spacing={2}>
                 {Object.entries(configData.data.prompts).map(([key, value]) => (
                   <Box key={key}>
                     <Typography variant="subtitle2" gutterBottom>
-                      {key.replace(/_/g, ' ').toUpperCase()}
+                      {key.replace(/_/g, " ").toUpperCase()}
                     </Typography>
                     <TextField
                       multiline
                       rows={4}
                       fullWidth
-                      value={value as string || ""}
+                      value={(value as string) || ""}
                       InputProps={{
                         readOnly: true,
-                        style: { fontFamily: 'monospace', fontSize: '0.875rem' }
+                        style: {
+                          fontFamily: "monospace",
+                          fontSize: "0.875rem",
+                        },
                       }}
                       variant="outlined"
                     />
@@ -143,9 +167,7 @@ export const WorkerConfiguration: React.FC<WorkerConfigurationProps> = ({
       )}
 
       {!configData?.data && !configLoading && (
-        <Alert severity="info">
-          No configuration data available
-        </Alert>
+        <Alert severity="info">No configuration data available</Alert>
       )}
     </Stack>
   );
