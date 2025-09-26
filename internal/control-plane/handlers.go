@@ -818,7 +818,9 @@ func (h *Handlers) CreateWorker(ctx echo.Context) error {
 
 	// Register worker with registry for deployment
 	if h.registry != nil {
-		h.registry.RefreshFromDatabase(ctx.Request().Context())
+		if refreshErr := h.registry.RefreshFromDatabase(ctx.Request().Context()); refreshErr != nil {
+			log.Warn("Failed to refresh registry from database", zap.Error(refreshErr))
+		}
 	}
 
 	log.Info("Worker created successfully", zap.String("worker_id", createdWorker.ID.String()), zap.String("name", createdWorker.Name))
@@ -836,14 +838,14 @@ func (h *Handlers) UpdateWorker(ctx echo.Context, workerID string) error {
 	}
 
 	var req types.UpdateWorkerRequest
-	if err := ctx.Bind(&req); err != nil {
-		log.Warn("Invalid update worker request", zap.Error(err))
+	if bindErr := ctx.Bind(&req); bindErr != nil {
+		log.Warn("Invalid update worker request", zap.Error(bindErr))
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 
 	// Validate request
-	if err := validateUpdateWorkerRequest(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if validationErr := validateUpdateWorkerRequest(&req); validationErr != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, validationErr.Error())
 	}
 
 	// Get existing worker
@@ -903,7 +905,9 @@ func (h *Handlers) UpdateWorker(ctx echo.Context, workerID string) error {
 
 	// Refresh registry and potentially redeploy if worker is running
 	if h.registry != nil {
-		h.registry.RefreshFromDatabase(ctx.Request().Context())
+		if refreshErr := h.registry.RefreshFromDatabase(ctx.Request().Context()); refreshErr != nil {
+			log.Warn("Failed to refresh registry from database", zap.Error(refreshErr))
+		}
 	}
 
 	log.Info("Worker updated successfully", zap.String("worker_id", id.String()))
@@ -945,7 +949,9 @@ func (h *Handlers) DeleteWorker(ctx echo.Context, workerID string) error {
 
 	// Remove from registry
 	if h.registry != nil {
-		h.registry.RefreshFromDatabase(ctx.Request().Context())
+		if refreshErr := h.registry.RefreshFromDatabase(ctx.Request().Context()); refreshErr != nil {
+			log.Warn("Failed to refresh registry from database", zap.Error(refreshErr))
+		}
 	}
 
 	log.Info("Worker deleted successfully", zap.String("worker_id", id.String()), zap.String("name", workerName))
@@ -998,8 +1004,8 @@ func (h *Handlers) UpdateWorkerSettings(ctx echo.Context, workerID string) error
 	}
 
 	var req controlplaneapi.UpdateWorkerSettingsRequest
-	if err := ctx.Bind(&req); err != nil {
-		log.Warn("Invalid update worker settings request", zap.Error(err))
+	if bindErr := ctx.Bind(&req); bindErr != nil {
+		log.Warn("Invalid update worker settings request", zap.Error(bindErr))
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 
@@ -1186,7 +1192,9 @@ func (h *Handlers) UpdateWorkerSettings(ctx echo.Context, workerID string) error
 
 	// Refresh registry and potentially redeploy if worker is running
 	if h.registry != nil {
-		h.registry.RefreshFromDatabase(ctx.Request().Context())
+		if refreshErr := h.registry.RefreshFromDatabase(ctx.Request().Context()); refreshErr != nil {
+			log.Warn("Failed to refresh registry from database", zap.Error(refreshErr))
+		}
 	}
 
 	log.Info("Worker settings updated successfully", zap.String("worker_id", id.String()))
