@@ -860,9 +860,9 @@ func (h *Handlers) UpdateWorker(ctx echo.Context, workerID string) error {
 
 	// Check if new name conflicts with existing workers
 	if req.Name != nil && *req.Name != existingWorker.Name {
-		exists, err := h.workerRepo.ExistsByName(ctx.Request().Context(), *req.Name)
-		if err != nil {
-			log.Error("Failed to check worker name existence", zap.Error(err))
+		exists, checkErr := h.workerRepo.ExistsByName(ctx.Request().Context(), *req.Name)
+		if checkErr != nil {
+			log.Error("Failed to check worker name existence", zap.Error(checkErr))
 			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to check worker name")
 		}
 		if exists {
