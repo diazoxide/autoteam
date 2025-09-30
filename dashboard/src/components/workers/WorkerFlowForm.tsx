@@ -13,9 +13,9 @@ import { useCustomMutation } from "@refinedev/core";
 
 interface WorkerFlowFormProps {
   workerId?: string;
-  initialFlowData?: any[];
+  initialFlowData?: unknown[];
   onSuccess?: () => void;
-  onError?: (error: any) => void;
+  onError?: (error: unknown) => void;
 }
 
 export const WorkerFlowForm: React.FC<WorkerFlowFormProps> = ({
@@ -24,15 +24,13 @@ export const WorkerFlowForm: React.FC<WorkerFlowFormProps> = ({
   onSuccess,
   onError,
 }) => {
-  const [submitError, setSubmitError] = React.useState<any>(null);
+  const [submitError, setSubmitError] = React.useState<Error | null>(null);
 
   const {
     control,
     handleSubmit,
-    formState: { errors, isSubmitting },
     reset,
-    getValues,
-  } = useForm<{ settings: { flow: any[] } }>({
+  } = useForm<{ settings: { flow: unknown[] } }>({
     defaultValues: {
       settings: {
         flow: [],
@@ -54,7 +52,7 @@ export const WorkerFlowForm: React.FC<WorkerFlowFormProps> = ({
     }
   }, [initialFlowData, reset]);
 
-  const onSubmit = async (formData: any) => {
+  const onSubmit = async (formData: { settings: { flow: unknown[] } }) => {
     if (!workerId) {
       setSubmitError(new Error("Worker ID is required"));
       return;
@@ -64,21 +62,22 @@ export const WorkerFlowForm: React.FC<WorkerFlowFormProps> = ({
 
     try {
       // Transform form data to API format
-      const transformedFlow = formData.settings.flow.map((step: any) => {
+      const transformedFlow = formData.settings.flow.map((step: unknown) => {
+        const stepData = step as { env?: unknown; [key: string]: unknown };
         // Transform env from form array format [{key, value}] to API object format {KEY: "value"}
         let envObject: { [key: string]: string } = {};
-        if (Array.isArray(step.env)) {
-          step.env.forEach((envVar: { key: string; value: string }) => {
+        if (Array.isArray(stepData.env)) {
+          stepData.env.forEach((envVar: { key: string; value: string }) => {
             if (envVar.key && envVar.key.trim()) {
               envObject[envVar.key] = envVar.value || "";
             }
           });
-        } else if (step.env && typeof step.env === "object") {
-          envObject = step.env;
+        } else if (stepData.env && typeof stepData.env === "object") {
+          envObject = stepData.env as { [key: string]: string };
         }
 
         return {
-          ...step,
+          ...stepData,
           env: envObject,
         };
       });
@@ -107,9 +106,9 @@ export const WorkerFlowForm: React.FC<WorkerFlowFormProps> = ({
           },
         }
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Flow configuration save error:", error);
-      setSubmitError(error);
+      setSubmitError(error as Error);
       onError?.(error);
     }
   };

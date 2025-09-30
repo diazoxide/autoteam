@@ -6,7 +6,6 @@ import {
   Tabs,
   Tab,
   Typography,
-  Alert,
 } from "@mui/material";
 import { WorkerBasicSettingsForm } from "../../components/workers/WorkerBasicSettingsForm";
 import { WorkerFlowForm } from "../../components/workers/WorkerFlowForm";
@@ -65,7 +64,7 @@ export const WorkersEdit = () => {
     setRefreshKey(prev => prev + 1);
   };
 
-  const handleError = (error: any) => {
+  const handleError = (error: unknown) => {
     console.error("Save error:", error);
   };
 
@@ -80,22 +79,23 @@ export const WorkersEdit = () => {
   const flowData = React.useMemo(() => {
     if (!workerSettings?.settings?.flow) return [];
 
-    return workerSettings.settings.flow.map((step: any) => {
+    return workerSettings.settings.flow.map((step: unknown) => {
+      const stepData = step as { env?: unknown; [key: string]: unknown };
       // Transform env from API object format {KEY: "value"} to form array format [{key: "KEY", value: "value"}]
       let envArray: Array<{ key: string; value: string }> = [];
       if (
-        step.env &&
-        typeof step.env === "object" &&
-        !Array.isArray(step.env)
+        stepData.env &&
+        typeof stepData.env === "object" &&
+        !Array.isArray(stepData.env)
       ) {
-        envArray = Object.entries(step.env).map(([key, value]) => ({
+        envArray = Object.entries(stepData.env as Record<string, unknown>).map(([key, value]) => ({
           key,
           value: String(value || ""),
         }));
       }
 
       return {
-        ...step,
+        ...stepData,
         env: envArray,
       };
     });

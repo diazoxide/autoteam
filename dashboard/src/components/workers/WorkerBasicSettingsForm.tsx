@@ -20,8 +20,8 @@ interface WorkerBasicSettingsFormProps {
     prompt: string;
     enabled: boolean;
   };
-  onSuccess?: (data?: any) => void;
-  onError?: (error: any) => void;
+  onSuccess?: (data?: unknown) => void;
+  onError?: (error: unknown) => void;
 }
 
 export const WorkerBasicSettingsForm: React.FC<WorkerBasicSettingsFormProps> = ({
@@ -30,7 +30,7 @@ export const WorkerBasicSettingsForm: React.FC<WorkerBasicSettingsFormProps> = (
   onSuccess,
   onError,
 }) => {
-  const [submitError, setSubmitError] = React.useState<any>(null);
+  const [submitError, setSubmitError] = React.useState<Error | null>(null);
 
   const {
     saveButtonProps,
@@ -83,9 +83,9 @@ export const WorkerBasicSettingsForm: React.FC<WorkerBasicSettingsFormProps> = (
         if (saveButtonProps.onClick && event) {
           await saveButtonProps.onClick(event);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Basic settings save error:", error);
-        setSubmitError(error);
+        setSubmitError(error as Error);
       }
     },
   };
@@ -135,8 +135,8 @@ export const WorkerBasicSettingsForm: React.FC<WorkerBasicSettingsFormProps> = (
               return true;
             },
           })}
-          error={!!(errors as any)?.name}
-          helperText={(errors as any)?.name?.message}
+          error={!!errors?.name}
+          helperText={errors?.name?.message}
           margin="normal"
           fullWidth
           InputLabelProps={{ shrink: true }}
@@ -165,9 +165,9 @@ export const WorkerBasicSettingsForm: React.FC<WorkerBasicSettingsFormProps> = (
               return true;
             },
           })}
-          error={!!(errors as any)?.prompt}
+          error={!!errors?.prompt}
           helperText={
-            (errors as any)?.prompt?.message ||
+            errors?.prompt?.message ||
             "Describe what this worker should do. Be specific about the worker's role and responsibilities."
           }
           margin="normal"

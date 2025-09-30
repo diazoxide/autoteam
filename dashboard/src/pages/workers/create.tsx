@@ -42,10 +42,10 @@ export const WorkersCreate = () => {
     setTabValue(newValue);
   };
 
-  const handleBasicSettingsSuccess = (data?: any) => {
+  const handleBasicSettingsSuccess = (data?: unknown) => {
     console.log("Worker created successfully:", data);
     // Extract worker ID from the response to enable flow configuration
-    const workerId = data?.data?.id || data?.id;
+    const workerId = (data as { data?: { id?: string }; id?: string })?.data?.id || (data as { id?: string })?.id;
     if (workerId) {
       setCreatedWorkerId(workerId);
       setShowFlowTab(true);
@@ -62,7 +62,7 @@ export const WorkersCreate = () => {
     }
   };
 
-  const handleError = (error: any) => {
+  const handleError = (error: unknown) => {
     console.error("Save error:", error);
   };
 
