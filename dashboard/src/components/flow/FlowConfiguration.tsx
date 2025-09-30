@@ -82,11 +82,11 @@ export const FlowConfiguration: React.FC<FlowConfigurationProps> = ({
   }, [flowSteps, flowFields.length, replaceFields]);
 
   const handleAddStep = () => {
-    const newStep: FlowStepInput = {
+    const newStep: any = { // Use any type to allow form-compatible structure
       name: `step_${flowFields.length + 1}`,
       type: "claude",
       args: [],
-      env: {},
+      env: [], // Use array format for form compatibility - data provider converts to API format
       depends_on: [],
       input: "",
       output: "",
