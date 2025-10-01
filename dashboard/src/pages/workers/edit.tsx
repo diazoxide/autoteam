@@ -6,11 +6,12 @@ import {
   Tabs,
   Tab,
   Typography,
+  Alert,
 } from "@mui/material";
 import { WorkerBasicSettingsForm } from "../../components/workers/WorkerBasicSettingsForm";
 import { WorkerFlowForm } from "../../components/workers/WorkerFlowForm";
 import { useWorkerSettings } from "../../hooks/api/useWorkerApi";
-import { useParams } from "react-router";
+import { useParams, useSearchParams } from "react-router-dom";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -34,9 +35,24 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export const WorkersEdit = () => {
-  const [tabValue, setTabValue] = React.useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tabValue, setTabValue] = React.useState(() => {
+    // Check if we should open flow tab (from create page redirect)
+    return searchParams.get('tab') === 'flow' ? 1 : 0;
+  });
   const [refreshKey, setRefreshKey] = React.useState(0);
+  const [showSuccessMessage, setShowSuccessMessage] = React.useState(() => {
+    // Show success message if coming from create page
+    return searchParams.get('tab') === 'flow';
+  });
   const { id } = useParams();
+
+  // Clear the tab query parameter after reading it
+  React.useEffect(() => {
+    if (searchParams.get('tab') === 'flow') {
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Fetch worker basic data
   const { data: workerData, isLoading: workerLoading, refetch: refetchWorker } = useOne({
@@ -132,6 +148,15 @@ export const WorkersEdit = () => {
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
+          {showSuccessMessage && (
+            <Alert
+              severity="success"
+              sx={{ mb: 3 }}
+              onClose={() => setShowSuccessMessage(false)}
+            >
+              Worker created successfully! Now you can configure the flow steps.
+            </Alert>
+          )}
           <WorkerFlowForm
             key={`flow-${refreshKey}`}
             workerId={id}

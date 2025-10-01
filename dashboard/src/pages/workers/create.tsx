@@ -47,10 +47,9 @@ export const WorkersCreate = () => {
     // Extract worker ID from the response to enable flow configuration
     const workerId = (data as { data?: { id?: string }; id?: string })?.data?.id || (data as { id?: string })?.id;
     if (workerId) {
-      setCreatedWorkerId(workerId);
-      setShowFlowTab(true);
-      // Switch to flow tab after successful creation
-      setTabValue(1);
+      console.log("Navigating to edit page for worker:", workerId);
+      // Navigate to edit page to configure flow
+      navigate(`/workers/edit/${workerId}?tab=flow`, { replace: true });
     }
   };
 

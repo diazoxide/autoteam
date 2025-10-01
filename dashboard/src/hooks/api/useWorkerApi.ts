@@ -136,6 +136,7 @@ export const useWorkerRuntimeConfig = (
 /**
  * Hook for worker settings from database (CRUD)
  * Always available, doesn't require running container
+ * Returns empty settings for new workers (404 is expected and handled gracefully)
  */
 export const useWorkerSettings = (
   workerId: string | undefined,
@@ -148,15 +149,27 @@ export const useWorkerSettings = (
       enabled: !!workerId && options?.enabled !== false,
       refetchInterval: options?.refetchInterval,
       onSuccess: options?.onSuccess,
-      onError: options?.onError,
+      onError: (error: unknown) => {
+        // 404 is expected for new workers without settings - don't treat as error
+        const httpError = error as { statusCode?: number };
+        if (httpError.statusCode !== 404) {
+          options?.onError?.(error);
+        }
+      },
+      retry: false, // Don't retry on 404
     },
   });
 
+  // Return empty settings for new workers (404)
+  const httpError = result.error as { statusCode?: number } | null;
+  const isNewWorker = httpError?.statusCode === 404;
+
   return {
-    data: result.data?.data,
+    data: isNewWorker ? { settings: {} } : result.data?.data,
     isLoading: result.isLoading,
-    error: result.error,
+    error: isNewWorker ? null : result.error,
     refetch: result.refetch,
+    isNewWorker,
   };
 };
 
