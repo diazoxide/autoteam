@@ -1,5 +1,6 @@
 import React from "react";
 import { useForm } from "@refinedev/react-hook-form";
+import { FieldValues, SubmitHandler } from "react-hook-form";
 import {
   Box,
   Button,
@@ -24,7 +25,7 @@ export const WorkerFlowForm: React.FC<WorkerFlowFormProps> = ({
   onSuccess,
   onError,
 }) => {
-  const [submitError, setSubmitError] = React.useState<Error | null>(null);
+  const [submitError, setSubmitError] = React.useState<unknown>(null);
 
   const {
     control,
@@ -52,7 +53,8 @@ export const WorkerFlowForm: React.FC<WorkerFlowFormProps> = ({
     }
   }, [initialFlowData, reset]);
 
-  const onSubmit = async (formData: { settings: { flow: unknown[] } }) => {
+  const onSubmit: SubmitHandler<FieldValues> = async (formData: FieldValues) => {
+    const typedFormData = formData as { settings: { flow: unknown[] } };
     if (!workerId) {
       setSubmitError(new Error("Worker ID is required"));
       return;
@@ -62,7 +64,7 @@ export const WorkerFlowForm: React.FC<WorkerFlowFormProps> = ({
 
     try {
       // Transform form data to API format
-      const transformedFlow = formData.settings.flow.map((step: unknown) => {
+      const transformedFlow = typedFormData.settings.flow.map((step: unknown) => {
         const stepData = step as { env?: unknown; [key: string]: unknown };
         // Transform env from form array format [{key, value}] to API object format {KEY: "value"}
         let envObject: { [key: string]: string } = {};
@@ -154,15 +156,15 @@ export const WorkerFlowForm: React.FC<WorkerFlowFormProps> = ({
       </Box>
 
       {/* Error Display */}
-      {submitError && (
+      {submitError ? (
         <Alert
           severity="error"
           sx={{ mb: 2 }}
           onClose={() => setSubmitError(null)}
         >
-          Failed to save flow configuration: {submitError?.message || "Unknown error"}
+          Failed to save flow configuration: {(submitError as { message?: string })?.message || "Unknown error"}
         </Alert>
-      )}
+      ) : null}
 
       <FlowConfiguration control={control} />
     </Box>

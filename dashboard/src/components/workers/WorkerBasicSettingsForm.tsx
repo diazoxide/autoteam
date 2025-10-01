@@ -30,7 +30,7 @@ export const WorkerBasicSettingsForm: React.FC<WorkerBasicSettingsFormProps> = (
   onSuccess,
   onError,
 }) => {
-  const [submitError, setSubmitError] = React.useState<Error | null>(null);
+  const [submitError, setSubmitError] = React.useState<unknown>(null);
 
   const {
     saveButtonProps,
@@ -97,15 +97,15 @@ export const WorkerBasicSettingsForm: React.FC<WorkerBasicSettingsFormProps> = (
       </Typography>
 
       {/* Error Display */}
-      {submitError && (
+      {submitError ? (
         <Alert
           severity="error"
           sx={{ mb: 2 }}
           onClose={() => setSubmitError(null)}
         >
-          Failed to save basic settings: {submitError?.message || "Unknown error"}
+          Failed to save basic settings: {(submitError as { message?: string })?.message || "Unknown error"}
         </Alert>
-      )}
+      ) : null}
 
       <Box
         component="form"
@@ -136,7 +136,7 @@ export const WorkerBasicSettingsForm: React.FC<WorkerBasicSettingsFormProps> = (
             },
           })}
           error={!!errors?.name}
-          helperText={errors?.name?.message}
+          helperText={errors?.name?.message ? String(errors.name.message) : undefined}
           margin="normal"
           fullWidth
           InputLabelProps={{ shrink: true }}
@@ -167,7 +167,7 @@ export const WorkerBasicSettingsForm: React.FC<WorkerBasicSettingsFormProps> = (
           })}
           error={!!errors?.prompt}
           helperText={
-            errors?.prompt?.message ||
+            errors?.prompt?.message ? String(errors.prompt.message) :
             "Describe what this worker should do. Be specific about the worker's role and responsibilities."
           }
           margin="normal"
