@@ -424,7 +424,7 @@ func (r *repositoryImpl) GetFlowStepsByWorkerID(ctx context.Context, workerID uu
 	lgr.Debug("Getting flow steps by worker ID", zap.String("worker_id", workerID.String()))
 
 	var flowSteps []FlowStep
-	err := r.db.WithContext(ctx).Where("worker_id = ?", workerID).Order("order ASC").Find(&flowSteps).Error
+	err := r.db.WithContext(ctx).Where("worker_id = ?", workerID).Order("`order` ASC").Find(&flowSteps).Error
 	if err != nil {
 		lgr.Error("Failed to get flow steps", zap.Error(err))
 		return nil, fmt.Errorf("failed to get flow steps for worker %s: %w", workerID.String(), err)

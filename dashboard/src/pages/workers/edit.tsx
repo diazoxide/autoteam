@@ -93,9 +93,10 @@ export const WorkersEdit = () => {
 
   // Transform flow steps from API format to form format
   const flowData = React.useMemo(() => {
-    if (!workerSettings?.settings?.flow) return [];
+    const settings = workerSettings?.settings as { flow?: unknown[] } | undefined;
+    if (!settings?.flow) return [];
 
-    return workerSettings.settings.flow.map((step: unknown) => {
+    return settings.flow.map((step: unknown) => {
       const stepData = step as { env?: unknown; [key: string]: unknown };
       // Transform env from API object format {KEY: "value"} to form array format [{key: "KEY", value: "value"}]
       let envArray: Array<{ key: string; value: string }> = [];
@@ -115,7 +116,7 @@ export const WorkersEdit = () => {
         env: envArray,
       };
     });
-  }, [workerSettings?.settings?.flow]);
+  }, [workerSettings?.settings]);
 
   if (workerLoading || settingsLoading) {
     return (

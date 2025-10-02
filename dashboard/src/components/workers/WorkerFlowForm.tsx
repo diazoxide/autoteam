@@ -89,16 +89,21 @@ export const WorkerFlowForm: React.FC<WorkerFlowFormProps> = ({
       };
 
       console.log("Saving flow configuration:", JSON.stringify(updateData, null, 2));
+      console.log("Request details:", {
+        url: `/workers/${workerId}/settings`,
+        method: "put",
+        values: updateData,
+      });
 
-      await updateWorkerSettings(
+      updateWorkerSettings(
         {
           url: `/workers/${workerId}/settings`,
           method: "put",
           values: updateData,
         },
         {
-          onSuccess: () => {
-            console.log("Flow configuration saved successfully");
+          onSuccess: (data) => {
+            console.log("Flow configuration saved successfully, response:", data);
             onSuccess?.();
           },
           onError: (error) => {
