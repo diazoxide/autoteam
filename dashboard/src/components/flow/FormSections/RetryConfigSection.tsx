@@ -37,7 +37,6 @@ export const RetryConfigSection: React.FC<RetryConfigSectionProps> = ({
         <Controller
           name={`settings.flow.${stepIndex}.retry.max_attempts`}
           control={control}
-          rules={{ valueAsNumber: true }}
           render={({ field }) => (
             <TextField
               {...field}
@@ -53,7 +52,6 @@ export const RetryConfigSection: React.FC<RetryConfigSectionProps> = ({
         <Controller
           name={`settings.flow.${stepIndex}.retry.delay`}
           control={control}
-          rules={{ valueAsNumber: true }}
           render={({ field }) => (
             <TextField
               {...field}
@@ -86,7 +84,6 @@ export const RetryConfigSection: React.FC<RetryConfigSectionProps> = ({
         <Controller
           name={`settings.flow.${stepIndex}.retry.max_delay`}
           control={control}
-          rules={{ valueAsNumber: true }}
           render={({ field }) => (
             <TextField
               {...field}
