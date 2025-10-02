@@ -267,14 +267,19 @@ export const createControlPlaneDataProvider = (
     },
 
     // Custom method for typed API endpoints
-    custom: async ({ url, method = "GET", payload, query, headers }) => {
+    custom: async (params: any) => {
+      console.log("custom() called with params:", JSON.stringify(params, null, 2));
+      // useCustomMutation sends data in 'payload' or 'values' depending on version
+      const { url, method = "GET", payload, values, query, headers } = params;
+      const requestData = payload || values;
+
       // Parse the URL to determine which typed method to use
       const urlPath = url.startsWith("/") ? url : `/${url}`;
 
       // Use typed client methods based on URL pattern
       if (urlPath === "/health") {
-        const data = await client.getHealth();
-        return { data };
+        const healthData = await client.getHealth();
+        return { data: healthData };
       }
 
       // Worker-specific endpoints
@@ -319,8 +324,19 @@ export const createControlPlaneDataProvider = (
             return { data: metricsData };
           }
           case "settings": {
-            const settingsData = await client.getWorkerSettings(workerId);
-            return { data: settingsData };
+            if (method.toUpperCase() === "PUT") {
+              // Handle PUT request for updating settings
+              console.log("PUT /workers/*/settings - requestData:", JSON.stringify(requestData, null, 2));
+              const settingsData = await client.updateWorkerSettings(
+                workerId,
+                requestData as components["schemas"]["UpdateWorkerSettingsRequest"]
+              );
+              return { data: settingsData };
+            } else {
+              // Handle GET request for fetching settings
+              const settingsData = await client.getWorkerSettings(workerId);
+              return { data: settingsData };
+            }
           }
           default:
             // Check if it's a runtime log file request
@@ -343,15 +359,15 @@ export const createControlPlaneDataProvider = (
           "Content-Type": "application/json",
           ...headers,
         },
-        body: payload ? JSON.stringify(payload) : undefined,
+        body: requestData ? JSON.stringify(requestData) : undefined,
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
-      return { data };
+      const responseData = await response.json();
+      return { data: responseData };
     },
 
     // CRUD operations

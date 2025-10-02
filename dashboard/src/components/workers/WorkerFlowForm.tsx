@@ -88,13 +88,6 @@ export const WorkerFlowForm: React.FC<WorkerFlowFormProps> = ({
         flow: transformedFlow,
       };
 
-      console.log("Saving flow configuration:", JSON.stringify(updateData, null, 2));
-      console.log("Request details:", {
-        url: `/workers/${workerId}/settings`,
-        method: "put",
-        values: updateData,
-      });
-
       updateWorkerSettings(
         {
           url: `/workers/${workerId}/settings`,
