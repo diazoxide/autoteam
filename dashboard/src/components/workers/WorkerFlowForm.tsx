@@ -65,7 +65,8 @@ export const WorkerFlowForm: React.FC<WorkerFlowFormProps> = ({
     try {
       // Transform form data to API format
       const transformedFlow = typedFormData.settings.flow.map((step: unknown) => {
-        const stepData = step as { env?: unknown; [key: string]: unknown };
+        const stepData = step as { env?: unknown; retry?: unknown; [key: string]: unknown };
+
         // Transform env from form array format [{key, value}] to API object format {KEY: "value"}
         let envObject: { [key: string]: string } = {};
         if (Array.isArray(stepData.env)) {
@@ -78,9 +79,19 @@ export const WorkerFlowForm: React.FC<WorkerFlowFormProps> = ({
           envObject = stepData.env as { [key: string]: string };
         }
 
+        // Transform retry fields to ensure numbers are numbers, not strings
+        const retryData = stepData.retry as { max_attempts?: unknown; delay?: unknown; max_delay?: unknown; backoff?: string } | undefined;
+        const retry = retryData ? {
+          max_attempts: retryData.max_attempts ? Number(retryData.max_attempts) : undefined,
+          delay: retryData.delay !== undefined && retryData.delay !== "" ? Number(retryData.delay) : undefined,
+          backoff: retryData.backoff,
+          max_delay: retryData.max_delay ? Number(retryData.max_delay) : undefined,
+        } : undefined;
+
         return {
           ...stepData,
           env: envObject,
+          retry,
         };
       });
 

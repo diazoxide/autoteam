@@ -37,6 +37,7 @@ export const RetryConfigSection: React.FC<RetryConfigSectionProps> = ({
         <Controller
           name={`settings.flow.${stepIndex}.retry.max_attempts`}
           control={control}
+          rules={{ valueAsNumber: true }}
           render={({ field }) => (
             <TextField
               {...field}
@@ -52,13 +53,14 @@ export const RetryConfigSection: React.FC<RetryConfigSectionProps> = ({
         <Controller
           name={`settings.flow.${stepIndex}.retry.delay`}
           control={control}
+          rules={{ valueAsNumber: true }}
           render={({ field }) => (
             <TextField
               {...field}
               label="Initial Delay (seconds)"
               type="number"
               size="small"
-              inputProps={{ min: 0 }}
+              inputProps={{ min: 0, max: 300 }}
               helperText="Initial delay before first retry"
             />
           )}
@@ -84,13 +86,14 @@ export const RetryConfigSection: React.FC<RetryConfigSectionProps> = ({
         <Controller
           name={`settings.flow.${stepIndex}.retry.max_delay`}
           control={control}
+          rules={{ valueAsNumber: true }}
           render={({ field }) => (
             <TextField
               {...field}
               label="Max Delay (seconds)"
               type="number"
               size="small"
-              inputProps={{ min: 0 }}
+              inputProps={{ min: 0, max: 3600 }}
               helperText="Maximum delay between retries"
             />
           )}
