@@ -209,7 +209,7 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
                         </Typography>
                       </Tooltip>
                     )}
-                    {step.last_execution && (
+                    {step.last_execution && step.last_execution !== "" && !isNaN(new Date(step.last_execution).getTime()) && (
                       <Typography
                         variant="body2"
                         color="textSecondary"

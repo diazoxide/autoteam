@@ -334,8 +334,16 @@ export const createControlPlaneDataProvider = (
               return { data: settingsData };
             } else {
               // Handle GET request for fetching settings
-              const settingsData = await client.getWorkerSettings(workerId);
-              return { data: settingsData };
+              try {
+                const settingsData = await client.getWorkerSettings(workerId);
+                return { data: settingsData };
+              } catch (error) {
+                // 404 is expected for new workers without settings - return empty settings
+                if (error instanceof ApiError && error.status === 404) {
+                  return { data: { settings: {} } };
+                }
+                throw error;
+              }
             }
           }
           default:

@@ -46,7 +46,10 @@ export const FlowStepForm: React.FC<FlowStepFormProps> = ({
         <IconButton
           color="error"
           size="small"
-          onClick={onRemove}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
           sx={{
             position: "absolute",
             top: 8,

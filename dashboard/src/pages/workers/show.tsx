@@ -3,7 +3,6 @@ import { Show } from "@refinedev/mui";
 import { useShow } from "@refinedev/core";
 import { Stack, Tabs, Tab, Box, CircularProgress, Alert } from "@mui/material";
 import InfoIcon from "@mui/icons-material/Info";
-import SettingsIcon from "@mui/icons-material/Settings";
 import FlowIcon from "@mui/icons-material/AccountTree";
 import MetricsIcon from "@mui/icons-material/Analytics";
 import LogsIcon from "@mui/icons-material/Description";
@@ -13,7 +12,6 @@ import { useParams } from "react-router";
 // Import modular components
 import {
   WorkerOverview,
-  WorkerConfiguration,
   WorkerFlowSteps,
   WorkerMetrics,
   WorkerLogs,
@@ -24,7 +22,6 @@ import { a11yProps } from "../../utils/tabUtils";
 import {
   useWorkerRuntimeHealth,
   useWorkerRuntimeStatus,
-  useWorkerRuntimeConfig,
   useWorkerRuntimeFlow,
   useWorkerRuntimeFlowSteps,
   useWorkerRuntimeMetrics,
@@ -56,12 +53,6 @@ export const WorkersShow = () => {
 
   // Get worker status details - only if deployed
   const { data: statusData, isLoading: statusLoading } = useWorkerRuntimeStatus(
-    id,
-    { enabled: isWorkerDeployed }
-  );
-
-  // Get worker configuration - only if deployed
-  const { data: configData, isLoading: configLoading } = useWorkerRuntimeConfig(
     id,
     { enabled: isWorkerDeployed }
   );
@@ -118,15 +109,10 @@ export const WorkersShow = () => {
             scrollButtons="auto"
           >
             <Tab icon={<InfoIcon />} label="Overview" {...a11yProps(0)} />
-            <Tab
-              icon={<SettingsIcon />}
-              label="Configuration"
-              {...a11yProps(1)}
-            />
-            <Tab icon={<FlowIcon />} label="Flow" {...a11yProps(2)} />
-            <Tab icon={<MetricsIcon />} label="Metrics" {...a11yProps(3)} />
-            <Tab icon={<LogsIcon />} label="Logs" {...a11yProps(4)} />
-            <Tab icon={<PlayArrowIcon />} label="Actions" {...a11yProps(5)} />
+            <Tab icon={<FlowIcon />} label="Flow" {...a11yProps(1)} />
+            <Tab icon={<MetricsIcon />} label="Metrics" {...a11yProps(2)} />
+            <Tab icon={<LogsIcon />} label="Logs" {...a11yProps(3)} />
+            <Tab icon={<PlayArrowIcon />} label="Actions" {...a11yProps(4)} />
           </Tabs>
         </Box>
 
@@ -155,17 +141,10 @@ export const WorkersShow = () => {
         </TabPanel>
 
         <TabPanel value={activeTab} index={1}>
-          <WorkerConfiguration
-            configData={{ data: configData }}
-            configLoading={configLoading}
-          />
-        </TabPanel>
-
-        <TabPanel value={activeTab} index={2}>
           <WorkerFlowSteps workerId={id as string} />
         </TabPanel>
 
-        <TabPanel value={activeTab} index={3}>
+        <TabPanel value={activeTab} index={2}>
           <WorkerMetrics
             metricsData={metricsData}
             metricsLoading={metricsLoading}
@@ -173,11 +152,11 @@ export const WorkersShow = () => {
           />
         </TabPanel>
 
-        <TabPanel value={activeTab} index={4}>
+        <TabPanel value={activeTab} index={3}>
           <WorkerLogs workerId={id as string} />
         </TabPanel>
 
-        <TabPanel value={activeTab} index={5}>
+        <TabPanel value={activeTab} index={4}>
           <Box sx={{ maxWidth: 400 }}>
             <WorkerActions
               workerId={id as string}

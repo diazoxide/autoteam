@@ -110,7 +110,7 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
                       Last Activity
                     </Typography>
                     <Typography variant="body2">
-                      {metrics.last_activity
+                      {metrics.last_activity && metrics.last_activity !== "" && !isNaN(new Date(metrics.last_activity).getTime())
                         ? new Date(metrics.last_activity).toLocaleString()
                         : "N/A"}
                     </Typography>
