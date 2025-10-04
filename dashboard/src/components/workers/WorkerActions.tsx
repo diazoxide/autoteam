@@ -16,6 +16,7 @@ import {
   PlayCircle as UnpauseIcon,
 } from "@mui/icons-material";
 import { useCustomMutation } from "@refinedev/core";
+import { useWorkerRuntime } from "../../hooks/api/useWorkerApi";
 
 interface WorkerActionsProps {
   workerId: string;
@@ -33,36 +34,53 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
     severity: "success" | "error";
   } | null>(null);
 
+  // Fetch runtime data if status is not provided
+  const { data: runtimeData } = useWorkerRuntime(workerId, {
+    enabled: !status, // Only fetch if status not provided
+  });
+
+  // Use provided status or fetch from runtime data
+  const effectiveStatus = status || runtimeData?.worker?.status;
+
   const { mutate: deployWorker, isLoading: isDeploying } = useCustomMutation();
   const { mutate: stopWorker, isLoading: isStopping } = useCustomMutation();
-  const { mutate: restartWorker, isLoading: isRestarting } = useCustomMutation();
+  const { mutate: restartWorker, isLoading: isRestarting } =
+    useCustomMutation();
   const { mutate: pauseWorker, isLoading: isPausing } = useCustomMutation();
   const { mutate: unpauseWorker, isLoading: isUnpausing } = useCustomMutation();
 
-  const handleAction = (action: string, actionFn: any, successMessage: string) => {
-    actionFn({
-      url: `/workers/${workerId}/actions/${action}`,
-      method: "post",
-      values: {},
-      successNotification: false,
-      errorNotification: false,
-    }, {
-      onSuccess: () => {
-        setNotification({
-          message: successMessage,
-          severity: "success",
-        });
+  const handleAction = (
+    action: string,
+    actionFn: any,
+    successMessage: string
+  ) => {
+    actionFn(
+      {
+        url: `/workers/${workerId}/actions/${action}`,
+        method: "post",
+        values: {},
+        successNotification: false,
+        errorNotification: false,
       },
-      onError: (error: unknown) => {
-        setNotification({
-          message: `Failed to ${action} worker: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          severity: "error",
-        });
-      },
-    });
+      {
+        onSuccess: () => {
+          setNotification({
+            message: successMessage,
+            severity: "success",
+          });
+        },
+        onError: (error: unknown) => {
+          setNotification({
+            message: `Failed to ${action} worker: ${error instanceof Error ? error.message : "Unknown error"}`,
+            severity: "error",
+          });
+        },
+      }
+    );
   };
 
-  const isLoading = isDeploying || isStopping || isRestarting || isPausing || isUnpausing;
+  const isLoading =
+    isDeploying || isStopping || isRestarting || isPausing || isUnpausing;
 
   const actions = [
     {
@@ -70,9 +88,10 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
       label: "Deploy",
       icon: <DeployIcon />,
       color: "primary" as const,
-      action: () => handleAction("deploy", deployWorker, "Worker deployment started"),
+      action: () =>
+        handleAction("deploy", deployWorker, "Worker deployment started"),
       loading: isDeploying,
-      disabled: status === "running",
+      disabled: effectiveStatus === "running",
     },
     {
       key: "stop",
@@ -81,7 +100,7 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
       color: "error" as const,
       action: () => handleAction("stop", stopWorker, "Worker stopped"),
       loading: isStopping,
-      disabled: status === "not_deployed",
+      disabled: effectiveStatus === "not_deployed",
     },
     {
       key: "restart",
@@ -90,7 +109,7 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
       color: "warning" as const,
       action: () => handleAction("restart", restartWorker, "Worker restarted"),
       loading: isRestarting,
-      disabled: status === "not_deployed",
+      disabled: effectiveStatus === "not_deployed",
     },
     {
       key: "pause",
@@ -99,7 +118,7 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
       color: "secondary" as const,
       action: () => handleAction("pause", pauseWorker, "Worker paused"),
       loading: isPausing,
-      disabled: status !== "running",
+      disabled: effectiveStatus !== "running",
     },
     {
       key: "unpause",
@@ -108,7 +127,7 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
       color: "success" as const,
       action: () => handleAction("unpause", unpauseWorker, "Worker unpaused"),
       loading: isUnpausing,
-      disabled: status !== "paused",
+      disabled: effectiveStatus !== "paused",
     },
   ];
 
@@ -124,7 +143,7 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
                   disabled={actionItem.disabled || isLoading}
                   color={actionItem.color}
                   size="small"
-                  sx={{ minWidth: 'auto', px: 1 }}
+                  sx={{ minWidth: "auto", px: 1 }}
                 >
                   {actionItem.loading ? (
                     <CircularProgress size={16} />
@@ -145,7 +164,7 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
           <Alert
             onClose={() => setNotification(null)}
             severity={notification?.severity}
-            sx={{ width: '100%' }}
+            sx={{ width: "100%" }}
           >
             {notification?.message}
           </Alert>
@@ -170,7 +189,7 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
                 actionItem.icon
               )
             }
-            sx={{ justifyContent: 'flex-start' }}
+            sx={{ justifyContent: "flex-start" }}
           >
             {actionItem.label}
           </Button>
@@ -185,7 +204,7 @@ export const WorkerActions: React.FC<WorkerActionsProps> = ({
         <Alert
           onClose={() => setNotification(null)}
           severity={notification?.severity}
-          sx={{ width: '100%' }}
+          sx={{ width: "100%" }}
         >
           {notification?.message}
         </Alert>

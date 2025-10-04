@@ -27,9 +27,9 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PauseIcon from "@mui/icons-material/Pause";
 import ListIcon from "@mui/icons-material/List";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
-import { FlowTreeVisualization } from "./FlowTreeVisualization";
+import { UnifiedFlowVisualization } from "../flow/UnifiedFlowVisualization";
 import { FlowStepDetailsDrawer } from "./FlowStepDetailsDrawer";
-import { useWorkerFlowSteps } from "../../hooks/api/useWorkerApi";
+import { useWorkerRuntimeFlowSteps } from "../../hooks/api/useWorkerApi";
 import type { FlowStepInfo } from "../../types/api";
 
 interface WorkerFlowStepsProps {
@@ -39,21 +39,25 @@ interface WorkerFlowStepsProps {
 export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
   workerId,
 }) => {
-  const [viewType, setViewType] = useState<'list' | 'tree'>('list');
+  const [viewType, setViewType] = useState<"list" | "tree">("list");
   const [selectedStep, setSelectedStep] = useState<FlowStepInfo | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  
-  const { data: flowStepsData, isLoading: flowStepsLoading, error } = useWorkerFlowSteps(workerId);
+
+  const {
+    data: flowStepsData,
+    isLoading: flowStepsLoading,
+    error,
+  } = useWorkerRuntimeFlowSteps(workerId);
 
   const getStepIcon = (step: FlowStepInfo) => {
     if (step.active) {
       return (
         <Box
           sx={{
-            animation: 'blink 1s infinite',
-            '@keyframes blink': {
-              '0%, 50%': { opacity: 1 },
-              '51%, 100%': { opacity: 0.3 },
+            animation: "blink 1s infinite",
+            "@keyframes blink": {
+              "0%, 50%": { opacity: 1 },
+              "51%, 100%": { opacity: 0.3 },
             },
           }}
         >
@@ -61,7 +65,7 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
         </Box>
       );
     }
-    
+
     // Check for explicit success (last execution with no error)
     if (step.last_execution && !step.last_error) {
       return <CheckCircleIcon color="success" />;
@@ -76,7 +80,7 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
     if (step.active) {
       return { label: "Active", color: "primary" as const };
     }
-    
+
     // Check for explicit success (last execution with no error)
     if (step.last_execution && !step.last_error) {
       return { label: "Success", color: "success" as const };
@@ -92,7 +96,9 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
 
   const calculateSuccessRate = (step: FlowStepInfo) => {
     if ((step.execution_count ?? 0) === 0) return 0;
-    return Math.round(((step.success_count ?? 0) / (step.execution_count ?? 1)) * 100);
+    return Math.round(
+      ((step.success_count ?? 0) / (step.execution_count ?? 1)) * 100
+    );
   };
 
   if (flowStepsLoading) {
@@ -100,22 +106,17 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
   }
 
   if (error) {
-    return (
-      <Alert severity="error">
-        Failed to load flow steps
-      </Alert>
-    );
+    return <Alert severity="error">Failed to load flow steps</Alert>;
   }
 
   if (!flowStepsData?.steps || flowStepsData?.steps?.length === 0) {
-    return (
-      <Alert severity="info">
-        No flow steps configured
-      </Alert>
-    );
+    return <Alert severity="info">No flow steps configured</Alert>;
   }
 
-  const handleViewChange = (event: React.MouseEvent<HTMLElement>, newView: 'list' | 'tree') => {
+  const handleViewChange = (
+    event: React.MouseEvent<HTMLElement>,
+    newView: "list" | "tree"
+  ) => {
     if (newView !== null) {
       setViewType(newView);
     }
@@ -139,13 +140,13 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
 
         return (
           <React.Fragment key={step.name || index}>
-            <ListItem 
+            <ListItem
               onClick={() => handleStepClick(step)}
-              sx={{ 
-                cursor: 'pointer', 
-                '&:hover': { 
-                  backgroundColor: 'action.hover' 
-                } 
+              sx={{
+                cursor: "pointer",
+                "&:hover": {
+                  backgroundColor: "action.hover",
+                },
               }}
             >
               <ListItemIcon>
@@ -157,19 +158,15 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
                 primary={
                   <Stack direction="row" spacing={1} alignItems="center">
                     <Typography variant="h6">{step.name}</Typography>
-                    <Chip 
-                      label={status.label} 
+                    <Chip
+                      label={status.label}
                       color={status.color}
-                      size="small" 
+                      size="small"
                     />
-                    <Chip 
-                      label={step.type} 
-                      variant="outlined" 
-                      size="small" 
-                    />
+                    <Chip label={step.type} variant="outlined" size="small" />
                   </Stack>
                 }
-                primaryTypographyProps={{ component: 'div' }}
+                primaryTypographyProps={{ component: "div" }}
                 secondary={
                   <Stack spacing={1} sx={{ mt: 1 }}>
                     {step.depends_on && step.depends_on.length > 0 && (
@@ -187,28 +184,44 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
                         Success Rate: {successRate}%
                       </Typography>
                     </Stack>
-                    <Box sx={{ width: '100%', maxWidth: 200 }}>
+                    <Box sx={{ width: "100%", maxWidth: 200 }}>
                       <LinearProgress
                         variant="determinate"
                         value={successRate}
-                        color={successRate >= 80 ? "success" : successRate >= 50 ? "warning" : "error"}
+                        color={
+                          successRate >= 80
+                            ? "success"
+                            : successRate >= 50
+                              ? "warning"
+                              : "error"
+                        }
                       />
                     </Box>
                     {step.last_error && (
                       <Tooltip title={step.last_error} arrow>
-                        <Typography variant="body2" color="error" noWrap component="div">
+                        <Typography
+                          variant="body2"
+                          color="error"
+                          noWrap
+                          component="div"
+                        >
                           Last Error: {step.last_error}
                         </Typography>
                       </Tooltip>
                     )}
-                    {step.last_execution && (
-                      <Typography variant="body2" color="textSecondary" component="div">
-                        Last Execution: {new Date(step.last_execution).toLocaleString()}
+                    {step.last_execution && step.last_execution !== "" && !isNaN(new Date(step.last_execution).getTime()) && (
+                      <Typography
+                        variant="body2"
+                        color="textSecondary"
+                        component="div"
+                      >
+                        Last Execution:{" "}
+                        {new Date(step.last_execution).toLocaleString()}
                       </Typography>
                     )}
                   </Stack>
                 }
-                secondaryTypographyProps={{ component: 'div' }}
+                secondaryTypographyProps={{ component: "div" }}
               />
             </ListItem>
             {index < (flowStepsData?.steps?.length || 0) - 1 && <Divider />}
@@ -219,16 +232,18 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
   );
 
   const renderTreeView = () => (
-    <FlowTreeVisualization 
-      steps={flowStepsData?.steps || []} 
+    <UnifiedFlowVisualization
+      steps={flowStepsData?.steps || []}
+      mode="runtime"
+      compact={false}
       onStepClick={handleStepClick}
     />
   );
 
   return (
     <Card>
-      <CardHeader 
-        title="Flow Steps" 
+      <CardHeader
+        title="Flow Steps"
         avatar={<FlowIcon />}
         action={
           <ToggleButtonGroup
@@ -252,9 +267,9 @@ export const WorkerFlowSteps: React.FC<WorkerFlowStepsProps> = ({
         }
       />
       <CardContent>
-        {viewType === 'list' ? renderListView() : renderTreeView()}
+        {viewType === "list" ? renderListView() : renderTreeView()}
       </CardContent>
-      
+
       {/* Details Drawer */}
       <FlowStepDetailsDrawer
         open={drawerOpen}

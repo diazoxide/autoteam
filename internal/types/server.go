@@ -171,9 +171,9 @@ type ControlPlaneHealthResponse struct {
 }
 
 type WorkersResponse struct {
-	Workers   []WorkerDetails `json:"workers"`
-	Total     int             `json:"total"`
-	Timestamp time.Time       `json:"timestamp"`
+	Workers   []WorkerResponse `json:"workers"`
+	Total     int              `json:"total"`
+	Timestamp time.Time        `json:"timestamp"`
 }
 
 type WorkerDetailsResponse struct {
@@ -203,3 +203,124 @@ const (
 	WorkerStatusUnknown     = "unknown"
 	WorkerStatusNotDeployed = "not_deployed"
 )
+
+// Worker CRUD API types
+
+// CreateWorkerRequest represents the request to create a new worker
+type CreateWorkerRequest struct {
+	Name     string               `json:"name" validate:"required,min=1,max=255"`
+	Prompt   string               `json:"prompt" validate:"required"`
+	Enabled  *bool                `json:"enabled,omitempty"`
+	Settings *WorkerSettingsInput `json:"settings,omitempty"`
+}
+
+// UpdateWorkerRequest represents the request to update an existing worker
+type UpdateWorkerRequest struct {
+	Name     *string              `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
+	Prompt   *string              `json:"prompt,omitempty"`
+	Enabled  *bool                `json:"enabled,omitempty"`
+	Settings *WorkerSettingsInput `json:"settings,omitempty"`
+}
+
+// WorkerResponse represents a worker with full details
+type WorkerResponse struct {
+	ID        string                `json:"id"`
+	Name      string                `json:"name"`
+	Prompt    string                `json:"prompt"`
+	Enabled   bool                  `json:"enabled"`
+	CreatedAt time.Time             `json:"created_at"`
+	UpdatedAt time.Time             `json:"updated_at"`
+	Settings  *WorkerSettingsOutput `json:"settings,omitempty"`
+}
+
+// WorkerSettingsResponse represents worker settings
+type WorkerSettingsResponse struct {
+	Settings  WorkerSettingsOutput `json:"settings"`
+	Timestamp time.Time            `json:"timestamp"`
+}
+
+// UpdateWorkerSettingsRequest represents the request to update worker settings
+type UpdateWorkerSettingsRequest struct {
+	SleepDuration int                        `json:"sleep_duration,omitempty" validate:"omitempty,min=10,max=3600"`
+	TeamName      *string                    `json:"team_name,omitempty"`
+	InstallDeps   *bool                      `json:"install_deps,omitempty"`
+	CommonPrompt  *string                    `json:"common_prompt,omitempty"`
+	MaxAttempts   *int                       `json:"max_attempts,omitempty" validate:"omitempty,min=1,max=10"`
+	Service       map[string]interface{}     `json:"service,omitempty"`
+	MCPServers    map[string]MCPServerConfig `json:"mcp_servers,omitempty"`
+	Debug         *bool                      `json:"debug,omitempty"`
+	Meta          map[string]interface{}     `json:"meta,omitempty"`
+	Flow          []FlowStepInput            `json:"flow,omitempty"`
+}
+
+// WorkerSettingsInput represents worker settings input for create/update operations
+type WorkerSettingsInput struct {
+	SleepDuration int                        `json:"sleep_duration,omitempty" validate:"omitempty,min=10,max=3600"`
+	TeamName      *string                    `json:"team_name,omitempty"`
+	InstallDeps   *bool                      `json:"install_deps,omitempty"`
+	CommonPrompt  *string                    `json:"common_prompt,omitempty"`
+	MaxAttempts   *int                       `json:"max_attempts,omitempty" validate:"omitempty,min=1,max=10"`
+	Service       map[string]interface{}     `json:"service,omitempty"`
+	MCPServers    map[string]MCPServerConfig `json:"mcp_servers,omitempty"`
+	Debug         *bool                      `json:"debug,omitempty"`
+	Meta          map[string]interface{}     `json:"meta,omitempty"`
+	Flow          []FlowStepInput            `json:"flow,omitempty"`
+}
+
+// WorkerSettingsOutput represents worker settings output with full details
+type WorkerSettingsOutput struct {
+	ID            string                     `json:"id"`
+	WorkerID      string                     `json:"worker_id"`
+	SleepDuration int                        `json:"sleep_duration"`
+	TeamName      string                     `json:"team_name"`
+	InstallDeps   bool                       `json:"install_deps"`
+	CommonPrompt  string                     `json:"common_prompt"`
+	MaxAttempts   int                        `json:"max_attempts"`
+	Service       map[string]interface{}     `json:"service,omitempty"`
+	MCPServers    map[string]MCPServerConfig `json:"mcp_servers,omitempty"`
+	Debug         bool                       `json:"debug"`
+	Meta          map[string]interface{}     `json:"meta,omitempty"`
+	CreatedAt     time.Time                  `json:"created_at"`
+	UpdatedAt     time.Time                  `json:"updated_at"`
+	Flow          []FlowStepOutput           `json:"flow,omitempty"`
+}
+
+// FlowStepInput represents flow step input for create/update operations
+type FlowStepInput struct {
+	Name             string              `json:"name" validate:"required"`
+	Type             string              `json:"type" validate:"required"`
+	Args             []string            `json:"args,omitempty"`
+	Env              map[string]string   `json:"env,omitempty"`
+	DependsOn        []string            `json:"depends_on,omitempty"`
+	Input            string              `json:"input,omitempty"`
+	Output           string              `json:"output,omitempty"`
+	SkipWhen         string              `json:"skip_when,omitempty"`
+	DependencyPolicy string              `json:"dependency_policy,omitempty" validate:"omitempty,oneof=fail_fast all_success all_complete any_success"`
+	Retry            *worker.RetryConfig `json:"retry,omitempty"`
+}
+
+// FlowStepOutput represents flow step output with full details
+type FlowStepOutput struct {
+	ID               string              `json:"id"`
+	WorkerID         string              `json:"worker_id"`
+	Name             string              `json:"name"`
+	Type             string              `json:"type"`
+	Order            int                 `json:"order"`
+	Args             []string            `json:"args,omitempty"`
+	Env              map[string]string   `json:"env,omitempty"`
+	DependsOn        []string            `json:"depends_on,omitempty"`
+	Input            string              `json:"input,omitempty"`
+	Output           string              `json:"output,omitempty"`
+	SkipWhen         string              `json:"skip_when,omitempty"`
+	DependencyPolicy string              `json:"dependency_policy,omitempty"`
+	Retry            *worker.RetryConfig `json:"retry,omitempty"`
+	CreatedAt        time.Time           `json:"created_at"`
+	UpdatedAt        time.Time           `json:"updated_at"`
+}
+
+// MCPServerConfig represents MCP server configuration
+type MCPServerConfig struct {
+	Command string            `json:"command" validate:"required"`
+	Args    []string          `json:"args,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
+}

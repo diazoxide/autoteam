@@ -19,6 +19,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/labstack/echo/v4"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 const (
@@ -39,6 +40,22 @@ const (
 	ControlPlaneHealthResponseWorkersHealthUnreachable ControlPlaneHealthResponseWorkersHealth = "unreachable"
 )
 
+// Defines values for FlowStepInputDependencyPolicy.
+const (
+	FlowStepInputDependencyPolicyAllComplete FlowStepInputDependencyPolicy = "all_complete"
+	FlowStepInputDependencyPolicyAllSuccess  FlowStepInputDependencyPolicy = "all_success"
+	FlowStepInputDependencyPolicyAnySuccess  FlowStepInputDependencyPolicy = "any_success"
+	FlowStepInputDependencyPolicyFailFast    FlowStepInputDependencyPolicy = "fail_fast"
+)
+
+// Defines values for FlowStepOutputDependencyPolicy.
+const (
+	FlowStepOutputDependencyPolicyAllComplete FlowStepOutputDependencyPolicy = "all_complete"
+	FlowStepOutputDependencyPolicyAllSuccess  FlowStepOutputDependencyPolicy = "all_success"
+	FlowStepOutputDependencyPolicyAnySuccess  FlowStepOutputDependencyPolicy = "any_success"
+	FlowStepOutputDependencyPolicyFailFast    FlowStepOutputDependencyPolicy = "fail_fast"
+)
+
 // Defines values for RetryConfigBackoff.
 const (
 	Exponential RetryConfigBackoff = "exponential"
@@ -53,11 +70,11 @@ const (
 	Unreachable WorkerDetailsStatus = "unreachable"
 )
 
-// Defines values for GetWorkerLogsParamsRole.
+// Defines values for GetWorkerRuntimeLogsParamsRole.
 const (
-	Both      GetWorkerLogsParamsRole = "both"
-	Collector GetWorkerLogsParamsRole = "collector"
-	Executor  GetWorkerLogsParamsRole = "executor"
+	Both      GetWorkerRuntimeLogsParamsRole = "both"
+	Collector GetWorkerRuntimeLogsParamsRole = "collector"
+	Executor  GetWorkerRuntimeLogsParamsRole = "executor"
 )
 
 // ActionResponse defines model for ActionResponse.
@@ -96,6 +113,19 @@ type ControlPlaneHealthResponseStatus string
 // ControlPlaneHealthResponseWorkersHealth defines model for ControlPlaneHealthResponse.WorkersHealth.
 type ControlPlaneHealthResponseWorkersHealth string
 
+// CreateWorkerRequest defines model for CreateWorkerRequest.
+type CreateWorkerRequest struct {
+	// Enabled Whether the worker is enabled
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// Name Worker name (must be unique)
+	Name string `json:"name"`
+
+	// Prompt Worker-specific prompt
+	Prompt   string               `json:"prompt"`
+	Settings *WorkerSettingsInput `json:"settings,omitempty"`
+}
+
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse = types.ErrorResponse
 
@@ -107,6 +137,93 @@ type FlowResponse = types.FlowResponse
 
 // FlowStepInfo defines model for FlowStepInfo.
 type FlowStepInfo = types.FlowStepInfo
+
+// FlowStepInput defines model for FlowStepInput.
+type FlowStepInput struct {
+	// Args Agent-specific arguments
+	Args *[]string `json:"args,omitempty"`
+
+	// DependencyPolicy Policy for handling dependency failures
+	DependencyPolicy *FlowStepInputDependencyPolicy `json:"dependency_policy,omitempty"`
+
+	// DependsOn List of step names this step depends on
+	DependsOn *[]string `json:"depends_on,omitempty"`
+
+	// Env Environment variables for the step
+	Env *map[string]string `json:"env,omitempty"`
+
+	// Input Input prompt for the step
+	Input *string `json:"input,omitempty"`
+
+	// Name Unique step name
+	Name string `json:"name"`
+
+	// Output Output transformation template
+	Output *string `json:"output,omitempty"`
+
+	// Retry Configuration for retry behavior
+	Retry *RetryConfig `json:"retry,omitempty"`
+
+	// SkipWhen Skip condition template
+	SkipWhen *string `json:"skip_when,omitempty"`
+
+	// Type Agent type
+	Type string `json:"type"`
+}
+
+// FlowStepInputDependencyPolicy Policy for handling dependency failures
+type FlowStepInputDependencyPolicy string
+
+// FlowStepOutput defines model for FlowStepOutput.
+type FlowStepOutput struct {
+	// Args Agent-specific arguments
+	Args *[]string `json:"args,omitempty"`
+
+	// CreatedAt Step creation timestamp
+	CreatedAt time.Time `json:"created_at"`
+
+	// DependencyPolicy Policy for handling dependency failures
+	DependencyPolicy *FlowStepOutputDependencyPolicy `json:"dependency_policy,omitempty"`
+
+	// DependsOn List of step names this step depends on
+	DependsOn *[]string `json:"depends_on,omitempty"`
+
+	// Env Environment variables for the step
+	Env *map[string]string `json:"env,omitempty"`
+
+	// Id Step UUID
+	Id openapi_types.UUID `json:"id"`
+
+	// Input Input prompt for the step
+	Input *string `json:"input,omitempty"`
+
+	// Name Unique step name
+	Name string `json:"name"`
+
+	// Order Execution order within worker
+	Order int `json:"order"`
+
+	// Output Output transformation template
+	Output *string `json:"output,omitempty"`
+
+	// Retry Configuration for retry behavior
+	Retry *RetryConfig `json:"retry,omitempty"`
+
+	// SkipWhen Skip condition template
+	SkipWhen *string `json:"skip_when,omitempty"`
+
+	// Type Agent type
+	Type string `json:"type"`
+
+	// UpdatedAt Step last update timestamp
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// WorkerId Worker UUID
+	WorkerId openapi_types.UUID `json:"worker_id"`
+}
+
+// FlowStepOutputDependencyPolicy Policy for handling dependency failures
+type FlowStepOutputDependencyPolicy string
 
 // FlowStepsResponse defines model for FlowStepsResponse.
 type FlowStepsResponse = types.FlowStepsResponse
@@ -122,6 +239,18 @@ type LogFile = types.LogFile
 
 // LogsResponse defines model for LogsResponse.
 type LogsResponse = types.LogsResponse
+
+// MCPServerConfig defines model for MCPServerConfig.
+type MCPServerConfig struct {
+	// Args Command arguments
+	Args *[]string `json:"args,omitempty"`
+
+	// Command Command to run the MCP server
+	Command string `json:"command"`
+
+	// Env Environment variables
+	Env *map[string]string `json:"env,omitempty"`
+}
 
 // MetricsResponse defines model for MetricsResponse.
 type MetricsResponse = types.MetricsResponse
@@ -146,6 +275,52 @@ type RetryConfigBackoff string
 
 // StatusResponse defines model for StatusResponse.
 type StatusResponse = types.StatusResponse
+
+// UpdateWorkerRequest defines model for UpdateWorkerRequest.
+type UpdateWorkerRequest struct {
+	// Enabled Whether the worker is enabled
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// Name Worker name (must be unique)
+	Name *string `json:"name,omitempty"`
+
+	// Prompt Worker-specific prompt
+	Prompt   *string              `json:"prompt,omitempty"`
+	Settings *WorkerSettingsInput `json:"settings,omitempty"`
+}
+
+// UpdateWorkerSettingsRequest defines model for UpdateWorkerSettingsRequest.
+type UpdateWorkerSettingsRequest struct {
+	// CommonPrompt Common prompt shared across all steps
+	CommonPrompt *string `json:"common_prompt,omitempty"`
+
+	// Debug Enable debug mode
+	Debug *bool `json:"debug,omitempty"`
+
+	// Flow Flow steps configuration
+	Flow *[]FlowStepInput `json:"flow,omitempty"`
+
+	// InstallDeps Whether to install dependencies
+	InstallDeps *bool `json:"install_deps,omitempty"`
+
+	// MaxAttempts Maximum retry attempts for failed operations
+	MaxAttempts *int `json:"max_attempts,omitempty"`
+
+	// McpServers Model Context Protocol server configurations
+	McpServers *map[string]MCPServerConfig `json:"mcp_servers,omitempty"`
+
+	// Meta Metadata and additional configuration
+	Meta *map[string]interface{} `json:"meta,omitempty"`
+
+	// Service Service configuration options
+	Service *map[string]interface{} `json:"service,omitempty"`
+
+	// SleepDuration Sleep duration between flow executions in seconds
+	SleepDuration *int `json:"sleep_duration,omitempty"`
+
+	// TeamName Team name for this worker
+	TeamName *string `json:"team_name,omitempty"`
+}
 
 // WorkerConfig Sanitized worker configuration
 type WorkerConfig = types.WorkerConfig
@@ -182,33 +357,150 @@ type WorkerInfo = types.WorkerInfo
 // WorkerMetrics defines model for WorkerMetrics.
 type WorkerMetrics = types.WorkerMetrics
 
+// WorkerResponse defines model for WorkerResponse.
+type WorkerResponse struct {
+	// CreatedAt Worker creation timestamp
+	CreatedAt time.Time `json:"created_at"`
+
+	// Enabled Whether the worker is enabled
+	Enabled bool `json:"enabled"`
+
+	// Id Worker UUID
+	Id openapi_types.UUID `json:"id"`
+
+	// Name Worker name
+	Name string `json:"name"`
+
+	// Prompt Worker-specific prompt
+	Prompt   string                `json:"prompt"`
+	Settings *WorkerSettingsOutput `json:"settings,omitempty"`
+
+	// UpdatedAt Worker last update timestamp
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// WorkerSettingsInput defines model for WorkerSettingsInput.
+type WorkerSettingsInput struct {
+	// CommonPrompt Common prompt shared across all steps
+	CommonPrompt *string `json:"common_prompt,omitempty"`
+
+	// Debug Enable debug mode
+	Debug *bool `json:"debug,omitempty"`
+
+	// Flow Flow steps configuration
+	Flow *[]FlowStepInput `json:"flow,omitempty"`
+
+	// InstallDeps Whether to install dependencies
+	InstallDeps *bool `json:"install_deps,omitempty"`
+
+	// MaxAttempts Maximum retry attempts for failed operations
+	MaxAttempts *int `json:"max_attempts,omitempty"`
+
+	// McpServers Model Context Protocol server configurations
+	McpServers *map[string]MCPServerConfig `json:"mcp_servers,omitempty"`
+
+	// Meta Metadata and additional configuration
+	Meta *map[string]interface{} `json:"meta,omitempty"`
+
+	// Service Service configuration options
+	Service *map[string]interface{} `json:"service,omitempty"`
+
+	// SleepDuration Sleep duration between flow executions in seconds
+	SleepDuration *int `json:"sleep_duration,omitempty"`
+
+	// TeamName Team name for this worker
+	TeamName *string `json:"team_name,omitempty"`
+}
+
+// WorkerSettingsOutput defines model for WorkerSettingsOutput.
+type WorkerSettingsOutput struct {
+	// CommonPrompt Common prompt shared across all steps
+	CommonPrompt *string `json:"common_prompt,omitempty"`
+
+	// CreatedAt Settings creation timestamp
+	CreatedAt time.Time `json:"created_at"`
+
+	// Debug Enable debug mode
+	Debug *bool `json:"debug,omitempty"`
+
+	// Flow Flow steps configuration
+	Flow *[]FlowStepOutput `json:"flow,omitempty"`
+
+	// Id Settings UUID
+	Id openapi_types.UUID `json:"id"`
+
+	// InstallDeps Whether to install dependencies
+	InstallDeps *bool `json:"install_deps,omitempty"`
+
+	// MaxAttempts Maximum retry attempts for failed operations
+	MaxAttempts *int `json:"max_attempts,omitempty"`
+
+	// McpServers Model Context Protocol server configurations
+	McpServers *map[string]MCPServerConfig `json:"mcp_servers,omitempty"`
+
+	// Meta Metadata and additional configuration
+	Meta *map[string]interface{} `json:"meta,omitempty"`
+
+	// Service Service configuration options
+	Service *map[string]interface{} `json:"service,omitempty"`
+
+	// SleepDuration Sleep duration between flow executions in seconds
+	SleepDuration int `json:"sleep_duration"`
+
+	// TeamName Team name for this worker
+	TeamName string `json:"team_name"`
+
+	// UpdatedAt Settings last update timestamp
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// WorkerId Worker UUID
+	WorkerId openapi_types.UUID `json:"worker_id"`
+}
+
+// WorkerSettingsResponse defines model for WorkerSettingsResponse.
+type WorkerSettingsResponse struct {
+	Settings WorkerSettingsOutput `json:"settings"`
+
+	// Timestamp Response timestamp
+	Timestamp time.Time `json:"timestamp"`
+}
+
 // WorkersResponse defines model for WorkersResponse.
 type WorkersResponse struct {
 	// Timestamp Response timestamp
 	Timestamp time.Time `json:"timestamp"`
 
 	// Total Total number of configured workers
-	Total   int             `json:"total"`
-	Workers []WorkerDetails `json:"workers"`
+	Total   int              `json:"total"`
+	Workers []WorkerResponse `json:"workers"`
 }
 
-// GetWorkerLogsParams defines parameters for GetWorkerLogs.
-type GetWorkerLogsParams struct {
+// GetWorkerRuntimeLogsParams defines parameters for GetWorkerRuntimeLogs.
+type GetWorkerRuntimeLogsParams struct {
 	// Role Filter logs by role (collector, executor, both)
-	Role *GetWorkerLogsParamsRole `form:"role,omitempty" json:"role,omitempty"`
+	Role *GetWorkerRuntimeLogsParamsRole `form:"role,omitempty" json:"role,omitempty"`
 
 	// Limit Maximum number of log files to return
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
-// GetWorkerLogsParamsRole defines parameters for GetWorkerLogs.
-type GetWorkerLogsParamsRole string
+// GetWorkerRuntimeLogsParamsRole defines parameters for GetWorkerRuntimeLogs.
+type GetWorkerRuntimeLogsParamsRole string
 
-// GetWorkerLogFileParams defines parameters for GetWorkerLogFile.
-type GetWorkerLogFileParams struct {
+// GetWorkerRuntimeLogFileParams defines parameters for GetWorkerRuntimeLogFile.
+type GetWorkerRuntimeLogFileParams struct {
 	// Tail Number of last lines to return
 	Tail *int `form:"tail,omitempty" json:"tail,omitempty"`
 }
+
+// CreateWorkerJSONRequestBody defines body for CreateWorker for application/json ContentType.
+type CreateWorkerJSONRequestBody = CreateWorkerRequest
+
+// UpdateWorkerJSONRequestBody defines body for UpdateWorker for application/json ContentType.
+type UpdateWorkerJSONRequestBody = UpdateWorkerRequest
+
+// UpdateWorkerSettingsJSONRequestBody defines body for UpdateWorkerSettings for application/json ContentType.
+type UpdateWorkerSettingsJSONRequestBody = UpdateWorkerSettingsRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -224,9 +516,18 @@ type ServerInterface interface {
 	// List workers
 	// (GET /workers)
 	GetWorkers(ctx echo.Context) error
+	// Create worker
+	// (POST /workers)
+	CreateWorker(ctx echo.Context) error
+	// Delete worker
+	// (DELETE /workers/{worker_id})
+	DeleteWorker(ctx echo.Context, workerId string) error
 	// Get worker details
 	// (GET /workers/{worker_id})
 	GetWorker(ctx echo.Context, workerId string) error
+	// Update worker
+	// (PUT /workers/{worker_id})
+	UpdateWorker(ctx echo.Context, workerId string) error
 	// Deploy worker
 	// (POST /workers/{worker_id}/actions/deploy)
 	DeployWorker(ctx echo.Context, workerId string) error
@@ -242,30 +543,39 @@ type ServerInterface interface {
 	// Unpause worker
 	// (POST /workers/{worker_id}/actions/unpause)
 	UnpauseWorker(ctx echo.Context, workerId string) error
-	// Worker configuration
-	// (GET /workers/{worker_id}/config)
-	GetWorkerConfig(ctx echo.Context, workerId string) error
-	// Worker flow configuration
-	// (GET /workers/{worker_id}/flow)
-	GetWorkerFlow(ctx echo.Context, workerId string) error
-	// Worker flow steps
-	// (GET /workers/{worker_id}/flow/steps)
-	GetWorkerFlowSteps(ctx echo.Context, workerId string) error
-	// Worker health check
-	// (GET /workers/{worker_id}/health)
-	GetWorkerHealth(ctx echo.Context, workerId string) error
-	// Worker logs
-	// (GET /workers/{worker_id}/logs)
-	GetWorkerLogs(ctx echo.Context, workerId string, params GetWorkerLogsParams) error
-	// Worker log file
-	// (GET /workers/{worker_id}/logs/{filename})
-	GetWorkerLogFile(ctx echo.Context, workerId string, filename string, params GetWorkerLogFileParams) error
-	// Worker metrics
-	// (GET /workers/{worker_id}/metrics)
-	GetWorkerMetrics(ctx echo.Context, workerId string) error
-	// Worker status
-	// (GET /workers/{worker_id}/status)
-	GetWorkerStatus(ctx echo.Context, workerId string) error
+	// Get worker runtime info
+	// (GET /workers/{worker_id}/runtime)
+	GetWorkerRuntime(ctx echo.Context, workerId string) error
+	// Worker runtime configuration
+	// (GET /workers/{worker_id}/runtime/config)
+	GetWorkerRuntimeConfig(ctx echo.Context, workerId string) error
+	// Worker runtime flow execution state
+	// (GET /workers/{worker_id}/runtime/flow)
+	GetWorkerRuntimeFlow(ctx echo.Context, workerId string) error
+	// Worker runtime flow steps
+	// (GET /workers/{worker_id}/runtime/flow/steps)
+	GetWorkerRuntimeFlowSteps(ctx echo.Context, workerId string) error
+	// Worker runtime health check
+	// (GET /workers/{worker_id}/runtime/health)
+	GetWorkerRuntimeHealth(ctx echo.Context, workerId string) error
+	// Worker runtime logs
+	// (GET /workers/{worker_id}/runtime/logs)
+	GetWorkerRuntimeLogs(ctx echo.Context, workerId string, params GetWorkerRuntimeLogsParams) error
+	// Worker runtime log file
+	// (GET /workers/{worker_id}/runtime/logs/{filename})
+	GetWorkerRuntimeLogFile(ctx echo.Context, workerId string, filename string, params GetWorkerRuntimeLogFileParams) error
+	// Worker runtime metrics
+	// (GET /workers/{worker_id}/runtime/metrics)
+	GetWorkerRuntimeMetrics(ctx echo.Context, workerId string) error
+	// Worker runtime status
+	// (GET /workers/{worker_id}/runtime/status)
+	GetWorkerRuntimeStatus(ctx echo.Context, workerId string) error
+	// Get worker settings
+	// (GET /workers/{worker_id}/settings)
+	GetWorkerSettings(ctx echo.Context, workerId string) error
+	// Update worker settings
+	// (PUT /workers/{worker_id}/settings)
+	UpdateWorkerSettings(ctx echo.Context, workerId string) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -317,6 +627,35 @@ func (w *ServerInterfaceWrapper) GetWorkers(ctx echo.Context) error {
 	return err
 }
 
+// CreateWorker converts echo context to params.
+func (w *ServerInterfaceWrapper) CreateWorker(ctx echo.Context) error {
+	var err error
+
+	ctx.Set(ApiKeyAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.CreateWorker(ctx)
+	return err
+}
+
+// DeleteWorker converts echo context to params.
+func (w *ServerInterfaceWrapper) DeleteWorker(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "worker_id" -------------
+	var workerId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "worker_id", ctx.Param("worker_id"), &workerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter worker_id: %s", err))
+	}
+
+	ctx.Set(ApiKeyAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.DeleteWorker(ctx, workerId)
+	return err
+}
+
 // GetWorker converts echo context to params.
 func (w *ServerInterfaceWrapper) GetWorker(ctx echo.Context) error {
 	var err error
@@ -332,6 +671,24 @@ func (w *ServerInterfaceWrapper) GetWorker(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.GetWorker(ctx, workerId)
+	return err
+}
+
+// UpdateWorker converts echo context to params.
+func (w *ServerInterfaceWrapper) UpdateWorker(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "worker_id" -------------
+	var workerId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "worker_id", ctx.Param("worker_id"), &workerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter worker_id: %s", err))
+	}
+
+	ctx.Set(ApiKeyAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UpdateWorker(ctx, workerId)
 	return err
 }
 
@@ -425,8 +782,8 @@ func (w *ServerInterfaceWrapper) UnpauseWorker(ctx echo.Context) error {
 	return err
 }
 
-// GetWorkerConfig converts echo context to params.
-func (w *ServerInterfaceWrapper) GetWorkerConfig(ctx echo.Context) error {
+// GetWorkerRuntime converts echo context to params.
+func (w *ServerInterfaceWrapper) GetWorkerRuntime(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "worker_id" -------------
 	var workerId string
@@ -439,12 +796,12 @@ func (w *ServerInterfaceWrapper) GetWorkerConfig(ctx echo.Context) error {
 	ctx.Set(ApiKeyAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetWorkerConfig(ctx, workerId)
+	err = w.Handler.GetWorkerRuntime(ctx, workerId)
 	return err
 }
 
-// GetWorkerFlow converts echo context to params.
-func (w *ServerInterfaceWrapper) GetWorkerFlow(ctx echo.Context) error {
+// GetWorkerRuntimeConfig converts echo context to params.
+func (w *ServerInterfaceWrapper) GetWorkerRuntimeConfig(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "worker_id" -------------
 	var workerId string
@@ -457,12 +814,12 @@ func (w *ServerInterfaceWrapper) GetWorkerFlow(ctx echo.Context) error {
 	ctx.Set(ApiKeyAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetWorkerFlow(ctx, workerId)
+	err = w.Handler.GetWorkerRuntimeConfig(ctx, workerId)
 	return err
 }
 
-// GetWorkerFlowSteps converts echo context to params.
-func (w *ServerInterfaceWrapper) GetWorkerFlowSteps(ctx echo.Context) error {
+// GetWorkerRuntimeFlow converts echo context to params.
+func (w *ServerInterfaceWrapper) GetWorkerRuntimeFlow(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "worker_id" -------------
 	var workerId string
@@ -475,12 +832,12 @@ func (w *ServerInterfaceWrapper) GetWorkerFlowSteps(ctx echo.Context) error {
 	ctx.Set(ApiKeyAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetWorkerFlowSteps(ctx, workerId)
+	err = w.Handler.GetWorkerRuntimeFlow(ctx, workerId)
 	return err
 }
 
-// GetWorkerHealth converts echo context to params.
-func (w *ServerInterfaceWrapper) GetWorkerHealth(ctx echo.Context) error {
+// GetWorkerRuntimeFlowSteps converts echo context to params.
+func (w *ServerInterfaceWrapper) GetWorkerRuntimeFlowSteps(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "worker_id" -------------
 	var workerId string
@@ -493,12 +850,30 @@ func (w *ServerInterfaceWrapper) GetWorkerHealth(ctx echo.Context) error {
 	ctx.Set(ApiKeyAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetWorkerHealth(ctx, workerId)
+	err = w.Handler.GetWorkerRuntimeFlowSteps(ctx, workerId)
 	return err
 }
 
-// GetWorkerLogs converts echo context to params.
-func (w *ServerInterfaceWrapper) GetWorkerLogs(ctx echo.Context) error {
+// GetWorkerRuntimeHealth converts echo context to params.
+func (w *ServerInterfaceWrapper) GetWorkerRuntimeHealth(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "worker_id" -------------
+	var workerId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "worker_id", ctx.Param("worker_id"), &workerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter worker_id: %s", err))
+	}
+
+	ctx.Set(ApiKeyAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetWorkerRuntimeHealth(ctx, workerId)
+	return err
+}
+
+// GetWorkerRuntimeLogs converts echo context to params.
+func (w *ServerInterfaceWrapper) GetWorkerRuntimeLogs(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "worker_id" -------------
 	var workerId string
@@ -511,7 +886,7 @@ func (w *ServerInterfaceWrapper) GetWorkerLogs(ctx echo.Context) error {
 	ctx.Set(ApiKeyAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params GetWorkerLogsParams
+	var params GetWorkerRuntimeLogsParams
 	// ------------- Optional query parameter "role" -------------
 
 	err = runtime.BindQueryParameter("form", true, false, "role", ctx.QueryParams(), &params.Role)
@@ -527,12 +902,12 @@ func (w *ServerInterfaceWrapper) GetWorkerLogs(ctx echo.Context) error {
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetWorkerLogs(ctx, workerId, params)
+	err = w.Handler.GetWorkerRuntimeLogs(ctx, workerId, params)
 	return err
 }
 
-// GetWorkerLogFile converts echo context to params.
-func (w *ServerInterfaceWrapper) GetWorkerLogFile(ctx echo.Context) error {
+// GetWorkerRuntimeLogFile converts echo context to params.
+func (w *ServerInterfaceWrapper) GetWorkerRuntimeLogFile(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "worker_id" -------------
 	var workerId string
@@ -553,7 +928,7 @@ func (w *ServerInterfaceWrapper) GetWorkerLogFile(ctx echo.Context) error {
 	ctx.Set(ApiKeyAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params GetWorkerLogFileParams
+	var params GetWorkerRuntimeLogFileParams
 	// ------------- Optional query parameter "tail" -------------
 
 	err = runtime.BindQueryParameter("form", true, false, "tail", ctx.QueryParams(), &params.Tail)
@@ -562,12 +937,12 @@ func (w *ServerInterfaceWrapper) GetWorkerLogFile(ctx echo.Context) error {
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetWorkerLogFile(ctx, workerId, filename, params)
+	err = w.Handler.GetWorkerRuntimeLogFile(ctx, workerId, filename, params)
 	return err
 }
 
-// GetWorkerMetrics converts echo context to params.
-func (w *ServerInterfaceWrapper) GetWorkerMetrics(ctx echo.Context) error {
+// GetWorkerRuntimeMetrics converts echo context to params.
+func (w *ServerInterfaceWrapper) GetWorkerRuntimeMetrics(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "worker_id" -------------
 	var workerId string
@@ -580,12 +955,12 @@ func (w *ServerInterfaceWrapper) GetWorkerMetrics(ctx echo.Context) error {
 	ctx.Set(ApiKeyAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetWorkerMetrics(ctx, workerId)
+	err = w.Handler.GetWorkerRuntimeMetrics(ctx, workerId)
 	return err
 }
 
-// GetWorkerStatus converts echo context to params.
-func (w *ServerInterfaceWrapper) GetWorkerStatus(ctx echo.Context) error {
+// GetWorkerRuntimeStatus converts echo context to params.
+func (w *ServerInterfaceWrapper) GetWorkerRuntimeStatus(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "worker_id" -------------
 	var workerId string
@@ -598,7 +973,43 @@ func (w *ServerInterfaceWrapper) GetWorkerStatus(ctx echo.Context) error {
 	ctx.Set(ApiKeyAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetWorkerStatus(ctx, workerId)
+	err = w.Handler.GetWorkerRuntimeStatus(ctx, workerId)
+	return err
+}
+
+// GetWorkerSettings converts echo context to params.
+func (w *ServerInterfaceWrapper) GetWorkerSettings(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "worker_id" -------------
+	var workerId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "worker_id", ctx.Param("worker_id"), &workerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter worker_id: %s", err))
+	}
+
+	ctx.Set(ApiKeyAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetWorkerSettings(ctx, workerId)
+	return err
+}
+
+// UpdateWorkerSettings converts echo context to params.
+func (w *ServerInterfaceWrapper) UpdateWorkerSettings(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "worker_id" -------------
+	var workerId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "worker_id", ctx.Param("worker_id"), &workerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter worker_id: %s", err))
+	}
+
+	ctx.Set(ApiKeyAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UpdateWorkerSettings(ctx, workerId)
 	return err
 }
 
@@ -634,85 +1045,110 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/health", wrapper.GetHealth)
 	router.GET(baseURL+"/openapi.yaml", wrapper.GetOpenAPISpec)
 	router.GET(baseURL+"/workers", wrapper.GetWorkers)
+	router.POST(baseURL+"/workers", wrapper.CreateWorker)
+	router.DELETE(baseURL+"/workers/:worker_id", wrapper.DeleteWorker)
 	router.GET(baseURL+"/workers/:worker_id", wrapper.GetWorker)
+	router.PUT(baseURL+"/workers/:worker_id", wrapper.UpdateWorker)
 	router.POST(baseURL+"/workers/:worker_id/actions/deploy", wrapper.DeployWorker)
 	router.POST(baseURL+"/workers/:worker_id/actions/pause", wrapper.PauseWorker)
 	router.POST(baseURL+"/workers/:worker_id/actions/restart", wrapper.RestartWorker)
 	router.POST(baseURL+"/workers/:worker_id/actions/stop", wrapper.StopWorker)
 	router.POST(baseURL+"/workers/:worker_id/actions/unpause", wrapper.UnpauseWorker)
-	router.GET(baseURL+"/workers/:worker_id/config", wrapper.GetWorkerConfig)
-	router.GET(baseURL+"/workers/:worker_id/flow", wrapper.GetWorkerFlow)
-	router.GET(baseURL+"/workers/:worker_id/flow/steps", wrapper.GetWorkerFlowSteps)
-	router.GET(baseURL+"/workers/:worker_id/health", wrapper.GetWorkerHealth)
-	router.GET(baseURL+"/workers/:worker_id/logs", wrapper.GetWorkerLogs)
-	router.GET(baseURL+"/workers/:worker_id/logs/:filename", wrapper.GetWorkerLogFile)
-	router.GET(baseURL+"/workers/:worker_id/metrics", wrapper.GetWorkerMetrics)
-	router.GET(baseURL+"/workers/:worker_id/status", wrapper.GetWorkerStatus)
+	router.GET(baseURL+"/workers/:worker_id/runtime", wrapper.GetWorkerRuntime)
+	router.GET(baseURL+"/workers/:worker_id/runtime/config", wrapper.GetWorkerRuntimeConfig)
+	router.GET(baseURL+"/workers/:worker_id/runtime/flow", wrapper.GetWorkerRuntimeFlow)
+	router.GET(baseURL+"/workers/:worker_id/runtime/flow/steps", wrapper.GetWorkerRuntimeFlowSteps)
+	router.GET(baseURL+"/workers/:worker_id/runtime/health", wrapper.GetWorkerRuntimeHealth)
+	router.GET(baseURL+"/workers/:worker_id/runtime/logs", wrapper.GetWorkerRuntimeLogs)
+	router.GET(baseURL+"/workers/:worker_id/runtime/logs/:filename", wrapper.GetWorkerRuntimeLogFile)
+	router.GET(baseURL+"/workers/:worker_id/runtime/metrics", wrapper.GetWorkerRuntimeMetrics)
+	router.GET(baseURL+"/workers/:worker_id/runtime/status", wrapper.GetWorkerRuntimeStatus)
+	router.GET(baseURL+"/workers/:worker_id/settings", wrapper.GetWorkerSettings)
+	router.PUT(baseURL+"/workers/:worker_id/settings", wrapper.UpdateWorkerSettings)
 
 }
 
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"//+F3lNSw1wAAA==",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

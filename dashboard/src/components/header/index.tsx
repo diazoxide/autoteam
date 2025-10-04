@@ -21,19 +21,15 @@ export const Header: React.FC<RefineThemedLayoutV2HeaderProps> = ({
         <Typography variant="h6" component="div" sx={{ flexGrow: 1, ml: 2 }}>
           AutoTeam Dashboard
         </Typography>
-        <Stack
-          direction="row"
-          alignItems="center"
-        >
-            <IconButton
-              color="inherit"
-              onClick={() => {
-                setMode();
-              }}
-            >
-              {mode === "dark" ? <LightModeOutlined /> : <DarkModeOutlined />}
-            </IconButton>
-
+        <Stack direction="row" alignItems="center">
+          <IconButton
+            color="inherit"
+            onClick={() => {
+              setMode();
+            }}
+          >
+            {mode === "dark" ? <LightModeOutlined /> : <DarkModeOutlined />}
+          </IconButton>
         </Stack>
       </Toolbar>
     </AppBar>

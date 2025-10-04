@@ -63,6 +63,11 @@ func NewWorkerRegistry(db *database.DB) (*WorkerRegistry, error) {
 	return registry, nil
 }
 
+// GetDB returns the database instance
+func (r *WorkerRegistry) GetDB() *database.DB {
+	return r.db
+}
+
 // loadWorkersFromDatabase loads workers from the database
 func (r *WorkerRegistry) loadWorkersFromDatabase() error {
 	ctx := context.Background()
@@ -418,6 +423,79 @@ func (r *WorkerRegistry) updateWorkerEndpointUnsafe(workerID, endpoint string) e
 	worker.Client = client
 	worker.Conn = conn
 	worker.Status = types.WorkerStatusUnknown // Will be updated by health check
+
+	return nil
+}
+
+// RefreshFromDatabase refreshes the worker registry from database
+func (r *WorkerRegistry) RefreshFromDatabase(ctx context.Context) error {
+	log := logger.FromContext(ctx)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Get all workers from database
+	dbWorkers, err := r.workerRepo.List(ctx)
+	if err != nil {
+		log.Error("Failed to list workers from database during refresh", zap.Error(err))
+		return fmt.Errorf("failed to list workers from database: %w", err)
+	}
+
+	log.Debug("Refreshing workers from database", zap.Int("worker_count", len(dbWorkers)))
+
+	// Track which workers exist in database
+	dbWorkerIDs := make(map[string]bool)
+
+	// Update or add workers from database
+	for _, dbWorker := range dbWorkers {
+		workerID := dbWorker.ID.String()
+		dbWorkerIDs[workerID] = true
+
+		existingWorker, exists := r.workers[workerID]
+		if exists {
+			// Update existing worker with new database information
+			existingWorker.Name = dbWorker.Name
+			existingWorker.DBWorker = dbWorker
+
+			log.Debug("Updated existing worker from database",
+				zap.String("worker_id", workerID),
+				zap.String("worker_name", dbWorker.Name))
+		} else {
+			// Add new worker from database
+			registeredWorker := &RegisteredWorker{
+				ID:       workerID,
+				UUID:     dbWorker.ID,
+				Name:     dbWorker.Name,
+				Status:   types.WorkerStatusNotDeployed,
+				DBWorker: dbWorker,
+			}
+
+			r.workers[workerID] = registeredWorker
+
+			log.Debug("Added new worker from database",
+				zap.String("worker_id", workerID),
+				zap.String("worker_name", dbWorker.Name))
+		}
+	}
+
+	// Remove workers that no longer exist in database
+	for workerID, worker := range r.workers {
+		if worker.DBWorker != nil && !dbWorkerIDs[workerID] {
+			// Close connection if exists
+			if worker.Conn != nil {
+				worker.Conn.Close()
+			}
+			delete(r.workers, workerID)
+
+			log.Debug("Removed deleted worker from registry",
+				zap.String("worker_id", workerID),
+				zap.String("worker_name", worker.Name))
+		}
+	}
+
+	log.Info("Worker registry refreshed from database",
+		zap.Int("total_workers", len(r.workers)),
+		zap.Int("database_workers", len(dbWorkers)))
 
 	return nil
 }

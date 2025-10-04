@@ -28,6 +28,12 @@ type Repository interface {
 	GetSettingsByWorkerID(ctx context.Context, workerID uuid.UUID) (*WorkerSettings, error)
 	DeleteSettings(ctx context.Context, workerID uuid.UUID) error
 
+	// Flow step operations
+	CreateFlowSteps(ctx context.Context, steps []FlowStep) error
+	UpdateFlowSteps(ctx context.Context, workerID uuid.UUID, steps []FlowStep) error
+	DeleteFlowStepsByWorkerID(ctx context.Context, workerID uuid.UUID) error
+	GetFlowStepsByWorkerID(ctx context.Context, workerID uuid.UUID) ([]FlowStep, error)
+
 	// Utility operations
 	Exists(ctx context.Context, id uuid.UUID) (bool, error)
 	ExistsByName(ctx context.Context, name string) (bool, error)
@@ -350,4 +356,80 @@ func applyFilter(query *gorm.DB, filter Filter) *gorm.DB {
 		// Default to equals
 		return query.Where(filter.Field+" = ?", filter.Value)
 	}
+}
+
+// CreateFlowSteps creates multiple flow steps for a worker
+func (r *repositoryImpl) CreateFlowSteps(ctx context.Context, steps []FlowStep) error {
+	lgr := logger.FromContext(ctx)
+
+	if len(steps) == 0 {
+		return nil
+	}
+
+	lgr.Debug("Creating flow steps", zap.Int("count", len(steps)))
+
+	// Use a transaction to ensure all steps are created or none
+	return r.db.WithContext(ctx).Transaction(ctx, func(tx *database.DB) error {
+		for _, step := range steps {
+			if err := tx.Create(&step).Error; err != nil {
+				lgr.Error("Failed to create flow step", zap.Error(err), zap.String("step_name", step.Name))
+				return fmt.Errorf("failed to create flow step %s: %w", step.Name, err)
+			}
+		}
+		return nil
+	})
+}
+
+// UpdateFlowSteps replaces all flow steps for a worker
+func (r *repositoryImpl) UpdateFlowSteps(ctx context.Context, workerID uuid.UUID, steps []FlowStep) error {
+	lgr := logger.FromContext(ctx)
+	lgr.Debug("Updating flow steps", zap.String("worker_id", workerID.String()), zap.Int("count", len(steps)))
+
+	return r.db.WithContext(ctx).Transaction(ctx, func(tx *database.DB) error {
+		// Delete existing flow steps
+		if err := tx.Where("worker_id = ?", workerID).Delete(&FlowStep{}).Error; err != nil {
+			lgr.Error("Failed to delete existing flow steps", zap.Error(err))
+			return fmt.Errorf("failed to delete existing flow steps: %w", err)
+		}
+
+		// Create new flow steps
+		for _, step := range steps {
+			if err := tx.Create(&step).Error; err != nil {
+				lgr.Error("Failed to create flow step", zap.Error(err), zap.String("step_name", step.Name))
+				return fmt.Errorf("failed to create flow step %s: %w", step.Name, err)
+			}
+		}
+		return nil
+	})
+}
+
+// DeleteFlowStepsByWorkerID deletes all flow steps for a worker
+func (r *repositoryImpl) DeleteFlowStepsByWorkerID(ctx context.Context, workerID uuid.UUID) error {
+	lgr := logger.FromContext(ctx)
+	lgr.Debug("Deleting flow steps by worker ID", zap.String("worker_id", workerID.String()))
+
+	err := r.db.WithContext(ctx).Where("worker_id = ?", workerID).Delete(&FlowStep{}).Error
+	if err != nil {
+		lgr.Error("Failed to delete flow steps", zap.Error(err))
+		return fmt.Errorf("failed to delete flow steps for worker %s: %w", workerID.String(), err)
+	}
+
+	lgr.Debug("Deleted flow steps successfully")
+	return nil
+}
+
+// GetFlowStepsByWorkerID gets all flow steps for a worker
+func (r *repositoryImpl) GetFlowStepsByWorkerID(ctx context.Context, workerID uuid.UUID) ([]FlowStep, error) {
+	lgr := logger.FromContext(ctx)
+	lgr.Debug("Getting flow steps by worker ID", zap.String("worker_id", workerID.String()))
+
+	var flowSteps []FlowStep
+	err := r.db.WithContext(ctx).Where("worker_id = ?", workerID).Order("`order` ASC").Find(&flowSteps).Error
+	if err != nil {
+		lgr.Error("Failed to get flow steps", zap.Error(err))
+		return nil, fmt.Errorf("failed to get flow steps for worker %s: %w", workerID.String(), err)
+	}
+
+	lgr.Debug("Retrieved flow steps successfully", zap.Int("count", len(flowSteps)))
+	return flowSteps, nil
 }

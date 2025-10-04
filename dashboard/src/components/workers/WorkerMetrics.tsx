@@ -26,7 +26,6 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
   metricsLoading,
   flowData,
 }) => {
-
   if (metricsLoading) {
     return <CircularProgress />;
   }
@@ -89,19 +88,16 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
                     <Typography variant="subtitle2" gutterBottom>
                       Uptime
                     </Typography>
-                    <Chip 
-                      label={metrics.uptime || "N/A"} 
-                      color="success" 
-                    />
+                    <Chip label={metrics.uptime || "N/A"} color="success" />
                   </Box>
-                  
+
                   <Box>
                     <Typography variant="subtitle2" gutterBottom>
                       Average Execution Time
                     </Typography>
-                    <Chip 
-                      label={metrics.avg_execution_time || "N/A"} 
-                      color="info" 
+                    <Chip
+                      label={metrics.avg_execution_time || "N/A"}
+                      color="info"
                     />
                   </Box>
                 </Stack>
@@ -114,7 +110,9 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
                       Last Activity
                     </Typography>
                     <Typography variant="body2">
-                      {metrics.last_activity ? new Date(metrics.last_activity).toLocaleString() : "N/A"}
+                      {metrics.last_activity && metrics.last_activity !== "" && !isNaN(new Date(metrics.last_activity).getTime())
+                        ? new Date(metrics.last_activity).toLocaleString()
+                        : "N/A"}
                     </Typography>
                   </Box>
 
@@ -136,9 +134,7 @@ export const WorkerMetrics: React.FC<WorkerMetricsProps> = ({
       )}
 
       {!metrics && !metricsLoading && (
-        <Alert severity="info">
-          No metrics data available
-        </Alert>
+        <Alert severity="info">No metrics data available</Alert>
       )}
     </Stack>
   );

@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Drawer,
   Box,
@@ -15,26 +15,26 @@ import {
   ListItemText,
   ListItemIcon,
   Paper,
-} from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import PauseIcon from '@mui/icons-material/Pause';
-import ScheduleIcon from '@mui/icons-material/Schedule';
-import SettingsIcon from '@mui/icons-material/Settings';
-import CodeIcon from '@mui/icons-material/Code';
-import LinkIcon from '@mui/icons-material/Link';
-import InfoIcon from '@mui/icons-material/Info';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import AccountTreeIcon from '@mui/icons-material/AccountTree';
-import FlashOnIcon from '@mui/icons-material/FlashOn';
-import CheckBoxIcon from '@mui/icons-material/CheckBox';
-import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
-import Grid from '@mui/material/Grid';
-import LinearProgress from '@mui/material/LinearProgress';
-import Alert from '@mui/material/Alert';
-import type { FlowStepInfo } from '../../types/api';
+} from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import PauseIcon from "@mui/icons-material/Pause";
+import ScheduleIcon from "@mui/icons-material/Schedule";
+import SettingsIcon from "@mui/icons-material/Settings";
+import CodeIcon from "@mui/icons-material/Code";
+import LinkIcon from "@mui/icons-material/Link";
+import InfoIcon from "@mui/icons-material/Info";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import AccountTreeIcon from "@mui/icons-material/AccountTree";
+import FlashOnIcon from "@mui/icons-material/FlashOn";
+import CheckBoxIcon from "@mui/icons-material/CheckBox";
+import CheckBoxOutlineBlankIcon from "@mui/icons-material/CheckBoxOutlineBlank";
+import Grid from "@mui/material/Grid";
+import LinearProgress from "@mui/material/LinearProgress";
+import Alert from "@mui/material/Alert";
+import type { FlowStepInfo } from "../../types/api";
 
 interface FlowStepDetailsDrawerProps {
   open: boolean;
@@ -45,28 +45,28 @@ interface FlowStepDetailsDrawerProps {
 // Helper functions
 const getDependencyPolicyDescription = (policy?: string): string => {
   switch (policy) {
-    case 'fail_fast':
-      return 'Stops all parallel steps immediately if any dependency fails (default behavior).';
-    case 'all_success':
-      return 'Waits for all parallel steps to complete. Proceeds only if all dependencies succeed.';
-    case 'all_complete':
-      return 'Waits for all dependencies to complete, then proceeds regardless of success/failure.';
-    case 'any_success':
-      return 'Waits for all parallel dependencies to complete. Proceeds if at least one succeeds.';
+    case "fail_fast":
+      return "Stops all parallel steps immediately if any dependency fails (default behavior).";
+    case "all_success":
+      return "Waits for all parallel steps to complete. Proceeds only if all dependencies succeed.";
+    case "all_complete":
+      return "Waits for all dependencies to complete, then proceeds regardless of success/failure.";
+    case "any_success":
+      return "Waits for all parallel dependencies to complete. Proceeds if at least one succeeds.";
     default:
-      return 'Uses fail_fast behavior - stops immediately on dependency failure.';
+      return "Uses fail_fast behavior - stops immediately on dependency failure.";
   }
 };
 
 const getDependencyPolicyIcon = (policy?: string) => {
   switch (policy) {
-    case 'fail_fast':
+    case "fail_fast":
       return <FlashOnIcon />;
-    case 'all_success':
+    case "all_success":
       return <CheckCircleIcon />;
-    case 'all_complete':
+    case "all_complete":
       return <CheckBoxOutlineBlankIcon />;
-    case 'any_success':
+    case "any_success":
       return <CheckBoxIcon />;
     default:
       return <FlashOnIcon />;
@@ -75,16 +75,16 @@ const getDependencyPolicyIcon = (policy?: string) => {
 
 const getDependencyPolicyColor = (policy?: string) => {
   switch (policy) {
-    case 'fail_fast':
-      return 'error';
-    case 'all_success':
-      return 'success';
-    case 'all_complete':
-      return 'info';
-    case 'any_success':
-      return 'warning';
+    case "fail_fast":
+      return "error";
+    case "all_success":
+      return "success";
+    case "all_complete":
+      return "info";
+    case "any_success":
+      return "warning";
     default:
-      return 'error';
+      return "error";
   }
 };
 
@@ -93,7 +93,6 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
   step,
   onClose,
 }) => {
-
   if (!step) return null;
 
   const getStepIcon = (step: FlowStepInfo) => {
@@ -101,10 +100,10 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
       return (
         <Box
           sx={{
-            animation: 'blink 1s infinite',
-            '@keyframes blink': {
-              '0%, 50%': { opacity: 1 },
-              '51%, 100%': { opacity: 0.3 },
+            animation: "blink 1s infinite",
+            "@keyframes blink": {
+              "0%, 50%": { opacity: 1 },
+              "51%, 100%": { opacity: 0.3 },
             },
           }}
         >
@@ -112,7 +111,7 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
         </Box>
       );
     }
-    
+
     if (step.last_execution && !step.last_error) {
       return <CheckCircleIcon color="success" />;
     }
@@ -126,7 +125,7 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
     if (step.active) {
       return { label: "Active", color: "primary" as const };
     }
-    
+
     if (step.last_execution && !step.last_error) {
       return { label: "Success", color: "success" as const };
     }
@@ -141,7 +140,9 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
 
   const calculateSuccessRate = (step: FlowStepInfo) => {
     if ((step.execution_count ?? 0) === 0) return 0;
-    return Math.round(((step.success_count ?? 0) / (step.execution_count ?? 1)) * 100);
+    return Math.round(
+      ((step.success_count ?? 0) / (step.execution_count ?? 1)) * 100
+    );
   };
 
   const status = getStepStatus(step);
@@ -154,14 +155,21 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
       onClose={onClose}
       PaperProps={{
         sx: {
-          width: { xs: '100%', sm: 480, md: 560 },
-          maxWidth: '100vw',
+          width: { xs: "100%", sm: 480, md: 560 },
+          maxWidth: "100vw",
         },
       }}
     >
-      <Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>
+      <Box sx={{ p: 3, height: "100%", overflow: "auto" }}>
         {/* Header */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 3,
+          }}
+        >
           <Stack direction="row" alignItems="center" spacing={2}>
             {getStepIcon(step)}
             <Box>
@@ -184,21 +192,21 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Stack spacing={2}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between">
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+              >
                 <Typography variant="h6" gutterBottom>
                   Status & Overview
                 </Typography>
                 <Stack direction="row" spacing={1}>
-                  <Chip 
-                    label={status.label} 
+                  <Chip
+                    label={status.label}
                     color={status.color}
                     size="medium"
                   />
-                  <Chip 
-                    label={step.type} 
-                    variant="outlined" 
-                    size="medium"
-                  />
+                  <Chip label={step.type} variant="outlined" size="medium" />
                 </Stack>
               </Stack>
 
@@ -207,7 +215,7 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
                   <Typography variant="body2" component="span">
                     Enabled:
                   </Typography>
-                  <Chip 
+                  <Chip
                     label={step.enabled ? "Yes" : "No"}
                     color={step.enabled ? "success" : "default"}
                     size="small"
@@ -228,7 +236,16 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
                   <Typography variant="body2" color="textSecondary">
                     Success Rate
                   </Typography>
-                  <Typography variant="h6" color={successRate >= 80 ? "success.main" : successRate >= 50 ? "warning.main" : "error.main"}>
+                  <Typography
+                    variant="h6"
+                    color={
+                      successRate >= 80
+                        ? "success.main"
+                        : successRate >= 50
+                          ? "warning.main"
+                          : "error.main"
+                    }
+                  >
                     {successRate}%
                   </Typography>
                 </Box>
@@ -249,21 +266,31 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
         {step.depends_on && step.depends_on.length > 0 && (
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={1}
+                sx={{ mb: 2 }}
+              >
                 <LinkIcon color="primary" />
-                <Typography variant="h6">
-                  Dependencies
-                </Typography>
+                <Typography variant="h6">Dependencies</Typography>
               </Stack>
               <List dense>
                 {step.depends_on.map((dependency, index) => (
                   <ListItem key={index} sx={{ py: 0.5 }}>
                     <ListItemIcon sx={{ minWidth: 32 }}>
-                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main' }} />
+                      <Box
+                        sx={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          bgcolor: "primary.main",
+                        }}
+                      />
                     </ListItemIcon>
-                    <ListItemText 
+                    <ListItemText
                       primary={dependency}
-                      primaryTypographyProps={{ variant: 'body2' }}
+                      primaryTypographyProps={{ variant: "body2" }}
                     />
                   </ListItem>
                 ))}
@@ -275,18 +302,25 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
         {/* Dependency Policy */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={1}
+              sx={{ mb: 2 }}
+            >
               <AccountTreeIcon color="primary" />
-              <Typography variant="h6">
-                Dependency Policy
-              </Typography>
+              <Typography variant="h6">Dependency Policy</Typography>
             </Stack>
-            
+
             <Stack spacing={2}>
               <Box>
-                <Chip 
+                <Chip
                   label={step.dependency_policy || "fail_fast"}
-                  color={getDependencyPolicyColor(step.dependency_policy) as ChipProps['color']}
+                  color={
+                    getDependencyPolicyColor(
+                      step.dependency_policy
+                    ) as ChipProps["color"]
+                  }
                   icon={getDependencyPolicyIcon(step.dependency_policy)}
                   sx={{ mb: 1 }}
                 />
@@ -294,15 +328,15 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
                   {getDependencyPolicyDescription(step.dependency_policy)}
                 </Typography>
               </Box>
-              
+
               {step.depends_on && step.depends_on.length > 0 && (
                 <Box>
                   <Typography variant="subtitle2" gutterBottom>
                     Required Dependencies
                   </Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    {step.depends_on.map(dep => (
-                      <Chip 
+                    {step.depends_on.map((dep) => (
+                      <Chip
                         key={dep}
                         label={dep}
                         size="small"
@@ -318,80 +352,107 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
         </Card>
 
         {/* Retry Configuration */}
-        {step.retry && step.retry.max_attempts && step.retry.max_attempts > 1 && (
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-                <RefreshIcon color="primary" />
-                <Typography variant="h6">
-                  Retry Configuration
-                </Typography>
-              </Stack>
-              
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" gutterBottom>Max Attempts</Typography>
-                  <Typography variant="h6">{step.retry.max_attempts}</Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" gutterBottom>Delay Strategy</Typography>
-                  <Chip 
-                    label={step.retry.backoff || 'fixed'}
-                    color="info"
-                    size="small"
-                  />
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" gutterBottom>Initial Delay</Typography>
-                  <Typography>{step.retry.delay || 0}s</Typography>
-                </Grid>
-                {step.retry.max_delay && (
+        {step.retry &&
+          step.retry.max_attempts &&
+          step.retry.max_attempts > 1 && (
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={1}
+                  sx={{ mb: 2 }}
+                >
+                  <RefreshIcon color="primary" />
+                  <Typography variant="h6">Retry Configuration</Typography>
+                </Stack>
+
+                <Grid container spacing={2}>
                   <Grid item xs={6}>
-                    <Typography variant="subtitle2" gutterBottom>Max Delay</Typography>
-                    <Typography>{step.retry.max_delay}s</Typography>
-                  </Grid>
-                )}
-                
-                {/* Current retry status */}
-                {step.retry_attempt !== undefined && step.retry_attempt > 0 && (
-                  <Grid item xs={12}>
                     <Typography variant="subtitle2" gutterBottom>
-                      Retry Progress
+                      Max Attempts
                     </Typography>
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={(step.retry_attempt / step.retry.max_attempts) * 100}
-                      color={step.retry_attempt >= step.retry.max_attempts ? "error" : "warning"}
-                      sx={{ mb: 1 }}
+                    <Typography variant="h6">
+                      {step.retry.max_attempts}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Delay Strategy
+                    </Typography>
+                    <Chip
+                      label={step.retry.backoff || "fixed"}
+                      color="info"
+                      size="small"
                     />
-                    <Typography variant="caption" color="textSecondary">
-                      Attempt {step.retry_attempt} of {step.retry.max_attempts}
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Initial Delay
                     </Typography>
+                    <Typography>{step.retry.delay || 0}s</Typography>
                   </Grid>
-                )}
-                
-                {step.next_retry_time && (
-                  <Grid item xs={12}>
-                    <Alert severity="info" variant="outlined">
-                      Next retry scheduled at: {new Date(step.next_retry_time).toLocaleString()}
-                    </Alert>
-                  </Grid>
-                )}
-              </Grid>
-            </CardContent>
-          </Card>
-        )}
+                  {step.retry.max_delay && (
+                    <Grid item xs={6}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Max Delay
+                      </Typography>
+                      <Typography>{step.retry.max_delay}s</Typography>
+                    </Grid>
+                  )}
+
+                  {/* Current retry status */}
+                  {step.retry_attempt !== undefined &&
+                    step.retry_attempt > 0 && (
+                      <Grid item xs={12}>
+                        <Typography variant="subtitle2" gutterBottom>
+                          Retry Progress
+                        </Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={
+                            (step.retry_attempt / step.retry.max_attempts) * 100
+                          }
+                          color={
+                            step.retry_attempt >= step.retry.max_attempts
+                              ? "error"
+                              : "warning"
+                          }
+                          sx={{ mb: 1 }}
+                        />
+                        <Typography variant="caption" color="textSecondary">
+                          Attempt {step.retry_attempt} of{" "}
+                          {step.retry.max_attempts}
+                        </Typography>
+                      </Grid>
+                    )}
+
+                  {step.next_retry_time && (
+                    <Grid item xs={12}>
+                      <Alert severity="info" variant="outlined">
+                        Next retry scheduled at:{" "}
+                        {new Date(step.next_retry_time).toLocaleString()}
+                      </Alert>
+                    </Grid>
+                  )}
+                </Grid>
+              </CardContent>
+            </Card>
+          )}
 
         {/* Configuration */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={1}
+              sx={{ mb: 2 }}
+            >
               <SettingsIcon color="primary" />
-              <Typography variant="h6">
-                Configuration
-              </Typography>
+              <Typography variant="h6">Configuration</Typography>
             </Stack>
-            
+
             {step.args && step.args.length > 0 && (
               <Box sx={{ mb: 2 }}>
                 <Typography variant="subtitle2" gutterBottom>
@@ -399,7 +460,7 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
                 </Typography>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   {step.args.map((arg, index) => (
-                    <Chip 
+                    <Chip
                       key={index}
                       label={arg}
                       variant="outlined"
@@ -415,14 +476,22 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
                 <Typography variant="subtitle2" gutterBottom>
                   Environment Variables
                 </Typography>
-                <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'grey.50' }}>
+                <Paper variant="outlined" sx={{ p: 1.5, bgcolor: "grey.50" }}>
                   {Object.entries(step.env).map(([key, value]) => (
-                    <Typography key={key} variant="body2" fontFamily="monospace" component="div">
-                      <Box component="span" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                    <Typography
+                      key={key}
+                      variant="body2"
+                      fontFamily="monospace"
+                      component="div"
+                    >
+                      <Box
+                        component="span"
+                        sx={{ fontWeight: "bold", color: "primary.main" }}
+                      >
                         {key}
                       </Box>
                       =
-                      <Box component="span" sx={{ color: 'text.secondary' }}>
+                      <Box component="span" sx={{ color: "text.secondary" }}>
                         {value}
                       </Box>
                     </Typography>
@@ -436,7 +505,7 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
                 <Typography variant="subtitle2" gutterBottom>
                   Skip Condition
                 </Typography>
-                <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'grey.50' }}>
+                <Paper variant="outlined" sx={{ p: 1.5, bgcolor: "grey.50" }}>
                   <Typography variant="body2" fontFamily="monospace">
                     {step.skip_when}
                   </Typography>
@@ -450,20 +519,27 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
         {(step.input || step.output) && (
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={1}
+                sx={{ mb: 2 }}
+              >
                 <CodeIcon color="primary" />
-                <Typography variant="h6">
-                  Templates
-                </Typography>
+                <Typography variant="h6">Templates</Typography>
               </Stack>
-              
+
               {step.input && (
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" gutterBottom>
                     Input Template
                   </Typography>
-                  <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'grey.50' }}>
-                    <Typography variant="body2" fontFamily="monospace" sx={{ whiteSpace: 'pre-wrap' }}>
+                  <Paper variant="outlined" sx={{ p: 1.5, bgcolor: "grey.50" }}>
+                    <Typography
+                      variant="body2"
+                      fontFamily="monospace"
+                      sx={{ whiteSpace: "pre-wrap" }}
+                    >
                       {step.input}
                     </Typography>
                   </Paper>
@@ -475,8 +551,12 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
                   <Typography variant="subtitle2" gutterBottom>
                     Output Template
                   </Typography>
-                  <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'grey.50' }}>
-                    <Typography variant="body2" fontFamily="monospace" sx={{ whiteSpace: 'pre-wrap' }}>
+                  <Paper variant="outlined" sx={{ p: 1.5, bgcolor: "grey.50" }}>
+                    <Typography
+                      variant="body2"
+                      fontFamily="monospace"
+                      sx={{ whiteSpace: "pre-wrap" }}
+                    >
                       {step.output}
                     </Typography>
                   </Paper>
@@ -489,13 +569,16 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
         {/* Execution History */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={1}
+              sx={{ mb: 2 }}
+            >
               <ScheduleIcon color="primary" />
-              <Typography variant="h6">
-                Execution History
-              </Typography>
+              <Typography variant="h6">Execution History</Typography>
             </Stack>
-            
+
             {step.last_execution && (
               <Box sx={{ mb: 2 }}>
                 <Typography variant="subtitle2" gutterBottom>
@@ -512,8 +595,15 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
                 <Typography variant="subtitle2" gutterBottom>
                   Last Output
                 </Typography>
-                <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'success.50' }}>
-                  <Typography variant="body2" fontFamily="monospace" sx={{ whiteSpace: 'pre-wrap' }}>
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 1.5, bgcolor: "success.50" }}
+                >
+                  <Typography
+                    variant="body2"
+                    fontFamily="monospace"
+                    sx={{ whiteSpace: "pre-wrap" }}
+                  >
                     {step.last_output}
                   </Typography>
                 </Paper>
@@ -525,7 +615,7 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
                 <Typography variant="subtitle2" gutterBottom>
                   Last Error
                 </Typography>
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
                   {step.last_error}
                 </Typography>
               </Alert>
@@ -536,24 +626,28 @@ export const FlowStepDetailsDrawer: React.FC<FlowStepDetailsDrawerProps> = ({
         {/* Additional Info */}
         <Card>
           <CardContent>
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={1}
+              sx={{ mb: 2 }}
+            >
               <InfoIcon color="primary" />
-              <Typography variant="h6">
-                Additional Information
-              </Typography>
+              <Typography variant="h6">Additional Information</Typography>
             </Stack>
-            
+
             <Stack spacing={1}>
               <Typography variant="body2" color="textSecondary">
-                This step is part of the worker's flow configuration and executes based on its dependencies and conditions.
+                This step is part of the worker's flow configuration and
+                executes based on its dependencies and conditions.
               </Typography>
-              
+
               {step.active && (
                 <Alert severity="info" variant="outlined">
                   This step is currently active and executing.
                 </Alert>
               )}
-              
+
               {!step.enabled && (
                 <Alert severity="warning" variant="outlined">
                   This step is disabled and will not execute.
